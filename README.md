@@ -7,7 +7,8 @@ Meet `az`, a fast, small & sane text editor. It opens fast. Type immediately. St
 Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHANGELOG.md`](CHANGELOG.md) (release notes) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
 
 ---
-# Install or upgrade (automatic single-command installer, builds on your machine):
+# Install or upgrade
+(automatic single-command installer, builds on your machine)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/arazgray/az/refs/heads/main/install.sh | sh
