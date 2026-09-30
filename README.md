@@ -1,8 +1,6 @@
 # az editor
 
-`az` is a fast, small & sane text editor.
-
-> Open fast. Type immediately. Stay keyboard-first. Zero dependencies.
+Meet `az`, a fast, small & sane text editor. It opens fast. Type immediately. Stay keyboard-first. Zero dependencies.
 
 ![az](screenshot.png)
 
