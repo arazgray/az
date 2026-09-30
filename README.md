@@ -1,4 +1,4 @@
-# az text editor 2.1
+# az text editor 2.2
 
 `az` is a small, sane terminal text editor for code and text.
 
@@ -6,7 +6,7 @@
 
 ![az](az-editor.jpg)
 
-Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
+Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHANGELOG.md`](CHANGELOG.md) (release notes) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
 
 ---
 # Install (Automatic single-command installer, builds on your machine):
@@ -31,8 +31,8 @@ az newfile.txt      # new file tab
 ```text
 Ctrl+S  save              Ctrl+O  quick open (file, symbol, file:line, :line)
 Ctrl+P  command palette   Ctrl+F  find (%term = case-sensitive)   Ctrl+L  find next
-Ctrl+Shift+F/O find in files (%term = case-sensitive)   Ctrl+R  replace   Ctrl+G  go to line
-Ctrl+E  end of line       Ctrl+Home/End or Ctrl+Up/Down  top/bottom of file
+Ctrl+Shift+O find in files (%term = case-sensitive)   Ctrl+R  replace   Ctrl+G  go to line
+Ctrl+E  end of line       Ctrl+Home/End or Alt+Up/Down  top/bottom of file
 Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)        +/-   tree width (in tree)
 Ctrl+D  close tab         Ctrl+N  new file                        Ctrl+Q  quit   Alt+1-9  switch tab
 Ctrl+Z / Ctrl+Y  undo / redo      Ctrl+C / X / V / A  copy / cut / paste / select all
@@ -81,7 +81,7 @@ No config drama, no plugins to install, no mouse required.
 - Quick open with `Ctrl+O`
 - Open files and jump to a line with `file.php:20`
 - Jump to a line in the current file with `:20`
-- Find in files with `Ctrl+Shift+F` / `Ctrl+Shift+O` (separate modal, live search across opened folder)
+- Find in files with `Ctrl+Shift+O` (separate modal, live search across opened folder)
 - Function and symbol opening from quick open
 - Command palette with `Ctrl+P`
 - Save, create files, switch language mode, and run editor actions from the command palette
@@ -89,7 +89,7 @@ No config drama, no plugins to install, no mouse required.
 - Welcome screen on startup
 - `Ctrl+/` shows the same welcome/help screen
 - Find and replace
-- Find in files modal (`Ctrl+Shift+F` / `Ctrl+Shift+O`, also via `Ctrl+P` → `Find in files`)
+- Find in files modal (`Ctrl+Shift+O`, also via `Ctrl+P` → `Find in files`)
 - Case-insensitive search by default
 - Case-sensitive search with `%term` (works in both Find and Find in files)
 - Horizontal scroll (no word wrap by design)
@@ -109,7 +109,7 @@ No config drama, no plugins to install, no mouse required.
 | Open | Files, folders, `file:line`, `:line`, non-existent → new tab |
 | Navigate | Tree, quick open (fuzzy file + symbol), find in files, go-to-line/start/end, `Alt+1-9` |
 | Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OSC52), select-all, delete-line |
-| Search | Find in file + Find in files modal (`Ctrl+Shift+F/O`), case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
+| Search | Find in file + Find in files modal (`Ctrl+Shift+O`), case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
 | Highlight | 22 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
 | Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words |
 | Safety | Atomic saves, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
@@ -117,24 +117,14 @@ No config drama, no plugins to install, no mouse required.
 
 > No word wrap by design — long lines scroll horizontally. No mouse, splits, or regex.
 
-### What is new in 2.1?
+### What is new in 2.2?
 
-- **16 new language plugins** (22 total, table below): Markdown, JSON, TOML, YAML, Bash, Dotenv, INI, Logs, Rust, Nginx, Apache, Dockerfile, systemd, SQL, TypeScript, XML — plus existing PHP/Blade/HTML/CSS/JS. Auto-detected by filename/extension, switchable via `Ctrl+P` → `set …`.
-- **Blade + CSS fix**: `#header`, `#fff`, `href="#section"`, `https://…` no longer gray as PHP `#` / `//` comments. `#id` now yellow, hex orange, URLs stay green. `user@example.com` no longer purple as Blade directive. 8 new regression tests (17 total).
-- **Smarter comments**: `//` / `#` ignored inside `"strings"`, `` `templates` ``, and `://` protocols.
-- **`--help` / `--version`**, `file:line`, `:line`, `newfile` CLI handling; absolute-path session keys.
-- **Faster topbar**: `date` cached per minute. Pickers safe on 30-col terminals. Tree/quick-open skip `target dist build __pycache__ .next .nuxt`.
-- **New keys**: `Ctrl+L` find-next, `+/-` tree width, `Ctrl+N` new file everywhere in help.
-- **Repo hygiene**: `.gitignore` for `target/`, `/az` binary, `*.tmp`, OS/IDE noise; binaries untracked.
+- **Find in Files modal** (`Ctrl+Shift+O`, or `Ctrl+P` → `Find in files`): separate live-search popup across the opened folder (≤3000 files, 80 results, `file:line + snippet`, `Enter` jumps to the match). Same `%Foo` rule as Find: case-insensitive by default, `%` prefix = case-sensitive.
+- **Go to Start/End**: `Home`/`End` for line ends, `Ctrl+E` for end of line, `Ctrl+Home/End` or `Alt+Up/Down` for file top/bottom (hold `Shift` to select) — all four also in the command palette.
+- **Terminal-friendly shortcuts**: `Ctrl+Shift+O` (most terminals reserve `Ctrl+Shift+F` for their own search) and `Alt+Up/Down` (Guake uses `Ctrl+Up/Down` for height).
+- **Tests**: 24 total (new: `%` query parsing, case-sensitive project matching, navigation key bindings).
 
-### What is new in 2.0?
-
-- Completely rewritten in Rust
-- Faster startup and rendering
-- Better handling for huge files
-- Modular language support through Rust plugins
-- Mixed syntax highlighting for files that contain PHP, HTML, CSS, Blade, and JavaScript together
-- File colors in the project tree based on extension
+Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 

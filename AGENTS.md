@@ -1,4 +1,4 @@
-# AGENTS.md — AI Agent Guide for `az` 2.1
+# AGENTS.md — AI Agent Guide for `az` 2.2
 
 > Read this before editing. `az` is a single-binary Rust TUI editor (~3000 lines, zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
@@ -98,7 +98,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 9 tests: cli_path, absolute, quick_open parse, html auto-close, find, escape
+cargo test    # 24 tests: cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -112,7 +112,12 @@ Manual smoke (no PTY in CI):
 cargo build --release
 ```
 
-## 7. Bugs Fixed (2.0.1 + 2.1) — Don't Regress
+## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2) — Don't Regress
+
+2.2 (search + navigation):
+- Find in Files is `Ctrl+Shift+O` only (`is_ctrl_shift_o`); never re-add `Ctrl+Shift+F` — terminals reserve it for their own search bar.
+- File top/bottom secondary is `Alt+Up/Down` (`is_alt_up/down`, CSI `1;3` + legacy `Esc+Arrow`); never re-add `Ctrl+Up/Down` — Guake uses it for height.
+- `%` case-sensitivity shared via `parse_search_query()` between in-file find and project search. Tests: `search_query_percent_is_case_sensitive`, `project_line_matches_respects_case`, `ctrl_navigation_bindings`, `ctrl_shift_find_bindings`.
 
 2.0.1:
 - `last_unclosed_tag()` stripped just-typed `>`; before fix HTML auto-close never fired. Test `html_auto_close_recovers_tag_after_gt`.

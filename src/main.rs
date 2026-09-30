@@ -235,7 +235,7 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("az 2.1.0");
+        println!("az 2.2.0");
         return;
     }
     let mut editor = Editor::new(args);
@@ -246,7 +246,7 @@ fn main() {
 }
 
 fn print_help() {
-    println!("az 2.1.0 - a small, sane terminal text editor");
+    println!("az 2.2.0 - a small, sane terminal text editor");
     println!();
     println!("USAGE:");
     println!("  az [OPTIONS] [PATH]");
@@ -260,8 +260,8 @@ fn print_help() {
     println!();
     println!("KEYS:");
     println!("  Ctrl+S save, Ctrl+O quick open, Ctrl+P commands, Ctrl+F find, Ctrl+L find next,");
-    println!("  Ctrl+Shift+F/O find in files (%Foo = case-sensitive), Ctrl+R replace, Ctrl+G go to line,");
-    println!("  Ctrl+E end of line, Ctrl+Home/End or Ctrl+Up/Down top/bottom of file,");
+    println!("  Ctrl+Shift+O find in files (%Foo = case-sensitive), Ctrl+R replace, Ctrl+G go to line,");
+    println!("  Ctrl+E end of line, Ctrl+Home/End or Alt+Up/Down top/bottom of file,");
     println!("  Ctrl+T tree focus, Ctrl+H tree hide (tree), Ctrl+D close tab, Ctrl+N new file,");
     println!("  Ctrl+Q quit, Ctrl+/ help, Alt+1-9 tabs");
 }
@@ -606,7 +606,7 @@ impl Editor {
             "\x17" => { self.delete_current_line(); true }
             _ => {
                 if is_ctrl_slash(key) { self.show_shortcuts_help(); return true; }
-                if is_ctrl_shift_f(key) || is_ctrl_shift_o(key) { self.project_search_prompt(); return true; }
+                if is_ctrl_shift_o(key) { self.project_search_prompt(); return true; }
                 if is_ctrl_shift_z(key) { self.redo(); return true; }
                 if is_ctrl_backspace(key) { self.delete_current_line(); return true; }
                 if let Some(n) = tab_number(key) { self.switch_to_tab_number(n); return true; }
@@ -670,10 +670,10 @@ impl Editor {
         if is_ctrl_right(key) { self.move_word_right(false); return; }
         if is_ctrl_shift_left(key) { self.move_word_left(true); return; }
         if is_ctrl_shift_right(key) { self.move_word_right(true); return; }
-        if is_ctrl_home(key) || is_ctrl_up(key) { self.go_to_file_top(false); return; }
-        if is_ctrl_end(key) || is_ctrl_down(key) { self.go_to_file_bottom(false); return; }
-        if is_ctrl_shift_home(key) || is_ctrl_shift_up(key) { self.go_to_file_top(true); return; }
-        if is_ctrl_shift_end(key) || is_ctrl_shift_down(key) { self.go_to_file_bottom(true); return; }
+        if is_ctrl_home(key) || is_alt_up(key) { self.go_to_file_top(false); return; }
+        if is_ctrl_end(key) || is_alt_down(key) { self.go_to_file_bottom(false); return; }
+        if is_ctrl_shift_home(key) || is_alt_shift_up(key) { self.go_to_file_top(true); return; }
+        if is_ctrl_shift_end(key) || is_alt_shift_down(key) { self.go_to_file_bottom(true); return; }
         if is_ctrl_shift_e(key) { self.end(true); return; }
 
         match key {
@@ -1013,7 +1013,7 @@ impl Editor {
             "    Ctrl+P  Command palette        Ctrl+G  Go to line".to_string(),
             "    Ctrl+N  New file               Ctrl+T  Show/focus tree".to_string(),
             "    Ctrl+F  Find                   Ctrl+L  Find next".to_string(),
-            "    Ctrl+Shift+F/O Find in files   %term   Case-sensitive find".to_string(),
+            "    Ctrl+Shift+O  Find in files    %term   Case-sensitive find".to_string(),
             "    Ctrl+R  Replace                Alt+1-9 Switch tab".to_string(),
             "    Tab     Complete               Ctrl+D  Close tab".to_string(),
             "    Ctrl+C  Copy                   Ctrl+Q  Quit".to_string(),
@@ -1021,7 +1021,7 @@ impl Editor {
             "    Ctrl+V  Paste                  Ctrl+W  Remove line".to_string(),
             "    Ctrl+H  Hide/show tree (tree)  +/-   Tree width (tree)".to_string(),
             "    Ctrl+E  End of line            Home/End  Line start/end".to_string(),
-            "    Ctrl+Home/End File top/end     Ctrl+Up/Down same".to_string(),
+            "    Ctrl+Home/End File top/end     Alt+Up/Down same".to_string(),
             "    Ctrl+/  Help                   az file:20 open at line".to_string(),
             "    Ctrl+P  set php/blade/html/css/js/ts/md/json".to_string(),
             "    Ctrl+P  set toml/yaml/sh/env/ini/log/rust/sql".to_string(),
@@ -2068,9 +2068,9 @@ impl Editor {
             ("Go to line", "Ctrl+G", "go-line"),
             ("Go to Start of Line", "Home", "go-line-start"),
             ("Go to End of Line", "End / Ctrl+E", "go-line-end"),
-            ("Go to Start of File", "Ctrl+Home / Ctrl+Up", "go-file-top"),
-            ("Go to End of File", "Ctrl+End / Ctrl+Down", "go-file-bottom"),
-            ("Find in files", "search project files (Ctrl+Shift+F/O, %term = case-sensitive)", "project-search"),
+            ("Go to Start of File", "Ctrl+Home / Alt+Up", "go-file-top"),
+            ("Go to End of File", "Ctrl+End / Alt+Down", "go-file-bottom"),
+            ("Find in files", "search project files (Ctrl+Shift+O, %term = case-sensitive)", "project-search"),
             ("Set syntax PHP", "force current tab to PHP", "set-syntax-php"),
             ("Set syntax Blade", "force current tab to Blade", "set-syntax-blade"),
             ("Set syntax HTML", "force current tab to HTML", "set-syntax-html"),
@@ -2891,7 +2891,6 @@ fn is_printable(key: &str) -> bool {
 }
 
 fn is_ctrl_slash(k: &str) -> bool { k == "\x1f" || k == "\x1b[47;5u" || k == "\x1b[63;5u" }
-fn is_ctrl_shift_f(k: &str) -> bool { k == "\x1b[70;6u" || k == "\x1b[102;6u" }
 fn is_ctrl_shift_o(k: &str) -> bool { k == "\x1b[79;6u" || k == "\x1b[111;6u" }
 /// Shared `%` convention: `%Foo` = case-sensitive, otherwise case-insensitive.
 /// Used by both in-file find and Find in Files so behaviour stays in sync.
@@ -2922,10 +2921,10 @@ fn is_ctrl_home(k: &str) -> bool { matches!(k, "\x1b[1;5H" | "\x1b[7;5~" | "\x1b
 fn is_ctrl_end(k: &str) -> bool { matches!(k, "\x1b[1;5F" | "\x1b[8;5~" | "\x1bO5F") }
 fn is_ctrl_shift_home(k: &str) -> bool { k == "\x1b[1;6H" || k == "\x1b[7;6~" }
 fn is_ctrl_shift_end(k: &str) -> bool { k == "\x1b[1;6F" || k == "\x1b[8;6~" }
-fn is_ctrl_up(k: &str) -> bool { k == "\x1b[1;5A" || k == "\x1bO5A" }
-fn is_ctrl_down(k: &str) -> bool { k == "\x1b[1;5B" || k == "\x1bO5B" }
-fn is_ctrl_shift_up(k: &str) -> bool { k == "\x1b[1;6A" }
-fn is_ctrl_shift_down(k: &str) -> bool { k == "\x1b[1;6B" }
+fn is_alt_up(k: &str) -> bool { matches!(k, "\x1b[1;3A" | "\x1b\x1b[A") }
+fn is_alt_down(k: &str) -> bool { matches!(k, "\x1b[1;3B" | "\x1b\x1b[B") }
+fn is_alt_shift_up(k: &str) -> bool { matches!(k, "\x1b[1;4A" | "\x1b\x1b[1;2A") }
+fn is_alt_shift_down(k: &str) -> bool { matches!(k, "\x1b[1;4B" | "\x1b\x1b[1;2B") }
 fn is_ctrl_shift_e(k: &str) -> bool { k == "\x1b[69;6u" || k == "\x1b[101;6u" }
 fn tab_number(k: &str) -> Option<usize> {
     if k.len() == 2 && k.as_bytes()[0] == 0x1b && (b'1'..=b'9').contains(&k.as_bytes()[1]) { return Some((k.as_bytes()[1] - b'0') as usize); }
@@ -3283,13 +3282,18 @@ mod tests {
         assert!(is_ctrl_end("\x1b[1;5F"));
         assert!(is_ctrl_end("\x1b[8;5~"));
         assert!(!is_ctrl_end("\x1b[F"));
-        assert!(is_ctrl_up("\x1b[1;5A"));
-        assert!(is_ctrl_down("\x1b[1;5B"));
-        assert!(!is_ctrl_up("\x1b[A"));
+        assert!(is_alt_up("\x1b[1;3A"));
+        assert!(is_alt_up("\x1b\x1b[A"));
+        assert!(!is_alt_up("\x1b[A"));
+        assert!(is_alt_down("\x1b[1;3B"));
+        assert!(is_alt_down("\x1b\x1b[B"));
+        assert!(!is_alt_down("\x1b[B"));
+        assert!(is_alt_shift_up("\x1b[1;4A"));
+        assert!(is_alt_shift_up("\x1b\x1b[1;2A"));
+        assert!(is_alt_shift_down("\x1b[1;4B"));
+        assert!(is_alt_shift_down("\x1b\x1b[1;2B"));
         assert!(is_ctrl_shift_home("\x1b[1;6H"));
         assert!(is_ctrl_shift_end("\x1b[1;6F"));
-        assert!(is_ctrl_shift_up("\x1b[1;6A"));
-        assert!(is_ctrl_shift_down("\x1b[1;6B"));
         assert!(is_ctrl_shift_e("\x1b[69;6u"));
         assert!(is_ctrl_shift_e("\x1b[101;6u"));
         assert!(!is_ctrl_shift_e("\x1b[70;6u"));
@@ -3297,9 +3301,6 @@ mod tests {
 
     #[test]
     fn ctrl_shift_find_bindings() {
-        assert!(is_ctrl_shift_f("\x1b[70;6u"));
-        assert!(is_ctrl_shift_f("\x1b[102;6u"));
-        assert!(!is_ctrl_shift_f("\x1b[79;6u"));
         assert!(is_ctrl_shift_o("\x1b[79;6u"));
         assert!(is_ctrl_shift_o("\x1b[111;6u"));
         assert!(!is_ctrl_shift_o("\x1b[70;6u"));

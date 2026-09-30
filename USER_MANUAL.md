@@ -1,4 +1,4 @@
-# az 2.1 — User Manual
+# az 2.2 — User Manual
 
 `az` is a small, sane terminal text editor. Open fast, type immediately, stay keyboard-first.
 
@@ -71,7 +71,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all (OSC52 system copy) |
 | `Ctrl+W` / `Ctrl+Backspace` | Delete current line |
 | `Ctrl+/` (`Ctrl+_` / `0x1F`) | Help / welcome |
-| `Ctrl+Shift+F` / `Ctrl+Shift+O` | Find in files (separate modal, `%term` = case-sensitive) |
+| `Ctrl+Shift+O` | Find in files (separate modal, `%term` = case-sensitive) |
 | `Alt+1`..`Alt+9` (`Esc` then `1..9`) | Switch tab (first 9 visible) |
 | `Esc` | Clear selection + show Alt hints |
 
@@ -82,8 +82,8 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | Arrows, Home/End, PgUp/PgDn | Move (Shift = select) |
 | `Ctrl+Left/Right` | Word jump (Shift = select) |
 | `Ctrl+E` | Go to end of line |
-| `Ctrl+Home` / `Ctrl+Up` | Go to start of file (Shift = select) |
-| `Ctrl+End` / `Ctrl+Down` | Go to end of file (Shift = select) |
+| `Ctrl+Home` / `Alt+Up` | Go to start of file (Shift = select) |
+| `Ctrl+End` / `Alt+Down` | Go to end of file (Shift = select) |
 | `Backspace` (`0x7F` or `0x08`) / `Del` | Delete backward / forward |
 | `Enter` | Newline with auto-indent (`{ [ ( :` adds 4 spaces) |
 | `(` `{` | Auto-close `()` `{}` |
@@ -103,7 +103,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Del` | Delete file/folder (asks, closes affected tabs) |
 | `+` / `=` / `-` / `_` | Tree width +2 / -2 (18..44) |
 
-Popups (`Ctrl+O`, `Ctrl+Shift+F/O`, `Ctrl+P`, prompts): `Up/Down` or `Ctrl+P`/`Ctrl+N` navigate, `Enter` confirm, `Esc` cancel, `Ctrl+U` clear line.
+Popups (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+P`, prompts): `Up/Down` or `Ctrl+P`/`Ctrl+N` navigate, `Enter` confirm, `Esc` cancel, `Ctrl+U` clear line.
 
 ## 5. Core Workflows
 
@@ -128,17 +128,17 @@ Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .ne
 - Find: case-insensitive default, `%Foo` = case-sensitive. `Enter` finds, selection covers match. `Ctrl+L` finds next (wraps with `(wrapped)` notice).
 - Replace: prompts `Replace:`, `Replace with:`, `Replace all? y/N`. Single replaces current match; all scans whole file (cap 20k ops, undoable as one entry).
 
-### Find in Files (palette or `Ctrl+Shift+F` / `Ctrl+Shift+O`)
+### Find in Files (palette or `Ctrl+Shift+O`)
 Separate modal from Quick Open. Type to live-search file contents across the opened folder:
 - Case-insensitive by default, `%Foo` = case-sensitive (same `%` rule as `Ctrl+F`).
 - Substring match across ≤3000 files, skips >5MB and binaries (via `read_to_string` failure). Shows `file:line + snippet` (80 results max).
 - `Enter` opens the selected match at that line, `Esc` cancels.
-- Requires a Kitty-protocol terminal for the direct shortcut (`CSI-u`); otherwise use `Ctrl+P` → `Find in files`.
+- Requires a Kitty-protocol terminal for the direct shortcut (`CSI-u`); otherwise use `Ctrl+P` → `Find in files`. (`Ctrl+Shift+O` is used because most terminals reserve `Ctrl+Shift+F` for their own search.)
 
 ### Go to Line / Start / End
 - `Ctrl+G`, `:20` in quick open, or `az file:20` for a numbered line. Clamps to EOF.
 - `Home` / `Ctrl+P` → `Go to Start of Line`, `End` or `Ctrl+E` / `Go to End of Line` for line ends.
-- `Ctrl+Home` or `Ctrl+Up` / `Go to Start of File`, `Ctrl+End` or `Ctrl+Down` / `Go to End of File` for file top/bottom. Hold `Shift` with any of these to select.
+- `Ctrl+Home` or `Alt+Up` / `Go to Start of File`, `Ctrl+End` or `Alt+Down` / `Go to End of File` for file top/bottom. Hold `Shift` with any of these to select.
 
 ### Autocomplete (`Tab`)
 Context-aware per language + document words. `Tab`/`Enter` accept, `Esc` close. Sources:
