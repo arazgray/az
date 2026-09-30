@@ -31,9 +31,10 @@ az newfile.txt      # new file tab
 ```text
 Ctrl+S  save              Ctrl+O  quick open (file, symbol, file:line, :line)
 Ctrl+P  command palette   Ctrl+F  find (%term = case-sensitive)   Ctrl+L  find next
-Ctrl+R  replace           Ctrl+G  go to line                      Ctrl+N  new file
+Ctrl+Shift+F/O find in files (%term = case-sensitive)   Ctrl+R  replace   Ctrl+G  go to line
+Ctrl+E  end of line       Ctrl+Home/End or Ctrl+Up/Down  top/bottom of file
 Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)        +/-   tree width (in tree)
-Ctrl+D  close tab         Ctrl+Q  quit                            Alt+1-9  switch tab
+Ctrl+D  close tab         Ctrl+N  new file                        Ctrl+Q  quit   Alt+1-9  switch tab
 Ctrl+Z / Ctrl+Y  undo / redo      Ctrl+C / X / V / A  copy / cut / paste / select all
 Ctrl+/  help
 ```
@@ -80,7 +81,7 @@ No config drama, no plugins to install, no mouse required.
 - Quick open with `Ctrl+O`
 - Open files and jump to a line with `file.php:20`
 - Jump to a line in the current file with `:20`
-- Project search from quick open
+- Find in files with `Ctrl+Shift+F` / `Ctrl+Shift+O` (separate modal, live search across opened folder)
 - Function and symbol opening from quick open
 - Command palette with `Ctrl+P`
 - Save, create files, switch language mode, and run editor actions from the command palette
@@ -88,8 +89,9 @@ No config drama, no plugins to install, no mouse required.
 - Welcome screen on startup
 - `Ctrl+/` shows the same welcome/help screen
 - Find and replace
+- Find in files modal (`Ctrl+Shift+F` / `Ctrl+Shift+O`, also via `Ctrl+P` → `Find in files`)
 - Case-insensitive search by default
-- Case-sensitive search with `%term`
+- Case-sensitive search with `%term` (works in both Find and Find in files)
 - Horizontal scroll (no word wrap by design)
 - UTF-8 input support
 - Tokyo Night inspired interface colors
@@ -105,9 +107,9 @@ No config drama, no plugins to install, no mouse required.
 | Area | Details |
 |------|---------|
 | Open | Files, folders, `file:line`, `:line`, non-existent → new tab |
-| Navigate | Tree, quick open (fuzzy file + symbol), project search, go-to-line, `Alt+1-9` |
+| Navigate | Tree, quick open (fuzzy file + symbol), find in files, go-to-line/start/end, `Alt+1-9` |
 | Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OSC52), select-all, delete-line |
-| Search | Case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
+| Search | Find in file + Find in files modal (`Ctrl+Shift+F/O`), case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
 | Highlight | 22 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
 | Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words |
 | Safety | Atomic saves, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |

@@ -260,8 +260,10 @@ fn print_help() {
     println!();
     println!("KEYS:");
     println!("  Ctrl+S save, Ctrl+O quick open, Ctrl+P commands, Ctrl+F find, Ctrl+L find next,");
-    println!("  Ctrl+R replace, Ctrl+G go to line, Ctrl+T tree focus, Ctrl+H tree hide (tree),");
-    println!("  Ctrl+D close tab, Ctrl+N new file, Ctrl+Q quit, Ctrl+/ help, Alt+1-9 tabs");
+    println!("  Ctrl+Shift+F/O find in files (%Foo = case-sensitive), Ctrl+R replace, Ctrl+G go to line,");
+    println!("  Ctrl+E end of line, Ctrl+Home/End or Ctrl+Up/Down top/bottom of file,");
+    println!("  Ctrl+T tree focus, Ctrl+H tree hide (tree), Ctrl+D close tab, Ctrl+N new file,");
+    println!("  Ctrl+Q quit, Ctrl+/ help, Alt+1-9 tabs");
 }
 
 impl Editor {
@@ -604,7 +606,7 @@ impl Editor {
             "\x17" => { self.delete_current_line(); true }
             _ => {
                 if is_ctrl_slash(key) { self.show_shortcuts_help(); return true; }
-                if is_ctrl_shift_f(key) { self.project_search_prompt(); return true; }
+                if is_ctrl_shift_f(key) || is_ctrl_shift_o(key) { self.project_search_prompt(); return true; }
                 if is_ctrl_shift_z(key) { self.redo(); return true; }
                 if is_ctrl_backspace(key) { self.delete_current_line(); return true; }
                 if let Some(n) = tab_number(key) { self.switch_to_tab_number(n); return true; }
@@ -668,8 +670,14 @@ impl Editor {
         if is_ctrl_right(key) { self.move_word_right(false); return; }
         if is_ctrl_shift_left(key) { self.move_word_left(true); return; }
         if is_ctrl_shift_right(key) { self.move_word_right(true); return; }
+        if is_ctrl_home(key) || is_ctrl_up(key) { self.go_to_file_top(false); return; }
+        if is_ctrl_end(key) || is_ctrl_down(key) { self.go_to_file_bottom(false); return; }
+        if is_ctrl_shift_home(key) || is_ctrl_shift_up(key) { self.go_to_file_top(true); return; }
+        if is_ctrl_shift_end(key) || is_ctrl_shift_down(key) { self.go_to_file_bottom(true); return; }
+        if is_ctrl_shift_e(key) { self.end(true); return; }
 
         match key {
+            "\x05" => self.go_to_line_end(),
             "\x1b[A" => { self.close_autocomplete(); self.move_cursor(-1, 0, false); }
             "\x1b[B" => { self.close_autocomplete(); self.move_cursor(1, 0, false); }
             "\x1b[C" => { self.close_autocomplete(); self.move_right(false); }
@@ -1005,16 +1013,18 @@ impl Editor {
             "    Ctrl+P  Command palette        Ctrl+G  Go to line".to_string(),
             "    Ctrl+N  New file               Ctrl+T  Show/focus tree".to_string(),
             "    Ctrl+F  Find                   Ctrl+L  Find next".to_string(),
+            "    Ctrl+Shift+F/O Find in files   %term   Case-sensitive find".to_string(),
             "    Ctrl+R  Replace                Alt+1-9 Switch tab".to_string(),
             "    Tab     Complete               Ctrl+D  Close tab".to_string(),
-            "    %term   Case-sensitive find    Ctrl+/  Help".to_string(),
             "    Ctrl+C  Copy                   Ctrl+Q  Quit".to_string(),
             "    Ctrl+X  Cut                    Ctrl+A  Select all".to_string(),
             "    Ctrl+V  Paste                  Ctrl+W  Remove line".to_string(),
             "    Ctrl+H  Hide/show tree (tree)  +/-   Tree width (tree)".to_string(),
+            "    Ctrl+E  End of line            Home/End  Line start/end".to_string(),
+            "    Ctrl+Home/End File top/end     Ctrl+Up/Down same".to_string(),
+            "    Ctrl+/  Help                   az file:20 open at line".to_string(),
             "    Ctrl+P  set php/blade/html/css/js/ts/md/json".to_string(),
             "    Ctrl+P  set toml/yaml/sh/env/ini/log/rust/sql".to_string(),
-            "    az file:20  open at line  az :20  go to line".to_string(),
         ]
     }
 
@@ -1606,6 +1616,34 @@ impl Editor {
         self.tab_mut().cursor.col = len;
     }
 
+    fn go_to_line_start(&mut self) {
+        self.home(false);
+        self.message = "Start of line".to_string();
+    }
+
+    fn go_to_line_end(&mut self) {
+        self.end(false);
+        self.message = "End of line".to_string();
+    }
+
+    fn go_to_file_top(&mut self, select: bool) {
+        self.prepare_selection(select);
+        self.tab_mut().cursor = Pos { line: 0, col: 0 };
+        if !select {
+            self.message = "Top of file".to_string();
+        }
+    }
+
+    fn go_to_file_bottom(&mut self, select: bool) {
+        self.prepare_selection(select);
+        let last = self.tab().lines.len().saturating_sub(1);
+        let col = self.tab().lines[last].len();
+        self.tab_mut().cursor = Pos { line: last, col };
+        if !select {
+            self.message = "End of file".to_string();
+        }
+    }
+
     fn page(&mut self, direction: isize, select: bool) {
         let delta = direction * self.content_height as isize;
         self.move_cursor(delta, 0, select);
@@ -1674,11 +1712,7 @@ impl Editor {
     }
 
     fn parse_find_query(&self, query: &str) -> (String, bool) {
-        if let Some(rest) = query.strip_prefix('%') {
-            (rest.to_string(), false)
-        } else {
-            (query.to_string(), true)
-        }
+        parse_search_query(query)
     }
 
     fn find_prompt(&mut self) {
@@ -2032,7 +2066,11 @@ impl Editor {
             ("Rename selected file or folder", "tree/current file", "rename-path"),
             ("Delete selected file or folder", "asks first", "delete-path"),
             ("Go to line", "Ctrl+G", "go-line"),
-            ("Search project", "find text in files", "project-search"),
+            ("Go to Start of Line", "Home", "go-line-start"),
+            ("Go to End of Line", "End / Ctrl+E", "go-line-end"),
+            ("Go to Start of File", "Ctrl+Home / Ctrl+Up", "go-file-top"),
+            ("Go to End of File", "Ctrl+End / Ctrl+Down", "go-file-bottom"),
+            ("Find in files", "search project files (Ctrl+Shift+F/O, %term = case-sensitive)", "project-search"),
             ("Set syntax PHP", "force current tab to PHP", "set-syntax-php"),
             ("Set syntax Blade", "force current tab to Blade", "set-syntax-blade"),
             ("Set syntax HTML", "force current tab to HTML", "set-syntax-html"),
@@ -2089,6 +2127,10 @@ impl Editor {
             "rename-path" => self.rename_tree_path_prompt(true),
             "delete-path" => self.delete_tree_path_prompt(true),
             "go-line" => self.go_to_line_prompt(),
+            "go-line-start" => self.go_to_line_start(),
+            "go-line-end" => self.go_to_line_end(),
+            "go-file-top" => self.go_to_file_top(false),
+            "go-file-bottom" => self.go_to_file_bottom(false),
             "project-search" => self.project_search_prompt(),
             "set-syntax-php" => self.set_current_syntax(Some(SyntaxMode::Php)),
             "set-syntax-blade" => self.set_current_syntax(Some(SyntaxMode::Blade)),
@@ -2182,10 +2224,13 @@ impl Editor {
             let matches = if query.is_empty() { Vec::new() } else { self.collect_project_search_results(&query, PROJECT_SEARCH_LIMIT) };
             selected = min(selected, matches.len().saturating_sub(1));
             let old = self.message.clone();
-            self.message = "Project search".to_string();
+            self.message = "Find in files".to_string();
             let _ = self.render();
             self.message = old;
-            self.render_simple_picker(" Project Search ", if query.is_empty() { "type text to search project" } else { &query }, &matches, selected, "No matches", &query);
+            // Strip `%` for highlight so `%Foo` still bolds `Foo` in results.
+            let (needle, _) = parse_search_query(&query);
+            let highlight = if needle.is_empty() { query.clone() } else { needle };
+            self.render_simple_picker(" Find in Files ", if query.is_empty() { "type text to search files (%Foo = case-sensitive)" } else { &query }, &matches, selected, "No matches", &highlight);
             let key = self.read_key_blocking().unwrap_or_default();
             match key.as_str() {
                 "\r" | "\n" => {
@@ -2216,6 +2261,10 @@ impl Editor {
     }
 
     fn collect_project_search_results(&self, query: &str, limit: usize) -> Vec<PickerItem> {
+        let (needle, ignore_case) = parse_search_query(query);
+        if needle.is_empty() {
+            return Vec::new();
+        }
         let files = self.collect_quick_open_files(3000);
         let mut results = Vec::new();
         for file in files {
@@ -2225,7 +2274,7 @@ impl Editor {
             if meta.len() > 5 * 1024 * 1024 { continue; }
             let Ok(text) = fs::read_to_string(&path) else { continue; };
             for (i, line) in text.replace("\r\n", "\n").replace('\r', "\n").lines().enumerate() {
-                if line.to_ascii_lowercase().contains(&query.to_ascii_lowercase()) {
+                if project_line_matches(line, &needle, ignore_case) {
                     results.push(PickerItem {
                         label: format!("{}:{}", relative_path(&self.root, &path), i + 1),
                         detail: truncate_plain(line.trim(), 42),
@@ -2843,12 +2892,41 @@ fn is_printable(key: &str) -> bool {
 
 fn is_ctrl_slash(k: &str) -> bool { k == "\x1f" || k == "\x1b[47;5u" || k == "\x1b[63;5u" }
 fn is_ctrl_shift_f(k: &str) -> bool { k == "\x1b[70;6u" || k == "\x1b[102;6u" }
+fn is_ctrl_shift_o(k: &str) -> bool { k == "\x1b[79;6u" || k == "\x1b[111;6u" }
+/// Shared `%` convention: `%Foo` = case-sensitive, otherwise case-insensitive.
+/// Used by both in-file find and Find in Files so behaviour stays in sync.
+fn parse_search_query(query: &str) -> (String, bool) {
+    if let Some(rest) = query.strip_prefix('%') {
+        (rest.to_string(), false)
+    } else {
+        (query.to_string(), true)
+    }
+}
+fn project_line_matches(line: &str, needle: &str, ignore_case: bool) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+    if ignore_case {
+        line.to_ascii_lowercase().contains(&needle.to_ascii_lowercase())
+    } else {
+        line.contains(needle)
+    }
+}
 fn is_ctrl_shift_z(k: &str) -> bool { k == "\x1b[90;6u" || k == "\x1b[122;6u" }
 fn is_ctrl_backspace(k: &str) -> bool { k == "\x17" || k == "\x1b[127;5u" || k == "\x1b[8;5u" }
 fn is_ctrl_left(k: &str) -> bool { matches!(k, "\x1b[1;5D" | "\x1b[5D" | "\x1bO5D" | "\x1bOd" | "\x1b[1;3D" | "\x1b[3D") }
 fn is_ctrl_right(k: &str) -> bool { matches!(k, "\x1b[1;5C" | "\x1b[5C" | "\x1bO5C" | "\x1bOc" | "\x1b[1;3C" | "\x1b[3C") }
 fn is_ctrl_shift_left(k: &str) -> bool { k == "\x1b[1;6D" || k == "\x1b[68;6u" }
 fn is_ctrl_shift_right(k: &str) -> bool { k == "\x1b[1;6C" || k == "\x1b[67;6u" }
+fn is_ctrl_home(k: &str) -> bool { matches!(k, "\x1b[1;5H" | "\x1b[7;5~" | "\x1bO5H") }
+fn is_ctrl_end(k: &str) -> bool { matches!(k, "\x1b[1;5F" | "\x1b[8;5~" | "\x1bO5F") }
+fn is_ctrl_shift_home(k: &str) -> bool { k == "\x1b[1;6H" || k == "\x1b[7;6~" }
+fn is_ctrl_shift_end(k: &str) -> bool { k == "\x1b[1;6F" || k == "\x1b[8;6~" }
+fn is_ctrl_up(k: &str) -> bool { k == "\x1b[1;5A" || k == "\x1bO5A" }
+fn is_ctrl_down(k: &str) -> bool { k == "\x1b[1;5B" || k == "\x1bO5B" }
+fn is_ctrl_shift_up(k: &str) -> bool { k == "\x1b[1;6A" }
+fn is_ctrl_shift_down(k: &str) -> bool { k == "\x1b[1;6B" }
+fn is_ctrl_shift_e(k: &str) -> bool { k == "\x1b[69;6u" || k == "\x1b[101;6u" }
 fn tab_number(k: &str) -> Option<usize> {
     if k.len() == 2 && k.as_bytes()[0] == 0x1b && (b'1'..=b'9').contains(&k.as_bytes()[1]) { return Some((k.as_bytes()[1] - b'0') as usize); }
     None
@@ -3178,6 +3256,53 @@ mod tests {
     fn find_case_insensitive() {
         assert_eq!(find_in_line("Hello World", "world", 0, true), Some(6));
         assert_eq!(find_in_line("Hello World", "world", 0, false), None);
+    }
+
+    #[test]
+    fn search_query_percent_is_case_sensitive() {
+        assert_eq!(parse_search_query("%Foo"), ("Foo".to_string(), false));
+        assert_eq!(parse_search_query("Foo"), ("Foo".to_string(), true));
+        assert_eq!(parse_search_query("%"), (String::new(), false));
+        assert_eq!(parse_search_query(""), (String::new(), true));
+    }
+
+    #[test]
+    fn project_line_matches_respects_case() {
+        assert!(project_line_matches("Hello World", "world", true));
+        assert!(!project_line_matches("Hello World", "world", false));
+        assert!(project_line_matches("Hello World", "World", false));
+        assert!(!project_line_matches("anything", "", true));
+        assert!(!project_line_matches("anything", "", false));
+    }
+
+    #[test]
+    fn ctrl_navigation_bindings() {
+        assert!(is_ctrl_home("\x1b[1;5H"));
+        assert!(is_ctrl_home("\x1b[7;5~"));
+        assert!(!is_ctrl_home("\x1b[H"));
+        assert!(is_ctrl_end("\x1b[1;5F"));
+        assert!(is_ctrl_end("\x1b[8;5~"));
+        assert!(!is_ctrl_end("\x1b[F"));
+        assert!(is_ctrl_up("\x1b[1;5A"));
+        assert!(is_ctrl_down("\x1b[1;5B"));
+        assert!(!is_ctrl_up("\x1b[A"));
+        assert!(is_ctrl_shift_home("\x1b[1;6H"));
+        assert!(is_ctrl_shift_end("\x1b[1;6F"));
+        assert!(is_ctrl_shift_up("\x1b[1;6A"));
+        assert!(is_ctrl_shift_down("\x1b[1;6B"));
+        assert!(is_ctrl_shift_e("\x1b[69;6u"));
+        assert!(is_ctrl_shift_e("\x1b[101;6u"));
+        assert!(!is_ctrl_shift_e("\x1b[70;6u"));
+    }
+
+    #[test]
+    fn ctrl_shift_find_bindings() {
+        assert!(is_ctrl_shift_f("\x1b[70;6u"));
+        assert!(is_ctrl_shift_f("\x1b[102;6u"));
+        assert!(!is_ctrl_shift_f("\x1b[79;6u"));
+        assert!(is_ctrl_shift_o("\x1b[79;6u"));
+        assert!(is_ctrl_shift_o("\x1b[111;6u"));
+        assert!(!is_ctrl_shift_o("\x1b[70;6u"));
     }
 
     #[test]

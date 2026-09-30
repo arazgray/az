@@ -71,7 +71,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all (OSC52 system copy) |
 | `Ctrl+W` / `Ctrl+Backspace` | Delete current line |
 | `Ctrl+/` (`Ctrl+_` / `0x1F`) | Help / welcome |
-| `Ctrl+Shift+F` | Project search |
+| `Ctrl+Shift+F` / `Ctrl+Shift+O` | Find in files (separate modal, `%term` = case-sensitive) |
 | `Alt+1`..`Alt+9` (`Esc` then `1..9`) | Switch tab (first 9 visible) |
 | `Esc` | Clear selection + show Alt hints |
 
@@ -81,6 +81,9 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 |------|--------|
 | Arrows, Home/End, PgUp/PgDn | Move (Shift = select) |
 | `Ctrl+Left/Right` | Word jump (Shift = select) |
+| `Ctrl+E` | Go to end of line |
+| `Ctrl+Home` / `Ctrl+Up` | Go to start of file (Shift = select) |
+| `Ctrl+End` / `Ctrl+Down` | Go to end of file (Shift = select) |
 | `Backspace` (`0x7F` or `0x08`) / `Del` | Delete backward / forward |
 | `Enter` | Newline with auto-indent (`{ [ ( :` adds 4 spaces) |
 | `(` `{` | Auto-close `()` `{}` |
@@ -100,7 +103,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Del` | Delete file/folder (asks, closes affected tabs) |
 | `+` / `=` / `-` / `_` | Tree width +2 / -2 (18..44) |
 
-Popups (`Ctrl+O`, `Ctrl+P`, prompts): `Up/Down` or `Ctrl+P`/`Ctrl+N` navigate, `Enter` confirm, `Esc` cancel, `Ctrl+U` clear line.
+Popups (`Ctrl+O`, `Ctrl+Shift+F/O`, `Ctrl+P`, prompts): `Up/Down` or `Ctrl+P`/`Ctrl+N` navigate, `Enter` confirm, `Esc` cancel, `Ctrl+U` clear line.
 
 ## 5. Core Workflows
 
@@ -119,17 +122,23 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Search project, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Demo mode, Welcome, Quit`. Type `set php` to force language.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Find in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Demo mode, Welcome, Quit`. Type `set php` to force language.
 
 ### Find / Replace
 - Find: case-insensitive default, `%Foo` = case-sensitive. `Enter` finds, selection covers match. `Ctrl+L` finds next (wraps with `(wrapped)` notice).
 - Replace: prompts `Replace:`, `Replace with:`, `Replace all? y/N`. Single replaces current match; all scans whole file (cap 20k ops, undoable as one entry).
 
-### Project Search (palette or `Ctrl+Shift+F`)
-Substring case-insensitive across ≤3000 files, skips >5MB and binaries (via `read_to_string` failure). Shows `file:line + snippet`. `Enter` opens at line.
+### Find in Files (palette or `Ctrl+Shift+F` / `Ctrl+Shift+O`)
+Separate modal from Quick Open. Type to live-search file contents across the opened folder:
+- Case-insensitive by default, `%Foo` = case-sensitive (same `%` rule as `Ctrl+F`).
+- Substring match across ≤3000 files, skips >5MB and binaries (via `read_to_string` failure). Shows `file:line + snippet` (80 results max).
+- `Enter` opens the selected match at that line, `Esc` cancels.
+- Requires a Kitty-protocol terminal for the direct shortcut (`CSI-u`); otherwise use `Ctrl+P` → `Find in files`.
 
-### Go to Line
-`Ctrl+G`, `:20` in quick open, or `az file:20`. Clamps to EOF.
+### Go to Line / Start / End
+- `Ctrl+G`, `:20` in quick open, or `az file:20` for a numbered line. Clamps to EOF.
+- `Home` / `Ctrl+P` → `Go to Start of Line`, `End` or `Ctrl+E` / `Go to End of Line` for line ends.
+- `Ctrl+Home` or `Ctrl+Up` / `Go to Start of File`, `Ctrl+End` or `Ctrl+Down` / `Go to End of File` for file top/bottom. Hold `Shift` with any of these to select.
 
 ### Autocomplete (`Tab`)
 Context-aware per language + document words. `Tab`/`Enter` accept, `Esc` close. Sources:
@@ -178,7 +187,7 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions.
 - No word wrap (horizontal scroll only), no mouse, no split panes.
 - No regex search, no multi-cursor.
 - Undo `revision` is monotonic: undo after save still shows `modified` until next save (content matches but dirty flag stays). Save to clear.
-- Replace-all limit 20k ops, project search 80 results, quick open 14 shown.
+- Replace-all limit 20k ops, find in files 80 results, quick open 14 shown.
 - Binary files open via lossy UTF-8; saving rewrites as UTF-8.
 
 ## 10. Tips
