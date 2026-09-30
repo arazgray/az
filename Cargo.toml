@@ -2,7 +2,7 @@
 name = "az"
 version = "2.1.0"
 edition = "2021"
-authors = ["Araz Gholami"]
+authors = ["Araz Gray"]
 description = "A fast, sane terminal text editor for code and large text files."
 license = "WTFPL"
 
