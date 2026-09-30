@@ -46,6 +46,22 @@ pub(crate) enum SyntaxMode {
     Html,
     Css,
     JavaScript,
+    TypeScript,
+    Xml,
+    Markdown,
+    Json,
+    Toml,
+    Yaml,
+    Bash,
+    Dotenv,
+    Ini,
+    Log,
+    Rust,
+    Nginx,
+    Apache,
+    Dockerfile,
+    Systemd,
+    Sql,
     Plain,
 }
 
@@ -946,6 +962,8 @@ impl Editor {
         ];
         lines.extend(self.shortcut_help_lines());
         lines.push(String::new());
+        lines.extend(self.language_help_lines());
+        lines.push(String::new());
         lines.push("  Press any key to continue ...".to_string());
         self.render_popup_box(&lines, &[0, 1, 2, 3])
     }
@@ -962,11 +980,22 @@ impl Editor {
         ];
         lines.extend(self.shortcut_help_lines());
         lines.push(String::new());
+        lines.extend(self.language_help_lines());
+        lines.push(String::new());
         lines.push("  Press any key to return ...".to_string());
         let _ = self.render();
         let _ = self.render_popup_box(&lines, &[0, 1, 2, 3]);
         let _ = self.read_key_blocking();
         self.message = "Welcome screen closed".to_string();
+    }
+
+    fn language_help_lines(&self) -> Vec<String> {
+        vec![
+            "  LANGUAGES (22, Ctrl+P set …)".to_string(),
+            "    PHP Blade HTML CSS JS TS XML MD JSON TOML".to_string(),
+            "    YAML SH ENV INI LOG RUST NGINX APACHE".to_string(),
+            "    DOCKER SYSTEMD SQL + Plain (auto by file)".to_string(),
+        ]
     }
 
     fn shortcut_help_lines(&self) -> Vec<String> {
@@ -983,7 +1012,8 @@ impl Editor {
             "    Ctrl+X  Cut                    Ctrl+A  Select all".to_string(),
             "    Ctrl+V  Paste                  Ctrl+W  Remove line".to_string(),
             "    Ctrl+H  Hide/show tree (tree)  +/-   Tree width (tree)".to_string(),
-            "    Ctrl+P  set php/html/css/js/blade/plain".to_string(),
+            "    Ctrl+P  set php/blade/html/css/js/ts/md/json".to_string(),
+            "    Ctrl+P  set toml/yaml/sh/env/ini/log/rust/sql".to_string(),
             "    az file:20  open at line  az :20  go to line".to_string(),
         ]
     }
@@ -1290,7 +1320,9 @@ impl Editor {
 
     fn auto_close_html_tag(&mut self) {
         let syntax = self.tab().syntax();
-        if matches!(syntax, SyntaxMode::Plain | SyntaxMode::Css | SyntaxMode::JavaScript) { return; }
+        if !matches!(syntax, SyntaxMode::Php | SyntaxMode::Blade | SyntaxMode::Html | SyntaxMode::Xml) {
+            return;
+        }
         let cursor = self.tab().cursor;
         let line = self.tab().lines[cursor.line].clone();
         let before = &line[..cursor.col];
@@ -1948,7 +1980,9 @@ impl Editor {
         self.message = "Quick open".to_string();
         let _ = self.render();
         self.message = old;
-        self.render_simple_picker(" Quick Open ", if query.is_empty() { "type file, symbol, file:line, or :line" } else { query }, matches, selected, "No matching files");
+        // Bold the file/symbol part only, not the `:line` suffix.
+        let (_, highlight, _) = parse_quick_open_query(query);
+        self.render_simple_picker(" Quick Open ", if query.is_empty() { "type file, symbol, file:line, or :line" } else { query }, matches, selected, "No matching files", &highlight);
     }
 
     fn command_palette(&mut self) {
@@ -1962,7 +1996,7 @@ impl Editor {
             self.message = "Command palette".to_string();
             let _ = self.render();
             self.message = old;
-            self.render_simple_picker(" Command Palette ", if query.is_empty() { "type a command" } else { &query }, &matches, selected, "No matching commands");
+            self.render_simple_picker(" Command Palette ", if query.is_empty() { "type a command" } else { &query }, &matches, selected, "No matching commands", &query);
             let key = self.read_key_blocking().unwrap_or_default();
             match key.as_str() {
                 "\r" | "\n" => {
@@ -2004,6 +2038,22 @@ impl Editor {
             ("Set syntax HTML", "force current tab to HTML", "set-syntax-html"),
             ("Set syntax CSS", "force current tab to CSS", "set-syntax-css"),
             ("Set syntax JavaScript", "force current tab to JavaScript", "set-syntax-javascript"),
+            ("Set syntax TypeScript", "force current tab to TypeScript", "set-syntax-typescript"),
+            ("Set syntax XML", "force current tab to XML", "set-syntax-xml"),
+            ("Set syntax Markdown", "force current tab to Markdown", "set-syntax-markdown"),
+            ("Set syntax JSON", "force current tab to JSON", "set-syntax-json"),
+            ("Set syntax TOML", "force current tab to TOML", "set-syntax-toml"),
+            ("Set syntax YAML", "force current tab to YAML", "set-syntax-yaml"),
+            ("Set syntax Bash", "force current tab to Shell", "set-syntax-bash"),
+            ("Set syntax Dotenv", "force current tab to .env", "set-syntax-dotenv"),
+            ("Set syntax INI", "force current tab to INI/conf", "set-syntax-ini"),
+            ("Set syntax Log", "force current tab to log view", "set-syntax-log"),
+            ("Set syntax Rust", "force current tab to Rust", "set-syntax-rust"),
+            ("Set syntax Nginx", "force current tab to Nginx", "set-syntax-nginx"),
+            ("Set syntax Apache", "force current tab to Apache", "set-syntax-apache"),
+            ("Set syntax Dockerfile", "force current tab to Dockerfile", "set-syntax-dockerfile"),
+            ("Set syntax Systemd", "force current tab to systemd", "set-syntax-systemd"),
+            ("Set syntax SQL", "force current tab to SQL", "set-syntax-sql"),
             ("Set syntax Auto", "use file extension again", "set-syntax-auto"),
             ("Set syntax Plain", "disable highlighting/completion", "set-syntax-plain"),
             ("Find in current file", "Ctrl+F", "find"),
@@ -2045,6 +2095,22 @@ impl Editor {
             "set-syntax-html" => self.set_current_syntax(Some(SyntaxMode::Html)),
             "set-syntax-css" => self.set_current_syntax(Some(SyntaxMode::Css)),
             "set-syntax-javascript" => self.set_current_syntax(Some(SyntaxMode::JavaScript)),
+            "set-syntax-typescript" => self.set_current_syntax(Some(SyntaxMode::TypeScript)),
+            "set-syntax-xml" => self.set_current_syntax(Some(SyntaxMode::Xml)),
+            "set-syntax-markdown" => self.set_current_syntax(Some(SyntaxMode::Markdown)),
+            "set-syntax-json" => self.set_current_syntax(Some(SyntaxMode::Json)),
+            "set-syntax-toml" => self.set_current_syntax(Some(SyntaxMode::Toml)),
+            "set-syntax-yaml" => self.set_current_syntax(Some(SyntaxMode::Yaml)),
+            "set-syntax-bash" => self.set_current_syntax(Some(SyntaxMode::Bash)),
+            "set-syntax-dotenv" => self.set_current_syntax(Some(SyntaxMode::Dotenv)),
+            "set-syntax-ini" => self.set_current_syntax(Some(SyntaxMode::Ini)),
+            "set-syntax-log" => self.set_current_syntax(Some(SyntaxMode::Log)),
+            "set-syntax-rust" => self.set_current_syntax(Some(SyntaxMode::Rust)),
+            "set-syntax-nginx" => self.set_current_syntax(Some(SyntaxMode::Nginx)),
+            "set-syntax-apache" => self.set_current_syntax(Some(SyntaxMode::Apache)),
+            "set-syntax-dockerfile" => self.set_current_syntax(Some(SyntaxMode::Dockerfile)),
+            "set-syntax-systemd" => self.set_current_syntax(Some(SyntaxMode::Systemd)),
+            "set-syntax-sql" => self.set_current_syntax(Some(SyntaxMode::Sql)),
             "set-syntax-plain" => self.set_current_syntax(Some(SyntaxMode::Plain)),
             "set-syntax-auto" => self.set_current_syntax(None),
             "find" => self.find_prompt(),
@@ -2059,7 +2125,7 @@ impl Editor {
         }
     }
 
-    fn render_simple_picker(&self, title: &str, query_line: &str, matches: &[PickerItem], selected: usize, empty: &str) {
+    fn render_simple_picker(&self, title: &str, query_line: &str, matches: &[PickerItem], selected: usize, empty: &str, highlight_query: &str) {
         let rows = min(12, max(1, self.rows.saturating_sub(8)));
         // Clamp panel to terminal: at least 10 cols margin on wide screens,
         // but never exceed cols-2 so narrow terminals (30 cols) still render.
@@ -2081,17 +2147,28 @@ impl Editor {
         out.push_str(&format!("\x1b[{};{start_col}H{border}╠{}╣\x1b[0m", start_row + 3, "═".repeat(inner)));
         for i in 0..rows {
             let row = start_row + 4 + i;
-            let text = if let Some(item) = matches.get(i) {
+            let cell = if let Some(item) = matches.get(i) {
                 let prefix = if i == selected { " › " } else { "   " };
-                let left = format!("{prefix}{}", item.label);
-                let right = if item.detail.is_empty() { String::new() } else { format!("  {}", item.detail) };
-                let spaces = inner.saturating_sub(visual_width(&left) + visual_width(&right)).max(1);
-                format!("{left}{}{right}", " ".repeat(spaces))
+                let left_plain = format!("{prefix}{}", item.label);
+                let right_plain = if item.detail.is_empty() { String::new() } else { format!("  {}", item.detail) };
+                let spaces = inner.saturating_sub(visual_width(&left_plain) + visual_width(&right_plain)).max(1);
+                // Bold the query match inside label (fall back to detail).
+                let label_ranges = match_bold_ranges(&item.label, highlight_query);
+                let (bold_label, bold_detail) = if !label_ranges.is_empty() {
+                    (apply_bold_ansi(&item.label, &label_ranges), item.detail.clone())
+                } else {
+                    let detail_ranges = match_bold_ranges(&item.detail, highlight_query);
+                    (item.label.clone(), apply_bold_ansi(&item.detail, &detail_ranges))
+                };
+                let ansi = format!("{prefix}{bold_label}{}{}", " ".repeat(spaces), if bold_detail.is_empty() { String::new() } else { format!("  {bold_detail}") });
+                fit_ansi(&ansi, inner)
             } else if matches.is_empty() && i == 0 {
-                format!("   {empty}")
-            } else { String::new() };
+                fit_plain(&format!("   {empty}"), inner)
+            } else {
+                fit_plain("", inner)
+            };
             let style = if i == selected && matches.get(i).is_some() { ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false) } else { ansi_style(Some(FG), Some(BG_FLOAT), false, false, false) };
-            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(&text, inner)));
+            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{cell}\x1b[0m{border}║\x1b[0m"));
         }
         out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + panel_height - 1, "═".repeat(inner)));
         print!("{out}");
@@ -2108,7 +2185,7 @@ impl Editor {
             self.message = "Project search".to_string();
             let _ = self.render();
             self.message = old;
-            self.render_simple_picker(" Project Search ", if query.is_empty() { "type text to search project" } else { &query }, &matches, selected, "No matches");
+            self.render_simple_picker(" Project Search ", if query.is_empty() { "type text to search project" } else { &query }, &matches, selected, "No matches", &query);
             let key = self.read_key_blocking().unwrap_or_default();
             match key.as_str() {
                 "\r" | "\n" => {
@@ -2860,6 +2937,64 @@ fn quick_score(label: &str, query: &str) -> Option<i32> {
     Some(score + 50)
 }
 
+/// Byte ranges in `text` to render bold for `query`.
+/// Mirrors `quick_score()`: contiguous substring wins, else per-char fuzzy.
+fn match_bold_ranges(text: &str, query: &str) -> Vec<(usize, usize)> {
+    let q = query.trim();
+    if q.is_empty() || text.is_empty() {
+        return Vec::new();
+    }
+    let text_l = text.to_ascii_lowercase();
+    let q_l = q.to_ascii_lowercase();
+    if let Some(byte_pos) = text_l.find(&q_l) {
+        // Map back to original byte range (ASCII-lowercase keeps byte len).
+        let end = (byte_pos + q.len()).min(text.len());
+        let end = clamp_char_boundary(text, end);
+        return vec![(byte_pos, end)];
+    }
+    // Fuzzy: bold each query char at its first in-order occurrence.
+    let mut out = Vec::new();
+    let mut search_from = 0usize;
+    for ch in q_l.chars() {
+        if search_from >= text_l.len() {
+            break;
+        }
+        if let Some(rel) = text_l[search_from..].find(ch) {
+            let abs = search_from + rel;
+            let end = (abs + ch.len_utf8()).min(text.len());
+            out.push((abs, end));
+            search_from = end;
+        } else {
+            break;
+        }
+    }
+    out
+}
+
+/// Wrap byte ranges in bold on/off. Caller must size with `fit_ansi()`.
+fn apply_bold_ansi(text: &str, ranges: &[(usize, usize)]) -> String {
+    if ranges.is_empty() {
+        return text.to_string();
+    }
+    let mut out = String::new();
+    let mut cursor = 0usize;
+    for (a, b) in ranges {
+        let a = (*a).min(text.len());
+        let b = (*b).min(text.len()).max(a);
+        if a > cursor {
+            out.push_str(&text[cursor..a]);
+        }
+        out.push_str("\x1b[1m");
+        out.push_str(&text[a..b]);
+        out.push_str("\x1b[22m");
+        cursor = b;
+    }
+    if cursor < text.len() {
+        out.push_str(&text[cursor..]);
+    }
+    out
+}
+
 fn extract_symbols(text: &str, syntax: SyntaxMode) -> Vec<(String, usize)> {
     plugins::extract_symbols(text, syntax)
 }
@@ -3101,5 +3236,95 @@ mod tests {
         // @example in email must NOT be marked as Blade directive.
         let bad = segs2.iter().any(|s| s.color == crate::PURPLE);
         assert!(!bad, "email flagged as Blade: {segs2:?}");
+    }
+
+    #[test]
+    fn new_modes_from_word_and_path() {
+        use std::path::Path;
+        let cases = [
+            ("md", SyntaxMode::Markdown),
+            ("json", SyntaxMode::Json),
+            ("toml", SyntaxMode::Toml),
+            ("yaml", SyntaxMode::Yaml),
+            ("sh", SyntaxMode::Bash),
+            ("env", SyntaxMode::Dotenv),
+            ("ini", SyntaxMode::Ini),
+            ("log", SyntaxMode::Log),
+            ("rs", SyntaxMode::Rust),
+            ("nginx", SyntaxMode::Nginx),
+            ("apache", SyntaxMode::Apache),
+            ("dockerfile", SyntaxMode::Dockerfile),
+            ("sql", SyntaxMode::Sql),
+            ("ts", SyntaxMode::TypeScript),
+            ("xml", SyntaxMode::Xml),
+        ];
+        for (word, mode) in cases {
+            assert_eq!(SyntaxMode::from_word(word), Some(mode), "word {word}");
+        }
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.md"))), SyntaxMode::Markdown);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.json"))), SyntaxMode::Json);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Cargo.toml"))), SyntaxMode::Toml);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.yaml"))), SyntaxMode::Yaml);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("run.sh"))), SyntaxMode::Bash);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new(".env"))), SyntaxMode::Dotenv);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("app.ini"))), SyntaxMode::Ini);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("out.log"))), SyntaxMode::Log);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("main.rs"))), SyntaxMode::Rust);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Dockerfile"))), SyntaxMode::Dockerfile);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("q.sql"))), SyntaxMode::Sql);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ts"))), SyntaxMode::TypeScript);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.xml"))), SyntaxMode::Xml);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("nginx.conf"))), SyntaxMode::Nginx);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new(".htaccess"))), SyntaxMode::Apache);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.service"))), SyntaxMode::Systemd);
+    }
+
+    #[test]
+    fn new_modes_highlight_smoke() {
+        let cases = [
+            ("# Title", SyntaxMode::Markdown),
+            ("{\"a\": 1}", SyntaxMode::Json),
+            ("[pkg] # c", SyntaxMode::Toml),
+            ("key: 1 # c", SyntaxMode::Yaml),
+            ("#!/bin/sh # c", SyntaxMode::Bash),
+            ("KEY=1 # c", SyntaxMode::Dotenv),
+            ("[s] ; c", SyntaxMode::Ini),
+            ("2026-09-30 ERROR boom", SyntaxMode::Log),
+            ("fn main() // c", SyntaxMode::Rust),
+            ("server { # c", SyntaxMode::Nginx),
+            ("<VirtualHost # c", SyntaxMode::Apache),
+            ("FROM rust # c", SyntaxMode::Dockerfile),
+            ("[Unit] # c", SyntaxMode::Systemd),
+            ("SELECT 1 -- c", SyntaxMode::Sql),
+            ("const x: number = 1", SyntaxMode::TypeScript),
+            ("<tag attr=\"v\">", SyntaxMode::Xml),
+        ];
+        for (line, mode) in cases {
+            let segs = crate::plugins::highlight_segments(line, mode);
+            assert!(!segs.is_empty(), "no segments for {line:?} in {mode:?}");
+        }
+    }
+
+    #[test]
+    fn picker_bold_ranges_substring() {
+        assert_eq!(match_bold_ranges("main.rs", "main"), vec![(0, 4)]);
+        assert_eq!(match_bold_ranges("Save as", "save"), vec![(0, 4)]);
+        assert!(match_bold_ranges("main.rs", "").is_empty());
+    }
+
+    #[test]
+    fn picker_bold_ranges_fuzzy() {
+        // Subsequence fallback bolds each char in order.
+        let ranges = match_bold_ranges("command palette", "cp");
+        assert_eq!(ranges.len(), 2);
+        // No match at all -> empty.
+        assert!(match_bold_ranges("abc", "xyz").is_empty());
+    }
+
+    #[test]
+    fn picker_bold_ansi_wraps() {
+        let out = apply_bold_ansi("main.rs", &[(0, 4)]);
+        assert_eq!(out, "\x1b[1mmain\x1b[22m.rs");
+        assert_eq!(apply_bold_ansi("abc", &[]), "abc");
     }
 }

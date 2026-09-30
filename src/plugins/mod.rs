@@ -22,6 +22,22 @@ pub(crate) mod html;
 pub(crate) mod css;
 pub(crate) mod javascript;
 pub(crate) mod blade;
+pub(crate) mod markdown;
+pub(crate) mod json;
+pub(crate) mod toml;
+pub(crate) mod yaml;
+pub(crate) mod bash;
+pub(crate) mod dotenv;
+pub(crate) mod ini;
+pub(crate) mod log;
+pub(crate) mod rust;
+pub(crate) mod nginx;
+pub(crate) mod apache;
+pub(crate) mod dockerfile;
+pub(crate) mod systemd;
+pub(crate) mod sql;
+pub(crate) mod typescript;
+pub(crate) mod xml;
 pub(crate) mod example;
 
 #[derive(Clone, Copy)]
@@ -37,6 +53,22 @@ pub(crate) fn mode_label(mode: SyntaxMode) -> &'static str {
         SyntaxMode::Html => "HTML",
         SyntaxMode::Css => "CSS",
         SyntaxMode::JavaScript => "JS",
+        SyntaxMode::TypeScript => "TS",
+        SyntaxMode::Xml => "XML",
+        SyntaxMode::Markdown => "MD",
+        SyntaxMode::Json => "JSON",
+        SyntaxMode::Toml => "TOML",
+        SyntaxMode::Yaml => "YAML",
+        SyntaxMode::Bash => "SH",
+        SyntaxMode::Dotenv => "ENV",
+        SyntaxMode::Ini => "INI",
+        SyntaxMode::Log => "LOG",
+        SyntaxMode::Rust => "RUST",
+        SyntaxMode::Nginx => "NGINX",
+        SyntaxMode::Apache => "APACHE",
+        SyntaxMode::Dockerfile => "DOCKER",
+        SyntaxMode::Systemd => "SYSTEMD",
+        SyntaxMode::Sql => "SQL",
         SyntaxMode::Plain => "PLAIN",
     }
 }
@@ -48,6 +80,22 @@ pub(crate) fn from_word(word: &str) -> Option<SyntaxMode> {
         "html" => Some(SyntaxMode::Html),
         "css" => Some(SyntaxMode::Css),
         "js" | "javascript" | "mjs" | "cjs" | "jsx" => Some(SyntaxMode::JavaScript),
+        "ts" | "typescript" | "tsx" | "mts" | "cts" => Some(SyntaxMode::TypeScript),
+        "xml" | "svg" => Some(SyntaxMode::Xml),
+        "md" | "markdown" | "mkd" => Some(SyntaxMode::Markdown),
+        "json" | "jsonc" | "json5" => Some(SyntaxMode::Json),
+        "toml" => Some(SyntaxMode::Toml),
+        "yaml" | "yml" => Some(SyntaxMode::Yaml),
+        "sh" | "bash" | "zsh" | "shell" => Some(SyntaxMode::Bash),
+        "dotenv" | "env" => Some(SyntaxMode::Dotenv),
+        "ini" | "conf" | "cfg" | "config" => Some(SyntaxMode::Ini),
+        "log" => Some(SyntaxMode::Log),
+        "rust" | "rs" => Some(SyntaxMode::Rust),
+        "nginx" => Some(SyntaxMode::Nginx),
+        "apache" | "htaccess" => Some(SyntaxMode::Apache),
+        "dockerfile" | "docker" | "containerfile" => Some(SyntaxMode::Dockerfile),
+        "systemd" | "service" | "unit" => Some(SyntaxMode::Systemd),
+        "sql" => Some(SyntaxMode::Sql),
         "plain" | "text" | "txt" => Some(SyntaxMode::Plain),
         _ => None,
     }
@@ -57,33 +105,73 @@ pub(crate) fn from_path(path: Option<&Path>) -> SyntaxMode {
     let Some(path) = path else { return SyntaxMode::Plain; };
     let name = path.file_name().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase();
     if name.ends_with(".blade.php") { return SyntaxMode::Blade; }
+    // Filename-based modes (no useful extension)
+    if name == "dockerfile" || name.starts_with("dockerfile.") || name == "containerfile" {
+        return SyntaxMode::Dockerfile;
+    }
+    if name == ".env" || name.starts_with(".env.") || name.ends_with(".env") {
+        return SyntaxMode::Dotenv;
+    }
+    if name == ".htaccess" || name == "httpd.conf" || name == "apache2.conf" {
+        return SyntaxMode::Apache;
+    }
+    if name == "nginx.conf" || (name.starts_with("nginx") && name.ends_with(".conf")) {
+        return SyntaxMode::Nginx;
+    }
     match path.extension().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase().as_str() {
         "php" | "phtml" => SyntaxMode::Php,
-        "html" | "htm" | "xml" | "svg" => SyntaxMode::Html,
+        "html" | "htm" => SyntaxMode::Html,
+        "xml" | "svg" | "plist" | "xsl" => SyntaxMode::Xml,
         "css" => SyntaxMode::Css,
         "js" | "mjs" | "cjs" | "jsx" => SyntaxMode::JavaScript,
+        "ts" | "tsx" | "mts" | "cts" => SyntaxMode::TypeScript,
+        "md" | "mkd" | "markdown" => SyntaxMode::Markdown,
+        "json" | "jsonc" | "json5" => SyntaxMode::Json,
+        "toml" => SyntaxMode::Toml,
+        "yaml" | "yml" => SyntaxMode::Yaml,
+        "sh" | "bash" | "zsh" => SyntaxMode::Bash,
+        "env" => SyntaxMode::Dotenv,
+        "ini" | "conf" | "cfg" => SyntaxMode::Ini,
+        "log" => SyntaxMode::Log,
+        "rs" => SyntaxMode::Rust,
+        "sql" => SyntaxMode::Sql,
+        "service" | "timer" | "socket" | "unit" => SyntaxMode::Systemd,
         _ => SyntaxMode::Plain,
     }
 }
 
 pub(crate) fn is_programming_mode(mode: SyntaxMode) -> bool {
-    !matches!(mode, SyntaxMode::Plain)
+    !matches!(mode, SyntaxMode::Plain | SyntaxMode::Log)
 }
 
 pub(crate) fn tree_color(path: &Path, is_dir: bool) -> &'static str {
     if is_dir { return BLUE; }
     let name = path.file_name().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase();
     if name.ends_with(".blade.php") { return MAGENTA; }
+    if name == "dockerfile" || name.starts_with("dockerfile.") {
+        return BLUE;
+    }
+    if name == ".env" || name.starts_with(".env.") {
+        return YELLOW;
+    }
+    if name == ".htaccess" || name == "nginx.conf" {
+        return PURPLE;
+    }
     match path.extension().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase().as_str() {
         "php" | "phtml" => PURPLE,
         "html" | "htm" | "xml" | "svg" => ORANGE,
         "css" | "scss" | "sass" | "less" => BLUE,
         "js" | "mjs" | "cjs" | "jsx" => YELLOW,
-        "ts" | "tsx" => CYAN,
+        "ts" | "tsx" | "mts" | "cts" => CYAN,
         "rs" => ORANGE,
-        "md" | "txt" => GREEN,
-        "json" | "toml" | "yaml" | "yml" => CYAN,
+        "md" | "mkd" | "markdown" | "txt" => GREEN,
+        "json" | "jsonc" | "json5" | "toml" | "yaml" | "yml" => CYAN,
         "sh" | "bash" | "zsh" => RED,
+        "env" => YELLOW,
+        "ini" | "conf" | "cfg" => BLUE,
+        "log" => FG_DARK,
+        "sql" => ORANGE,
+        "service" | "timer" | "socket" | "unit" => CYAN,
         _ => FG_DARK,
     }
 }
@@ -95,6 +183,22 @@ pub(crate) fn highlight_segments(line: &str, syntax: SyntaxMode) -> Vec<Segment>
         SyntaxMode::Html => mixed_segments(line, line_contains_php(line), false, true),
         SyntaxMode::Css => css::segments(line),
         SyntaxMode::JavaScript => javascript::segments(line),
+        SyntaxMode::TypeScript => typescript::segments(line),
+        SyntaxMode::Xml => xml::segments(line),
+        SyntaxMode::Markdown => markdown::segments(line),
+        SyntaxMode::Json => json::segments(line),
+        SyntaxMode::Toml => toml::segments(line),
+        SyntaxMode::Yaml => yaml::segments(line),
+        SyntaxMode::Bash => bash::segments(line),
+        SyntaxMode::Dotenv => dotenv::segments(line),
+        SyntaxMode::Ini => ini::segments(line),
+        SyntaxMode::Log => log::segments(line),
+        SyntaxMode::Rust => rust::segments(line),
+        SyntaxMode::Nginx => nginx::segments(line),
+        SyntaxMode::Apache => apache::segments(line),
+        SyntaxMode::Dockerfile => dockerfile::segments(line),
+        SyntaxMode::Systemd => systemd::segments(line),
+        SyntaxMode::Sql => sql::segments(line),
         SyntaxMode::Plain => Vec::new(),
     }
 }
@@ -144,6 +248,52 @@ pub(crate) fn completion_context(syntax: SyntaxMode, before: &str, explicit: boo
         if let Some(ctx) = javascript::completion_context(before, explicit) { return Some(ctx); }
     }
 
+    if syntax == SyntaxMode::TypeScript {
+        if let Some(ctx) = typescript::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    if syntax == SyntaxMode::Bash || before.starts_with("#!") {
+        if let Some(ctx) = bash::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    if syntax == SyntaxMode::Sql {
+        if let Some(ctx) = sql::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    if syntax == SyntaxMode::Nginx {
+        if let Some(ctx) = nginx::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    if syntax == SyntaxMode::Apache {
+        if let Some(ctx) = apache::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    if syntax == SyntaxMode::Dockerfile {
+        if let Some(ctx) = dockerfile::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    if syntax == SyntaxMode::Rust {
+        if let Some(ctx) = rust::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    if syntax == SyntaxMode::Xml {
+        if let Some(ctx) = xml::completion_context(before, explicit) { return Some(ctx); }
+    }
+
+    // Config/log/markdown modes intentionally offer no completion yet,
+    // but consult them so new plugins stay wired as the API grows.
+    match syntax {
+        SyntaxMode::Markdown => { let _ = markdown::completion_context(before, explicit); }
+        SyntaxMode::Json => { let _ = json::completion_context(before, explicit); }
+        SyntaxMode::Toml => { let _ = toml::completion_context(before, explicit); }
+        SyntaxMode::Yaml => { let _ = yaml::completion_context(before, explicit); }
+        SyntaxMode::Dotenv => { let _ = dotenv::completion_context(before, explicit); }
+        SyntaxMode::Ini => { let _ = ini::completion_context(before, explicit); }
+        SyntaxMode::Log => { let _ = log::completion_context(before, explicit); }
+        SyntaxMode::Systemd => { let _ = systemd::completion_context(before, explicit); }
+        _ => {}
+    }
+
     if matches!(syntax, SyntaxMode::Php | SyntaxMode::Blade) || line_contains_php(before) || before.contains('$') {
         if let Some(ctx) = php::completion_context(before, explicit) { return Some(ctx); }
     }
@@ -155,9 +305,25 @@ pub(crate) fn completion_items(kind: &str, prefix: &str, ctx: CompletionContext<
     let mut items = match kind.split_once(':').map(|(plugin, _)| plugin).unwrap_or(kind) {
         "blade" => blade::completion_items(kind, ctx),
         "html" => html::completion_items(kind, ctx),
+        "xml" => xml::completion_items(kind, ctx),
         "css" => css::completion_items(kind, ctx),
         "javascript" => javascript::completion_items(kind, ctx),
+        "typescript" => typescript::completion_items(kind, ctx),
         "php" => php::completion_items(kind, ctx),
+        "bash" => bash::completion_items(kind, ctx),
+        "sql" => sql::completion_items(kind, ctx),
+        "nginx" => nginx::completion_items(kind, ctx),
+        "apache" => apache::completion_items(kind, ctx),
+        "dockerfile" => dockerfile::completion_items(kind, ctx),
+        "rust" => rust::completion_items(kind, ctx),
+        "markdown" => markdown::completion_items(kind, ctx),
+        "json" => json::completion_items(kind, ctx),
+        "toml" => toml::completion_items(kind, ctx),
+        "yaml" => yaml::completion_items(kind, ctx),
+        "dotenv" => dotenv::completion_items(kind, ctx),
+        "ini" => ini::completion_items(kind, ctx),
+        "log" => log::completion_items(kind, ctx),
+        "systemd" => systemd::completion_items(kind, ctx),
         _ => Vec::new(),
     };
     let p = prefix.to_ascii_lowercase();
@@ -194,6 +360,22 @@ pub(crate) fn extract_symbols(text: &str, syntax: SyntaxMode) -> Vec<(String, us
             }
             SyntaxMode::Css => out.extend(css::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::JavaScript => out.extend(javascript::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::TypeScript => out.extend(typescript::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Xml => out.extend(xml::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Markdown => out.extend(markdown::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Json => out.extend(json::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Toml => out.extend(toml::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Yaml => out.extend(yaml::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Bash => out.extend(bash::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Dotenv => out.extend(dotenv::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Ini => out.extend(ini::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Log => out.extend(log::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Rust => out.extend(rust::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Nginx => out.extend(nginx::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Apache => out.extend(apache::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Dockerfile => out.extend(dockerfile::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Systemd => out.extend(systemd::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Sql => out.extend(sql::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::Plain => {}
         }
     }

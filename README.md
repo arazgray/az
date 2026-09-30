@@ -90,7 +90,7 @@ No config drama, no plugins to install, no mouse required.
 - Find and replace
 - Case-insensitive search by default
 - Case-sensitive search with `%term`
-- Word wrapping
+- Horizontal scroll (no word wrap by design)
 - UTF-8 input support
 - Tokyo Night inspired interface colors
 - Syntax highlighting through plugins
@@ -108,8 +108,8 @@ No config drama, no plugins to install, no mouse required.
 | Navigate | Tree, quick open (fuzzy file + symbol), project search, go-to-line, `Alt+1-9` |
 | Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OSC52), select-all, delete-line |
 | Search | Case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
-| Highlight | PHP, Blade, HTML, CSS, JS mixed per-line; Blade `{{ }}` / `{{-- --}}` / `@dir`; CSS `#id` + hex; HTML tags/attrs/entities |
-| Complete | `Tab` context items: PHP `$vars`/members, HTML tags/attrs, CSS props/values/`@rules`, JS members/snippets, Blade directives |
+| Highlight | 22 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
+| Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words |
 | Safety | Atomic saves, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
 | Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe |
 
@@ -117,7 +117,8 @@ No config drama, no plugins to install, no mouse required.
 
 ### What is new in 2.1?
 
-- **Blade + CSS fix**: `#header`, `#fff`, `href="#section"`, `https://…` no longer gray as PHP `#` / `//` comments. `#id` now yellow, hex orange, URLs stay green. `user@example.com` no longer purple as Blade directive. 6 new regression tests (15 total).
+- **16 new language plugins** (22 total, table below): Markdown, JSON, TOML, YAML, Bash, Dotenv, INI, Logs, Rust, Nginx, Apache, Dockerfile, systemd, SQL, TypeScript, XML — plus existing PHP/Blade/HTML/CSS/JS. Auto-detected by filename/extension, switchable via `Ctrl+P` → `set …`.
+- **Blade + CSS fix**: `#header`, `#fff`, `href="#section"`, `https://…` no longer gray as PHP `#` / `//` comments. `#id` now yellow, hex orange, URLs stay green. `user@example.com` no longer purple as Blade directive. 8 new regression tests (17 total).
 - **Smarter comments**: `//` / `#` ignored inside `"strings"`, `` `templates` ``, and `://` protocols.
 - **`--help` / `--version`**, `file:line`, `:line`, `newfile` CLI handling; absolute-path session keys.
 - **Faster topbar**: `date` cached per minute. Pickers safe on 30-col terminals. Tree/quick-open skip `target dist build __pycache__ .next .nuxt`.
@@ -135,20 +136,36 @@ No config drama, no plugins to install, no mouse required.
 
 ---
 
-## Language plugins
+## Supported languages (22 built in)
 
-`src/plugins/` — one file per language, std-only, line-local.
+`src/plugins/` — one file per language, std-only, line-local. Auto-detected by filename/extension; override anytime via `Ctrl+P` → `set …`.
 
-| Plugin | File | Provides |
-|--------|------|----------|
-| PHP | `php.rs` | keywords/functions/`$vars`/`#` `//` (string + CSS aware) |
-| Blade | `blade.rs` | `@directives` (boundary + string aware), `{{ }}`, symbols |
-| HTML | `html.rs` | tags/attrs/entities, void-tag close, inline-style detect |
-| CSS | `css.rs` | props/hex/`#id`/`@rules`/`!important`, selector symbols |
-| JavaScript | `javascript.rs` | keywords/builtins/`` `templates` ``/regex/`//` (protocol aware) |
-| Example | `example.rs` | skeleton for new languages |
+| Language | Files | What you get |
+|----------|-------|--------------|
+| PHP | `*.php`, `*.phtml` | keywords/functions/`$vars`, `#` `//` (string + CSS aware), symbols |
+| Blade | `*.blade.php` | `@directives` (boundary + string aware), `{{ }}` / `{{-- --}}`, HTML+CSS+JS mixed |
+| HTML | `*.html`, `*.htm` | tags/attrs/entities, void-tag auto-close |
+| CSS | `*.css` | props/hex/`#id`/`@rules`/`!important`, selector symbols |
+| JavaScript | `*.js`, `*.mjs`, `*.cjs`, `*.jsx` | keywords/builtins/templates/regex, members, snippets |
+| TypeScript | `*.ts`, `*.tsx`, `*.mts`, `*.cts` | JS highlighting + `interface`/`type`/`enum`, symbols |
+| XML | `*.xml`, `*.svg` | tags/attrs/entities, `<?…?>`, `<!-- -->` |
+| Markdown | `*.md` | headings, bold, `code`, links, lists, symbols |
+| JSON | `*.json`, `*.jsonc` | strings/numbers/`true`/`false`/`null`, `//` + `/* */` for jsonc |
+| TOML | `*.toml` | `[sections]`, `key =`, strings/numbers/bools, `#` comments, symbols |
+| YAML | `*.yaml`, `*.yml` | `key:`, strings/numbers/bools, `#` comments, `-` lists |
+| Bash | `*.sh`, `*.bash`, `*.zsh` | `#!`, `#` comments, `$VAR`/`${}`, keywords/builtins, `fn` symbols |
+| Dotenv | `.env`, `*.env` | `KEY=`, strings/numbers/bools, `#` comments, `export` |
+| INI | `*.ini`, `*.conf`, `*.cfg` | `[sections]`, `key =/:`, `#`/`;` comments, symbols |
+| Logs | `*.log` | timestamps + `ERROR` red / `WARN` yellow / `INFO` green / `DEBUG` dim |
+| Rust | `*.rs` | keywords/types/macros/`#[attrs]`, `//` + `/* */`, `fn/struct/enum` symbols |
+| Nginx | `nginx.conf` | blocks/directives, `$vars`, `#` comments, symbols |
+| Apache | `.htaccess`, `httpd.conf` | directives, `<Sections>`, `#` comments, symbols |
+| Dockerfile | `Dockerfile*` | `FROM`/`RUN`/… instructions, `$vars`, `#` comments |
+| systemd | `*.service`, `*.timer` | `[Sections]`, `key=`, `#`/`;` comments, symbols |
+| SQL | `*.sql` | keywords, strings/numbers, `--` + `/* */`, `CREATE TABLE` symbols |
+| Plain | `*.txt` + fallback | no highlighting, always available via `set Plain` |
 
-Add one in ~15 min — see [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) + [`AGENTS.md`](AGENTS.md#4-plugin-api-add-language-in-15-min).
+> **Want more? Just ask your AI agent.** `az` ships [`AGENTS.md`](AGENTS.md) — a guide that teaches any AI coding agent the plugin API, architecture, and test rules. Ask it to *"add language support for X"* and it can scaffold `src/plugins/x.rs`, wire `mod.rs` + `SyntaxMode` + palette, and add regression tests, following [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md).
 
 ```blade
 {{-- real Blade: all three languages on one screen --}}

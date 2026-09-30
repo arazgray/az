@@ -2,15 +2,24 @@
 
 Language support now lives in `src/plugins`.
 
-Files included:
+Files included (22 languages):
 
-- `php.rs`: PHP highlighting, PHP autocomplete, PHP symbols
-- `html.rs`: HTML highlighting, tag autocomplete, attribute autocomplete, HTML symbols
-- `css.rs`: CSS highlighting, property/value/at-rule autocomplete, CSS symbols
-- `javascript.rs`: JavaScript highlighting, autocomplete, symbols
-- `blade.rs`: Blade directives, Blade expressions, Blade symbols
+- `php.rs` / `blade.rs` / `html.rs` / `css.rs` / `javascript.rs`: as before (mixed highlighting for Blade/PHP/HTML)
+- `typescript.rs`: JS highlighting + `interface`/`type`/`enum`, TS symbols
+- `xml.rs`: tags/attrs/entities, `<?…?>`, comments
+- `markdown.rs`: headings/bold/code/links, heading symbols
+- `json.rs` / `toml.rs` / `yaml.rs`: keys/values/comments, section symbols (TOML)
+- `bash.rs`: `$VAR`s, keywords/builtins, `fn` symbols, var completion
+- `dotenv.rs` / `ini.rs` / `systemd.rs`: `KEY=`/`key:`/sections, comments
+- `log.rs`: timestamps + ERROR/WARN/INFO/DEBUG (no completion by design)
+- `rust.rs`: keywords/types/macros, `fn/struct/enum` symbols + completion
+- `nginx.rs` / `apache.rs`: directives/blocks, `$vars`, completion
+- `dockerfile.rs`: `FROM`/`RUN`/… instructions, `$vars`, completion
+- `sql.rs`: keywords, `--` comments, keyword completion
 - `example.rs`: documented skeleton for adding a new plugin
 - `mod.rs`: plugin registry and mixed-language facade used by the editor
+
+Tip: config-like languages (`toml`/`yaml`/`ini`/`dotenv`/`systemd`) share the same shape — keys, strings via `string_ranges()`, comments outside strings via `pos_in_ranges()`. Copy `ini.rs` as a starting point.
 
 ## Add a new plugin
 

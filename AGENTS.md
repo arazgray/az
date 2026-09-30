@@ -5,7 +5,7 @@
 ## 1. Quick Facts
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
-- Entry: `src/main.rs` (~2980 lines) + `src/plugins/*.rs` (7 files, ~800 lines total).
+- Entry: `src/main.rs` (~3150 lines) + `src/plugins/*.rs` (23 files: 22 languages + `example.rs` skeleton).
 - Build: `cargo check` (fast), `cargo test` (15 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
