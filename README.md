@@ -5,7 +5,7 @@
 
 > Open fast. Type immediately. Stay keyboard-first. Zero dependencies.
 
-![az](screenshot.png.jpg)
+![az](screenshot.png)
 
 Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHANGELOG.md`](CHANGELOG.md) (release notes) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
 
