@@ -1,10 +1,11 @@
-# az text editor 2.5
+# az
+ sane text editor | v2.5
 
 `az` is a fast, small & sane text editor.
 
 > Open fast. Type immediately. Stay keyboard-first. Zero dependencies.
 
-![az](az-editor.jpg)
+![az](screenshot.png.jpg)
 
 Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHANGELOG.md`](CHANGELOG.md) (release notes) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
 
