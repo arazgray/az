@@ -1,6 +1,6 @@
-# az text editor 2.2
+# az text editor 2.5
 
-`az` is a small, sane terminal text editor for code and text.
+`az` is a fast, small & sane text editor.
 
 > Open fast. Type immediately. Stay keyboard-first. Zero dependencies.
 
@@ -29,14 +29,15 @@ az newfile.txt      # new file tab
 ```
 
 ```text
+az  [Open] [Commands] [Shortcuts]  tabs above editor (click switch, middle-click close)
 Ctrl+S  save              Ctrl+O  quick open (file, symbol, file:line, :line)
-Ctrl+P  command palette   Ctrl+F  find (%term = case-sensitive)   Ctrl+L  find next
-Ctrl+Shift+O find in files (%term = case-sensitive)   Ctrl+R  replace   Ctrl+G  go to line
-Ctrl+E  end of line       Ctrl+Home/End or Alt+Up/Down  top/bottom of file
-Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)        +/-   tree width (in tree)
+Ctrl+P  command palette   Ctrl+K  shortcuts (searchable)   Ctrl+F  find (%term sensitive)
+Ctrl+Shift+O find in files   Ctrl+Shift+H replace in files   Ctrl+R replace   Ctrl+G go to line
+Ctrl+L  find next         Ctrl+E  end of line                +/-   tree width (in tree)
 Ctrl+D  close tab         Ctrl+N  new file                        Ctrl+Q  quit   Alt+1-9  switch tab
+Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)
 Ctrl+Z / Ctrl+Y  undo / redo      Ctrl+C / X / V / A  copy / cut / paste / select all
-Ctrl+/  help
+Mouse: click move/open/switch, drag select, dbl-click word, wheel scroll, right-click menu
 ```
 
 Full map: [`USER_MANUAL.md`](USER_MANUAL.md#4-keyboard--complete-map).
@@ -46,7 +47,9 @@ Full map: [`USER_MANUAL.md`](USER_MANUAL.md#4-keyboard--complete-map).
 ## What it looks like
 
 ```text
-┌ az | sane editor │ 1:main.blade.php  2:style.css │  02:30 PM  30/09/2026 ─┐
+┌ az  [Open] [Commands] [Shortcuts] ──────────  02:30 PM  30/09/2026 ─┐
+├─────────────────────────────────────────────────────────────────────┤
+│                             │ 1:main.blade.php  2:style.css         │
 │ ▾ project/              │  1  @extends('layouts.app')                    │
 │   ▾ resources/          │  2  @section('content')                        │
 │     ▾ views/            │  3  <style>                                    │
@@ -54,20 +57,21 @@ Full map: [`USER_MANUAL.md`](USER_MANUAL.md#4-keyboard--complete-map).
 │       style.css         │  5  </style>         hex #fff orange, not gray │
 │   Enter open/fold       │  6  <div id="app">{{ $user->name }}</div>      │
 │   N file  Shift+N folder│  7  @if($x) … @endif   ← @ purple, $x red     │
-└ editor  main.blade.php  saved  BLADE  tree shown │ Found $user  Ln 6… ───┘
+├─────────────────────────────────────────────────────────────────────┤
+└ main.blade.php  BLADE  tree shown │ Found $user  Ln 6… ───┘
 ```
 
-- Topbar: tabs (`*` = modified). Press `Esc` to flash `Alt+1-9` hints.
+- Titlebar (`az` + mode chips, dialog buttons) + tab bar (`*` = modified, inactive tabs lighter). Press `Esc` to flash `Alt+1-9` hints.
 - Tree: colors by extension (PHP purple, Blade magenta, HTML orange, JS yellow, CSS blue).
 - Editor: line numbers, horizontal scroll, Tokyo Night colors, mixed-language highlighting.
-- Status: focus · path · saved/modified · language · message · `Ln,Col Lines Words`.
+- Status: path · modified (only when dirty) · language · message (flashes light blue) · `Ln,Col Lines Words` — each item on its own palette chip; mode lives in the titlebar.
 
 ---
 
 ## Why az?
 
 For quick edits, small projects, server work, focused writing, and terminal code changes.
-No config drama, no plugins to install, no mouse required.
+No config drama, no plugins to install. Keyboard-first, mouse supported for click/drag/scroll.
 
 
 ## Features
@@ -77,7 +81,7 @@ No config drama, no plugins to install, no mouse required.
 - Opens files or folders
 - Project tree sidebar
 - Different tree colors for different file extensions
-- Tabs with `Alt+1` to `Alt+9`
+- Tabs with `Alt+1` to `Alt+9` (or click a tab; inactive tabs shaded lighter)
 - Quick open with `Ctrl+O`
 - Open files and jump to a line with `file.php:20`
 - Jump to a line in the current file with `:20`
@@ -87,8 +91,11 @@ No config drama, no plugins to install, no mouse required.
 - Save, create files, switch language mode, and run editor actions from the command palette
 - Visible line numbers
 - Welcome screen on startup
-- `Ctrl+/` shows the same welcome/help screen
+- `Ctrl+K` opens the searchable keyboard-shortcuts dialog
 - Find and replace
+- Replace in files with `Ctrl+Shift+H` (separate dialog with counts + confirm, scoped via sidebar right-click)
+- Mouse: click to move cursor / expand folders / open files / switch tabs, double-click file to rename, wheel to scroll
+- Mouse right-click menus (sidebar, editor, tab), middle-click tab to close
 - Find in files modal (`Ctrl+Shift+O`, also via `Ctrl+P` → `Find in files`)
 - Case-insensitive search by default
 - Case-sensitive search with `%term` (works in both Find and Find in files)
@@ -113,16 +120,24 @@ No config drama, no plugins to install, no mouse required.
 | Highlight | 22 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
 | Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words |
 | Safety | Atomic saves, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
-| Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe |
+| Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll |
 
-> No word wrap by design — long lines scroll horizontally. No mouse, splits, or regex.
+> No word wrap by design — long lines scroll horizontally. No splits or regex.
 
-### What is new in 2.2?
+### What is new in 2.5?
 
-- **Find in Files modal** (`Ctrl+Shift+O`, or `Ctrl+P` → `Find in files`): separate live-search popup across the opened folder (≤3000 files, 80 results, `file:line + snippet`, `Enter` jumps to the match). Same `%Foo` rule as Find: case-insensitive by default, `%` prefix = case-sensitive.
-- **Go to Start/End**: `Home`/`End` for line ends, `Ctrl+E` for end of line, `Ctrl+Home/End` or `Alt+Up/Down` for file top/bottom (hold `Shift` to select) — all four also in the command palette.
-- **Terminal-friendly shortcuts**: `Ctrl+Shift+O` (most terminals reserve `Ctrl+Shift+F` for their own search) and `Alt+Up/Down` (Guake uses `Ctrl+Up/Down` for height).
-- **Tests**: 24 total (new: `%` query parsing, case-sensitive project matching, navigation key bindings).
+- **Replace in Files dialog** (`Ctrl+Shift+H`, or `Ctrl+P` → `Replace in files`): prompts search → replacement → confirm with real counts (`Replace N in M files`), then rewrites files across the project (≤3000 files, skips >5MB/binaries, 10k-match cap, `%Foo` = case-sensitive). Open unmodified tabs reload (undo cleared); files with unsaved buffers are skipped and reported. Also scoped via sidebar right-click → `Search & Replace here`.
+- **Right-click context menus** (SGR mouse): tab (`Close tab`, `Copy file path`), sidebar (`Open`, `Copy file path`, `Rename`, `Delete`, `Search here`, `Search & Replace here` — each opens its dialog), editor (`Cut/Copy/Paste`, `Select All`, `Find/Replace in File`, `Find/Replace in Files`, `Go to Line`). Keyboard navigable (`Up/Down`, `Enter`, `Esc`, `1-9`).
+- **Middle-click a tab closes it** (asks if modified). Inactive tabs now use a lighter background (`BG_TAB`); the open file's sidebar row is highlighted.
+- **Mouse text selection**: drag with the button held to select; double-click selects the word, triple-click the line — alongside click-to-move-cursor.
+- **Dedicated titlebar**: blue `az` + mode chips, plain-text `[Open]`/`[Commands]`/`[Shortcuts]` buttons, clock — with a full-width separator below; tabs sit on the bar under it, above the editor, with click behavior intact.
+- **Empty-space fill**: rows past end-of-file now paint the editor background instead of the terminal default.
+- **Status bar chips**: path, state (`modified`, orange, only when dirty), syntax, tree, and stats each render on their own Tokyo Night chip; a matching separator sits above the bar.
+- **Blinking alerts**: new status messages flash light blue once; every prompt blinks light blue until you answer.
+- **Searchable shortcuts dialog** (`Ctrl+K`, replaces `Ctrl+/`): every shortcut filterable like the command palette. Welcome screen trimmed to 4 essentials + a highlighted `Ctrl+K` hint, with a ttfx-`highlight` gradient logo.
+- **Reliable clipboard**: system copy now tries `wl-copy` → `xclip`/`xsel` → `pbcopy` before OSC52 (OSC52 first over SSH); status shows `Copied` vs `Copied (OSC52)` so you know what worked.
+- **Wheel that works everywhere**: editor, sidebar, and all picker dialogs/menus scroll; legacy X10 mouse reports supported for terminals without SGR.
+- **Tests**: 33 total (new: replace counting, menu geometry, `Ctrl+Shift+H`, word range, `Ctrl+K` + shortcut coverage, OSC52 bytes, legacy mouse).
 
 Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -217,4 +232,10 @@ Troubleshooting (Backspace vs `Ctrl+H`, Alt numbers, colors, slow quick-open): [
 
 ## License
 
-WTFPL
+`az` is released under the [WTFPL](https://www.wtfpl.net/) — the Do What The Fuck You Want To Public License.
+
+In short: you may copy, distribute, modify, and use this software (including for commercial purposes) with no restrictions and no warranty. The full license text lives at <https://www.wtfpl.net/>.
+
+- ✅ Use it for anything — personal, commercial, closed-source.
+- ✅ Modify it, redistribute it, relicense your own changes however you like.
+- ⚠️ No warranty: the software is provided "as is"; the authors are not liable for anything it does.

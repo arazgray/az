@@ -1,9 +1,9 @@
 [package]
 name = "az"
-version = "2.2.0"
+version = "2.5.0"
 edition = "2021"
 authors = ["Araz Gray"]
-description = "A fast, sane terminal text editor for code and large text files."
+description = "A fast, small & sane text editor."
 license = "WTFPL"
 
 [profile.release]

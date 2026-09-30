@@ -1,4 +1,4 @@
-# AGENTS.md — AI Agent Guide for `az` 2.2
+# AGENTS.md — AI Agent Guide for `az` 2.5
 
 > Read this before editing. `az` is a single-binary Rust TUI editor (~3000 lines, zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
@@ -6,7 +6,7 @@
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
 - Entry: `src/main.rs` (~3150 lines) + `src/plugins/*.rs` (23 files: 22 languages + `example.rs` skeleton).
-- Build: `cargo check` (fast), `cargo test` (15 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az`).
+- Build: `cargo check` (fast), `cargo test` (33 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -24,24 +24,29 @@ src/main.rs
                modified, revision, saved_revision, syntax_mode, undo/redo, large_file }
   struct TreeRow, PickerItem, CompletionItem
   enum Focus { Editor, Tree }
-  struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write }
+  struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write,
+                last_tree_click_time/path }
   impl Editor {
     new(args) / run() / enable_raw_mode() / cleanup()
     read_key(), read_bracketed_paste(), handle_key(), handle_global_shortcut(),
-    handle_tree_key(), handle_editor_key()
-    render(), render_topbar(), render_content(), render_status_line(),
+    handle_tree_key(), handle_editor_key(), handle_mouse*()
+    render(), render_titlebar(), render_topbar_separator(), render_tabbar(), titlebar_button_regions(), render_content(), render_status_separator(), render_status_line(),
     render_popup_box(), render_simple_picker(), render_autocomplete_dropdown()
     open_file(), new_tab(), close_current_tab(), save_current_tab/_as()
     insert_text(), apply_insert_at(), apply_delete_range(), backspace(), delete_forward()
     undo(), redo(), copy/cut/paste, move_*, go_to_line()
-    find_next(), replace_one/all(), prompt(), quick_open(), command_palette(),
-    project_search_*, tree ops, reveal_path_in_tree(), toggle_*()
+    find_next(), replace_one/all(), prompt(), quick_open(), command_palette(), shortcuts_dialog(),
+    project_search_*, replace_in_files_*, replace_in_line(), count_matches_in_line(),
+    context_menu(), render_context_menu(), tree ops, reveal_path_in_tree(), toggle_*()
     autocomplete_*, state_dir/session/recovery, try_restore_session/save_session
   }
   helpers: absolute_path(), parse_cli_path(), relative_path(), atomic_write_file(),
            ansi_*, visual_width(), fit_plain/fit_ansi(), clamp_char_boundary(),
            next/prev_char_boundary(), find_in_line(), parse_quick_open_query(),
            quick_score(), base64_encode(), escape/unescape_state(), ...
+           MouseEvent, parse_sgr_mouse() // SGR `ESC[<Cb;Cx;CyM/m`, 1-indexed
+           editor_click_col(), tab_hit_index(), context_menu_geometry()
+           REPLACE_MATCH_LIMIT=10_000, BG_TAB (#3a405c, inactive tabs)
 
 src/plugins/mod.rs   // facade: from_word/from_path, tree_color, highlight_segments,
                      // completion_context/items, extract_symbols, string utils
@@ -50,12 +55,14 @@ src/plugins/mod.rs   // facade: from_word/from_path, tree_color, highlight_segme
 
 Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock). `read_terminal_size()` via ioctl then `stty size` then env.
 
-Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters.
+Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters. Mouse: SGR `1000`+`1002`+`1006` enabled in `enable_raw_mode()`, disabled in `cleanup()`; `read_key()` breaks on `M/m` for `ESC[<…` (or 6-byte `ESC[M` legacy); `handle_key()` routes both via `parse_sgr_mouse()` / `parse_legacy_mouse()` → `handle_mouse()`. Picker loops (quick open, palette, find-in-files, shortcuts) and `context_menu()` scroll selection on wheel.
+
+Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()`. Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) scrolls tree by moving `tree_index ±3` or editor by moving cursor `±3` (keeps `ensure_*_visible()` invariants; scroll never changes focus, click sets it). Right-click (`Cb&3==2`) opens `context_menu()` (tab/sidebar/editor items, `context_menu_geometry()` clamps to screen minus status line); middle-click (`==1`) on tab bar closes via `close_tab_at()`. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start` (tab-index guarded); double-click selects `word_range_at()`, triple-click the line. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status.
 
 ## 3. Critical Invariants (do not break)
 
 1. **Cols are byte indices.** Always `clamp_char_boundary()` after arithmetic. Use `prev/next_char_boundary()`, never `col±1` on UTF-8. Tests cover this indirectly.
-2. **Raw mode must restore.** `enable_raw_mode()` saves `stty -g`, `cleanup()` restores or `stty sane`, plus `\x1b[?2004l \x1b[0m \x1b[?25h \x1b[?1049l`. Every early return in `run()` must call `cleanup()`.
+2. **Raw mode must restore.** `enable_raw_mode()` saves `stty -g`, `cleanup()` restores or `stty sane`, plus `\x1b[?1002l \x1b[?1006l \x1b[?1000l \x1b[?2004l \x1b[0m \x1b[?25h \x1b[?1049l`. Every early return in `run()` must call `cleanup()`.
 3. **`0x08` duality.** `Ctrl+H` == Backspace on some terms. Rule: in `Focus::Editor`, `0x08` falls through to editor backspace; in `Tree`, toggles sidebar. Don't re-add global `0x08` → toggle unconditionally.
 4. **`absolute_path()` must stay absolute.** Resolves against CWD + lexical `..` normalisation without FS access (supports new files). Session/recovery hashes depend on it.
 5. **History byte positions.** `apply_insert/delete` mutate `lines` + set `cursor=start`. `undo()` iterates `ops.rev()`, `redo()` forward. `mark_edited()` bumps `revision` (monotonic — undo stays dirty by design).
@@ -98,7 +105,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 24 tests: cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins
+cargo test    # 33 tests: cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -112,7 +119,16 @@ Manual smoke (no PTY in CI):
 cargo build --release
 ```
 
-## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2) — Don't Regress
+## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5) — Don't Regress
+
+2.5 (replace-all + context menus + chrome):
+- Replace in Files is `Ctrl+Shift+H` only (`is_ctrl_shift_h`); caps: 3000 files, 5MB, 10k matches. Open modified tabs are skipped (never clobber unsaved buffers); reloaded tabs get `undo/redo` cleared (positions refer to old content).
+- Right-click (`button&3==2`) opens `context_menu()`; middle-click (`==1`) on topbar closes via `close_tab_at()`. Menu loop swallows its own mouse (click-away/Esc cancel, `1-9` pick). Never route menu keys through global shortcuts.
+- Inactive tabs use `BG_TAB` (lighter than bar); open file row uses `BG_HIGHLIGHT` in `render_tree_line()`; status chips in `render_status_line()` (`modified`-only orange, stats yellow) — no `saved` chip, it was display-only noise. Mode chip lives in the titlebar via `focus_label()`.
+- `Ctrl+K` opens `shortcuts_dialog()` (`shortcut_defs()` + shared `filter_command_items()`); `Ctrl+/` (`is_ctrl_slash`) is gone. Titlebar buttons (plain ACCENT text, no bg chip) hit-tested via `titlebar_button_regions()` → quick-open/palette/shortcuts.
+- Clipboard: `copy_to_system_clipboard()` returns verified bool; cascade `try_clipboard_tool()` (`wl-copy`/`xclip`/`xsel`/`pbcopy` via `pipe_to_clipboard_tool()`) then `osc52_sequence()`; OSC52-first over SSH. Messages `Copied` vs `Copied (OSC52)`.
+- Status flash: `render()` arms `status_flash_until` on message change (750ms, 250ms phases, CYAN); `prompt()` blinks every prompt light blue (350ms) using non-blocking `read_key()` ticks + `redraw` flag.
+- Welcome logo is generated bytes from ttfx `highlight` (`ttfx_logo()` + `TTFX_LOGO_WIDTH`, per-row widths — rows are ragged, never pad to a single width).
 
 2.2 (search + navigation):
 - Find in Files is `Ctrl+Shift+O` only (`is_ctrl_shift_o`); never re-add `Ctrl+Shift+F` — terminals reserve it for their own search bar.
@@ -142,7 +158,7 @@ cargo build --release
 - `collect_quick_open_symbols()` (600 files) + `collect_project_search_results()` (3000 files) block UI. Future: cache index or background thread with `mpsc`.
 - Recovery separator `---TEXT---\n` collides if filename ends with that string (filenames can't contain `\n`, so risk tiny). Proper fix: length-prefixed body or NUL separator with migration.
 - Prompt line editing: no Left/Right, no history. Add `prompt_history` if needed.
-- No mouse, no splits, no regex — out of scope unless requested.
+- No drag-select, no splits, no regex — out of scope unless requested.
 
 ## 9. Style & PR Rules
 

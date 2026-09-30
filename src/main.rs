@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::process::Stdio;
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
 #[cfg(unix)]
@@ -20,6 +21,7 @@ const BG: &str = "#1a1b26";
 const BG_DARK: &str = "#16161e";
 const BG_FLOAT: &str = "#1f2335";
 const BG_HIGHLIGHT: &str = "#292e42";
+const BG_TAB: &str = "#3a405c";
 const FG: &str = "#c0caf5";
 const FG_DARK: &str = "#a9b1d6";
 const GUTTER: &str = "#3b4261";
@@ -37,6 +39,7 @@ const ACCENT: &str = BLUE;
 const HISTORY_LIMIT: usize = 400;
 const QUICK_OPEN_LIMIT: usize = 2500;
 const PROJECT_SEARCH_LIMIT: usize = 80;
+const REPLACE_MATCH_LIMIT: usize = 10_000;
 const HUGE_SCAN_LIMIT: usize = 20_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -226,6 +229,12 @@ struct Editor {
     last_recovery_write: HashMap<String, Instant>,
     cached_clock_minute: u64,
     cached_clock_text: String,
+    last_tree_click_time: Option<Instant>,
+    last_tree_click_path: Option<PathBuf>,
+    mouse_drag_start: Option<(usize, Pos)>,
+    last_editor_click: Option<(Instant, Pos, u8)>,
+    last_rendered_message: String,
+    status_flash_until: Option<Instant>,
 }
 
 fn main() {
@@ -235,7 +244,7 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("az 2.2.0");
+        println!("az 2.5.0");
         return;
     }
     let mut editor = Editor::new(args);
@@ -246,7 +255,7 @@ fn main() {
 }
 
 fn print_help() {
-    println!("az 2.2.0 - a small, sane terminal text editor");
+    println!("az 2.5.0 - a fast, small & sane text editor");
     println!();
     println!("USAGE:");
     println!("  az [OPTIONS] [PATH]");
@@ -261,9 +270,14 @@ fn print_help() {
     println!("KEYS:");
     println!("  Ctrl+S save, Ctrl+O quick open, Ctrl+P commands, Ctrl+F find, Ctrl+L find next,");
     println!("  Ctrl+Shift+O find in files (%Foo = case-sensitive), Ctrl+R replace, Ctrl+G go to line,");
-    println!("  Ctrl+E end of line, Ctrl+Home/End or Alt+Up/Down top/bottom of file,");
+    println!("  Ctrl+Shift+H replace in files, Ctrl+E end of line, Ctrl+Home/End or Alt+Up/Down top/bottom,");
     println!("  Ctrl+T tree focus, Ctrl+H tree hide (tree), Ctrl+D close tab, Ctrl+N new file,");
-    println!("  Ctrl+Q quit, Ctrl+/ help, Alt+1-9 tabs");
+    println!("  Ctrl+Q quit, Ctrl+K shortcuts, Alt+1-9 tabs");
+    println!("MOUSE:");
+    println!("  Click sidebar: expand dir / open file, double-click file: rename, wheel: scroll;");
+    println!("  Click editor: move cursor, drag: select, double-click: word, triple-click: line;");
+    println!("  Click tab: switch, middle-click tab: close.");
+    println!("  Right-click sidebar/editor/tab: context menu (open, copy path, rename, delete, search).");
 }
 
 impl Editor {
@@ -367,6 +381,12 @@ impl Editor {
             last_recovery_write: HashMap::new(),
             cached_clock_minute: 0,
             cached_clock_text: String::new(),
+            last_tree_click_time: None,
+            last_tree_click_path: None,
+            mouse_drag_start: None,
+            last_editor_click: None,
+            last_rendered_message: String::new(),
+            status_flash_until: None,
         }
     }
 
@@ -388,7 +408,8 @@ impl Editor {
         let mut last_minute = current_minute();
         while self.running {
             let minute = current_minute();
-            if needs_render || minute != last_minute {
+            let flashing = self.status_flash_until.map(|t| Instant::now() < t).unwrap_or(false);
+            if needs_render || minute != last_minute || flashing {
                 self.render()?;
                 needs_render = false;
                 last_minute = minute;
@@ -406,13 +427,13 @@ impl Editor {
             self.original_stty = String::from_utf8_lossy(&out).trim().to_string();
         }
         let _ = stty_status(["-echo", "-icanon", "-isig", "-ixon", "-ixoff", "min", "0", "time", "1"]);
-        print!("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[?2004h");
+        print!("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[?2004h\x1b[?1000h\x1b[?1002h\x1b[?1006h");
         io::stdout().flush()
     }
 
     fn cleanup(&mut self) -> io::Result<()> {
         self.save_session();
-        print!("\x1b[?2004l\x1b[0m\x1b[?25h\x1b[?1049l\r\n");
+        print!("\x1b[?1002l\x1b[?1006l\x1b[?1000l\x1b[?2004l\x1b[0m\x1b[?25h\x1b[?1049l\r\n");
         io::stdout().flush()?;
         if !self.original_stty.is_empty() {
             if stty_status([self.original_stty.as_str()]).is_err() {
@@ -448,7 +469,7 @@ impl Editor {
         self.rows = max(10, rows);
         self.cols = max(30, cols);
         self.status_line = self.rows;
-        self.content_height = self.rows.saturating_sub(2);
+        self.content_height = self.rows.saturating_sub(5);
     }
 
     fn tab(&self) -> &Tab {
@@ -486,7 +507,15 @@ impl Editor {
                     }
                     Ok(n) => {
                         bytes.extend_from_slice(&buf[..n]);
-                        if bytes.ends_with(b"~") || bytes.ends_with(b"u") || bytes.ends_with(b"A") || bytes.ends_with(b"B") || bytes.ends_with(b"C") || bytes.ends_with(b"D") || bytes.ends_with(b"H") || bytes.ends_with(b"F") {
+                        // Legacy X10 mouse is exactly 6 bytes: ESC [ M Cb Cx Cy.
+                        if bytes.starts_with(b"\x1b[M") && bytes.len() >= 6 {
+                            break;
+                        }
+                        if bytes.ends_with(b"~") || bytes.ends_with(b"u") || bytes.ends_with(b"A") || bytes.ends_with(b"B") || bytes.ends_with(b"C") || bytes.ends_with(b"D") || bytes.ends_with(b"H") || bytes.ends_with(b"F") || bytes.ends_with(b"M") || bytes.ends_with(b"m") {
+                            break;
+                        }
+                        // SGR mouse: ESC [ < Cb ; Cx ; Cy M/m
+                        if (bytes.ends_with(b"M") || bytes.ends_with(b"m")) && bytes.starts_with(b"\x1b[<") {
                             break;
                         }
                         if start.elapsed() > Duration::from_millis(60) { break; }
@@ -540,6 +569,12 @@ impl Editor {
             if self.focus == Focus::Editor {
                 self.insert_text(pasted);
                 self.message = "Pasted".to_string();
+            }
+            return;
+        }
+        if key.starts_with("\x1b[<") || key.starts_with("\x1b[M") {
+            if let Some(ev) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
+                self.handle_mouse(ev);
             }
             return;
         }
@@ -605,14 +640,475 @@ impl Editor {
             "\x01" => { self.select_all(); true }
             "\x17" => { self.delete_current_line(); true }
             _ => {
-                if is_ctrl_slash(key) { self.show_shortcuts_help(); return true; }
+                if is_ctrl_k(key) { self.shortcuts_dialog(); return true; }
                 if is_ctrl_shift_o(key) { self.project_search_prompt(); return true; }
+                if is_ctrl_shift_h(key) { self.replace_in_files_prompt(); return true; }
                 if is_ctrl_shift_z(key) { self.redo(); return true; }
                 if is_ctrl_backspace(key) { self.delete_current_line(); return true; }
                 if let Some(n) = tab_number(key) { self.switch_to_tab_number(n); return true; }
                 false
             }
         }
+    }
+
+    fn handle_mouse(&mut self, ev: MouseEvent) {
+        if ev.is_release {
+            self.mouse_drag_start = None;
+            return;
+        }
+        if ev.is_scroll() {
+            self.handle_mouse_wheel(ev);
+            return;
+        }
+        // Button-drag motion (1002 tracking): extend an editor drag selection.
+        if ev.button & 32 != 0 {
+            if ev.button & 3 == 0 {
+                self.handle_mouse_drag(ev.x, ev.y);
+            }
+            return;
+        }
+        match ev.button & 3 {
+            1 => {
+                self.handle_mouse_middle(ev);
+                return;
+            }
+            2 => {
+                self.handle_mouse_right(ev);
+                return;
+            }
+            _ => {}
+        }
+        // Left press (+modifiers) falls through.
+        if ev.y == 1 {
+            if let Some(action) = self.titlebar_button_action(ev.x) {
+                match action {
+                    "quick-open" => self.quick_open(),
+                    "commands" => self.command_palette(),
+                    _ => self.shortcuts_dialog(),
+                }
+            }
+            return;
+        }
+        if ev.y == 2 {
+            return;
+        }
+        if ev.y == 3 {
+            self.handle_mouse_topbar(ev.x);
+            return;
+        }
+        if ev.y < 4 || ev.y >= 4 + self.content_height {
+            return;
+        }
+        if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+            self.handle_mouse_tree(ev.y);
+        } else {
+            self.handle_mouse_editor(ev.x, ev.y);
+        }
+    }
+
+    fn handle_mouse_wheel(&mut self, ev: MouseEvent) {
+        if ev.y <= 3 || ev.y >= 4 + self.content_height {
+            return;
+        }
+        let down = !ev.scroll_up();
+        if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+            let line = self.tree_index as isize + if down { 3 } else { -3 };
+            self.tree_index = line.clamp(0, self.tree_rows.len().saturating_sub(1) as isize) as usize;
+            return;
+        }
+        self.close_autocomplete();
+        self.move_cursor(if down { 3 } else { -3 }, 0, false);
+    }
+
+    fn titlebar_button_action(&mut self, col: usize) -> Option<&'static str> {
+        for (_, action, start, end) in self.titlebar_button_regions() {
+            if col >= start && col <= end {
+                return Some(action);
+            }
+        }
+        None
+    }
+
+    fn handle_mouse_topbar(&mut self, col: usize) {
+        let (prefix_w, widths) = self.topbar_tab_widths();
+        let visible = self.visible_tab_indexes();
+        if let Some(pos) = tab_hit_index(prefix_w, &widths, col) {
+            if let Some(idx) = visible.get(pos) {
+                self.tab_index = *idx;
+                self.focus = Focus::Editor;
+                self.clear_selection();
+                self.close_autocomplete();
+                self.message = format!("Tab {}", pos + 1);
+            }
+        }
+    }
+
+    fn topbar_tab_widths(&self) -> (usize, Vec<usize>) {
+        // Tabs live above the editor, not the sidebar.
+        let prefix_w = self.editor_start_col().saturating_sub(1);
+        let visible = self.visible_tab_indexes();
+        let widths = visible
+            .iter()
+            .enumerate()
+            .map(|(pos, tab_index)| {
+                let tab = &self.tabs[*tab_index];
+                let modified = if tab.modified { "*" } else { "" };
+                visual_width(&format!(" {}:{}{modified} ", pos + 1, escape_control(&tab.name)))
+            })
+            .collect();
+        (prefix_w, widths)
+    }
+
+    fn handle_mouse_tree(&mut self, row: usize) {
+        self.refresh_tree();
+        let idx = self.tree_scroll + row.saturating_sub(4);
+        let Some(entry) = self.tree_rows.get(idx).cloned() else { return; };
+        // Double-click (same path <500ms) => rename instead of toggle/open.
+        let now = Instant::now();
+        let double = self.last_tree_click_path.as_ref() == Some(&entry.path)
+            && self
+                .last_tree_click_time
+                .map(|t| now.duration_since(t) < Duration::from_millis(500))
+                .unwrap_or(false);
+        self.tree_index = idx;
+        self.ensure_tree_visible();
+        if double {
+            self.last_tree_click_time = None;
+            self.last_tree_click_path = None;
+            self.focus = Focus::Tree;
+            if entry.path == self.root {
+                self.message = "Cannot rename project root".to_string();
+                return;
+            }
+            self.rename_tree_path_prompt(false);
+            return;
+        }
+        self.last_tree_click_time = Some(now);
+        self.last_tree_click_path = Some(entry.path.clone());
+        self.focus = Focus::Tree;
+        if entry.is_dir {
+            if self.expanded.contains(&entry.path) {
+                self.expanded.remove(&entry.path);
+            } else {
+                self.expanded.insert(entry.path);
+            }
+            self.needs_tree_refresh = true;
+            return;
+        }
+        self.open_file(entry.path, true);
+    }
+
+    /// Map a 1-based content click to a buffer position (None past EOF).
+    fn click_to_pos(&self, col: usize, row: usize) -> Option<Pos> {
+        let line_no = self.tab().row_offset + row.saturating_sub(4);
+        if line_no >= self.tab().lines.len() {
+            return None;
+        }
+        let text_first = self.editor_start_col() + self.line_number_gutter_width();
+        // Gutter clicks go to line start.
+        let byte = if col < text_first {
+            0
+        } else {
+            let line = &self.tab().lines[line_no];
+            let start = min(self.tab().col_offset, line.len());
+            editor_click_col(line, start, col - text_first)
+        };
+        Some(Pos { line: line_no, col: byte })
+    }
+
+    fn handle_mouse_editor(&mut self, col: usize, row: usize) {
+        let Some(pos) = self.click_to_pos(col, row) else { return; };
+        self.focus = Focus::Editor;
+        self.close_autocomplete();
+        // Single click moves; double-click selects the word, triple-click the line.
+        let now = Instant::now();
+        let line = self.tab().lines[pos.line].clone();
+        let (quick, same_line, prev_count, prev_col) = match &self.last_editor_click {
+            Some((t, p, c)) => (t.elapsed() < Duration::from_millis(500), p.line == pos.line, *c, p.col),
+            None => (false, false, 0, 0),
+        };
+        let in_same_word = quick
+            && same_line
+            && word_range_at(&line, pos.col)
+                .map(|(s, e)| prev_col >= s && prev_col < e)
+                .unwrap_or(false);
+        let count = if in_same_word {
+            prev_count.saturating_add(1).min(3)
+        } else if quick && same_line && prev_count >= 2 {
+            3
+        } else {
+            1
+        };
+        self.last_editor_click = Some((now, pos, count));
+        match (count, word_range_at(&line, pos.col)) {
+            (2, Some((s, e))) => {
+                self.selection_anchor = Some(Pos { line: pos.line, col: s });
+                self.tab_mut().cursor = Pos { line: pos.line, col: e };
+                self.mouse_drag_start = Some((self.tab_index, Pos { line: pos.line, col: s }));
+            }
+            (3, _) => {
+                self.selection_anchor = Some(Pos { line: pos.line, col: 0 });
+                self.tab_mut().cursor = Pos { line: pos.line, col: line.len() };
+                self.mouse_drag_start = Some((self.tab_index, Pos { line: pos.line, col: 0 }));
+            }
+            _ => {
+                self.clear_selection();
+                self.tab_mut().cursor = pos;
+                self.mouse_drag_start = Some((self.tab_index, pos));
+            }
+        }
+    }
+
+    fn handle_mouse_drag(&mut self, col: usize, row: usize) {
+        let Some((tab_index, start)) = self.mouse_drag_start else { return; };
+        if tab_index != self.tab_index {
+            self.mouse_drag_start = None;
+            return;
+        }
+        let Some(pos) = self.click_to_pos(col, row) else { return; };
+        self.focus = Focus::Editor;
+        self.selection_anchor = Some(start);
+        self.tab_mut().cursor = pos;
+    }
+
+    fn handle_mouse_middle(&mut self, ev: MouseEvent) {
+        if ev.y != 3 {
+            return;
+        }
+        let (prefix_w, widths) = self.topbar_tab_widths();
+        let visible = self.visible_tab_indexes();
+        if let Some(pos) = tab_hit_index(prefix_w, &widths, ev.x) {
+            if let Some(&idx) = visible.get(pos) {
+                self.close_tab_at(idx);
+            }
+        }
+    }
+
+    fn close_tab_at(&mut self, idx: usize) {
+        if idx >= self.tabs.len() {
+            return;
+        }
+        self.tab_index = idx;
+        self.clear_selection();
+        self.close_current_tab();
+    }
+
+    fn handle_mouse_right(&mut self, ev: MouseEvent) {
+        if ev.y == 3 {
+            let (prefix_w, widths) = self.topbar_tab_widths();
+            let visible = self.visible_tab_indexes();
+            let Some(pos) = tab_hit_index(prefix_w, &widths, ev.x) else { return; };
+            let Some(&idx) = visible.get(pos) else { return; };
+            self.tab_index = idx;
+            self.clear_selection();
+            let items = vec!["Close tab".to_string(), "Copy file path".to_string()];
+            match self.context_menu(&items, ev.x, 4) {
+                Some(0) => self.close_current_tab(),
+                Some(1) => self.copy_current_tab_path(),
+                _ => {}
+            }
+            return;
+        }
+        if ev.y < 4 || ev.y >= 4 + self.content_height {
+            return;
+        }
+        if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+            self.handle_tree_right_click(ev.x, ev.y);
+        } else {
+            self.handle_editor_right_click(ev.x, ev.y);
+        }
+    }
+
+    fn handle_tree_right_click(&mut self, x: usize, y: usize) {
+        self.refresh_tree();
+        let idx = self.tree_scroll + y.saturating_sub(4);
+        let Some(entry) = self.tree_rows.get(idx).cloned() else { return; };
+        self.tree_index = idx;
+        self.focus = Focus::Tree;
+        let items = vec![
+            "Open".to_string(),
+            "Copy file path".to_string(),
+            "Rename".to_string(),
+            "Delete".to_string(),
+            "Search here".to_string(),
+            "Search & Replace here".to_string(),
+        ];
+        let Some(choice) = self.context_menu(&items, x, y) else { return; };
+        match choice {
+            0 => {
+                if entry.is_dir {
+                    if self.expanded.contains(&entry.path) {
+                        self.expanded.remove(&entry.path);
+                    } else {
+                        self.expanded.insert(entry.path);
+                    }
+                    self.needs_tree_refresh = true;
+                } else {
+                    self.open_file(entry.path, true);
+                }
+            }
+            1 => self.copy_file_path_to_clipboard(&entry.path),
+            2 => self.rename_tree_path_prompt(false),
+            3 => self.delete_tree_path_prompt(false),
+            4 => {
+                let scope = self.search_scope_for_path(&entry.path);
+                self.project_search_prompt_in(scope);
+            }
+            _ => {
+                let scope = self.search_scope_for_path(&entry.path);
+                self.replace_in_files_prompt_scoped(scope);
+            }
+        }
+    }
+
+    fn handle_editor_right_click(&mut self, x: usize, y: usize) {
+        if self.selection_range().is_none() {
+            self.handle_mouse_editor(x, y);
+        } else {
+            self.focus = Focus::Editor;
+        }
+        let items = vec![
+            "Cut".to_string(),
+            "Copy".to_string(),
+            "Paste".to_string(),
+            "Select All".to_string(),
+            "Find in File".to_string(),
+            "Replace in File".to_string(),
+            "Find in Files".to_string(),
+            "Replace in Files".to_string(),
+            "Go to Line".to_string(),
+        ];
+        let Some(choice) = self.context_menu(&items, x, y) else { return; };
+        match choice {
+            0 => self.cut_selection_or_line(),
+            1 => self.copy_selection_or_line(),
+            2 => self.paste_clipboard(),
+            3 => self.select_all(),
+            4 => self.find_prompt(),
+            5 => self.replace_prompt(),
+            6 => self.project_search_prompt(),
+            7 => self.replace_in_files_prompt(),
+            _ => self.go_to_line_prompt(),
+        }
+    }
+
+    /// Scope dir for "Search here": the dir itself, or the parent of a file.
+    fn search_scope_for_path(&self, path: &Path) -> PathBuf {
+        if path.is_dir() {
+            return path.to_path_buf();
+        }
+        path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| self.root.clone())
+    }
+
+    fn copy_file_path_to_clipboard(&mut self, path: &Path) {
+        let s = path.to_string_lossy().into_owned();
+        self.clipboard = s.clone();
+        let rel = relative_path(&self.root, path);
+        self.message = if self.copy_to_system_clipboard(&s) {
+            format!("Copied {rel}")
+        } else {
+            format!("Copied {rel} (OSC52)")
+        };
+    }
+
+    fn copy_current_tab_path(&mut self) {
+        let path = self.tab().path.clone();
+        match path {
+            Some(p) => self.copy_file_path_to_clipboard(&p),
+            None => self.message = "No path to copy (unsaved file)".to_string(),
+        }
+    }
+
+    fn context_menu(&mut self, items: &[String], col: usize, row: usize) -> Option<usize> {
+        if items.is_empty() {
+            return None;
+        }
+        self.mouse_drag_start = None;
+        let max_w = items.iter().map(|s| visual_width(s)).max().unwrap_or(0) + 4;
+        let (sc, sr, width, height) = context_menu_geometry(items.len(), max_w, col, row, self.cols, self.rows);
+        let mut selected = 0usize;
+        let mut offset = 0usize;
+        loop {
+            let vis = height.saturating_sub(2).max(1);
+            if selected < offset {
+                offset = selected;
+            }
+            if selected >= offset + vis {
+                offset = selected + 1 - vis;
+            }
+            let _ = self.render();
+            self.render_context_menu(items, selected, offset, sc, sr, width, height);
+            let key = self.read_key_blocking().unwrap_or_default();
+            if let Some(m) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
+                if m.is_release || m.button & 32 != 0 {
+                    continue;
+                }
+                if m.is_scroll() {
+                    if m.scroll_up() {
+                        selected = selected.saturating_sub(1);
+                    } else {
+                        selected = min(items.len().saturating_sub(1), selected + 1);
+                    }
+                    continue;
+                }
+                let btn = m.button & 3;
+                if btn == 0 && m.button & 32 == 0 {
+                    if m.x >= sc && m.x < sc + width && m.y > sr && m.y < sr + height - 1 {
+                        let idx = offset + (m.y - sr - 1);
+                        if idx < items.len() {
+                            return Some(idx);
+                        }
+                        continue;
+                    }
+                    return None;
+                }
+                if btn == 2 {
+                    return None;
+                }
+                continue;
+            }
+            match key.as_str() {
+                "\r" | "\n" => return Some(selected),
+                "\x1b" => return None,
+                "\x1b[A" | "\x10" => selected = selected.saturating_sub(1),
+                "\x1b[B" | "\x0e" => selected = min(items.len() - 1, selected + 1),
+                _ => {
+                    if key.len() == 1 && key.as_bytes()[0].is_ascii_digit() {
+                        let idx = (key.as_bytes()[0] - b'0') as usize;
+                        if idx >= 1 && idx <= items.len() {
+                            return Some(idx - 1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn render_context_menu(&self, items: &[String], selected: usize, offset: usize, start_col: usize, start_row: usize, width: usize, height: usize) {
+        let inner = width.saturating_sub(2);
+        let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
+        let mut out = String::new();
+        out.push_str("\x1b[?25l");
+        out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
+        let vis = height.saturating_sub(2);
+        for i in 0..vis {
+            let r = start_row + 1 + i;
+            let cell = if let Some(label) = items.get(offset + i) {
+                let plain = format!(" {} {}", offset + i + 1, label);
+                let style = if offset + i == selected {
+                    ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false)
+                } else {
+                    ansi_style(Some(FG), Some(BG_FLOAT), false, false, false)
+                };
+                format!("{style}{}\x1b[0m", fit_plain(&plain, inner))
+            } else {
+                format!("{}\x1b[0m", fit_plain("", inner))
+            };
+            out.push_str(&format!("\x1b[{r};{start_col}H{border}║\x1b[0m{cell}{border}║\x1b[0m"));
+        }
+        out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + height - 1, "═".repeat(inner)));
+        print!("{out}");
+        let _ = io::stdout().flush();
     }
 
     fn handle_tree_key(&mut self, key: &str) {
@@ -716,13 +1212,21 @@ impl Editor {
         self.update_tree_width();
         self.ensure_editor_visible();
         self.ensure_tree_visible();
+        // Any new status message flashes orange once to grab attention.
+        if self.message != self.last_rendered_message {
+            self.last_rendered_message = self.message.clone();
+            self.status_flash_until = Some(Instant::now() + Duration::from_millis(750));
+        }
 
         let mut out = String::new();
         out.push_str("\x1b[?25l\x1b[H");
         out.push_str(&ansi_fg(FG));
         out.push_str(&ansi_bg(BG));
-        out.push_str(&self.render_topbar());
+        out.push_str(&self.render_titlebar());
+        out.push_str(&self.render_topbar_separator());
+        out.push_str(&self.render_tabbar());
         out.push_str(&self.render_content());
+        out.push_str(&self.render_status_separator());
         out.push_str(&self.render_status_line());
 
         let (cursor_row, cursor_col) = self.cursor_screen_position();
@@ -741,22 +1245,65 @@ impl Editor {
         self.cached_clock_text.clone()
     }
 
-    fn render_topbar(&mut self) -> String {
+    /// Titlebar buttons: (label with padding, action, 1-based start/end cols).
+    /// Layout: ` az `, then buttons separated by single spaces; rest is filler.
+    fn focus_label(&self) -> &'static str {
+        if self.focus == Focus::Tree { "tree" } else { "editor" }
+    }
+
+    fn titlebar_button_regions(&mut self) -> Vec<(&'static str, &'static str, usize, usize)> {
+        let defs = [(" Open ", "quick-open"), (" Commands ", "commands"), (" Shortcuts ", "shortcuts")];
+        let right_w = visual_width(&format!(" {} ", self.clock_text()));
+        let mut out = Vec::new();
+        let mut x = 4 + 1 + self.focus_label().len() + 2 + 1;
+        for (label, action) in defs {
+            if x + label.len() > self.cols.saturating_sub(right_w) + 1 {
+                break;
+            }
+            out.push((label, action, x + 1, x + label.len()));
+            x += 1 + label.len();
+        }
+        out
+    }
+
+    fn render_titlebar(&mut self) -> String {
         let style = ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false);
-        let clock = self.clock_text();
-        let right = format!(" {} ", clock);
-        let title = " az | sane editor ";
-        let prefix = if self.sidebar_hidden {
-            format!("{title} ")
-        } else {
-            format!("{} ", fit_plain(title, self.tree_width))
-        };
+        let chip = ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false);
+        let mode_chip = ansi_style(Some(ACCENT), Some(BG_HIGHLIGHT), true, false, false);
+        let button = ansi_style(Some(ACCENT), Some(BG_FLOAT), false, false, false);
+        let right = format!(" {} ", self.clock_text());
         let right_w = visual_width(&right);
-        let prefix_w = visual_width(&prefix);
-        let avail_tabs = self.cols.saturating_sub(prefix_w + right_w);
-        let tabs = fit_ansi(&self.render_tabs_text(&style), avail_tabs);
-        let left = fit_ansi(&(prefix + &tabs), self.cols.saturating_sub(right_w));
-        format!("{style}{left}{style}{right}\x1b[0m\r\n")
+        let mode = self.focus_label();
+        let mut out = format!("\x1b[1;1H{chip} az {style} {mode_chip} {mode} ");
+        let mut used = 4 + 1 + mode.len() + 2;
+        for (label, _, _, _) in self.titlebar_button_regions() {
+            out.push_str(&format!("{style} {button}{label}"));
+            used += 1 + label.len();
+        }
+        let mid = " ".repeat(self.cols.saturating_sub(used + right_w));
+        out.push_str(&format!("{style}{mid}{right}\x1b[0m"));
+        out
+    }
+
+    /// Permanent full-width separator between titlebar and tab bar.
+    fn render_topbar_separator(&self) -> String {
+        let style = ansi_style(Some(GUTTER), Some(BG_FLOAT), false, false, false);
+        format!("\x1b[2;1H{style}{}\x1b[0m", "─".repeat(self.cols))
+    }
+
+    /// Permanent full-width separator above the status bar.
+    fn render_status_separator(&self) -> String {
+        let style = ansi_style(Some(GUTTER), Some(BG_FLOAT), false, false, false);
+        format!("\x1b[{};1H{style}{}\x1b[0m", self.rows - 1, "─".repeat(self.cols))
+    }
+
+    fn render_tabbar(&self) -> String {
+        let style = ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false);
+        let (prefix_w, widths) = self.topbar_tab_widths();
+        let tabs = fit_ansi(&self.render_tabs_text(&style), self.cols.saturating_sub(prefix_w));
+        let used: usize = prefix_w + widths.iter().sum::<usize>().min(self.cols.saturating_sub(prefix_w));
+        let pad = " ".repeat(self.cols.saturating_sub(used));
+        format!("\x1b[3;1H{style}{}{tabs}{style}{pad}\x1b[0m", " ".repeat(prefix_w))
     }
 
     fn render_tabs_text(&self, base_style: &str) -> String {
@@ -773,7 +1320,7 @@ impl Editor {
                 out.push_str(&ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false));
                 out.push_str(&format!(" {number}:{name}{modified} \x1b[0m{base_style}"));
             } else {
-                out.push_str(&ansi_style(Some(FG_DARK), Some(BG_FLOAT), false, false, false));
+                out.push_str(&ansi_style(Some(FG), Some(BG_TAB), false, false, false));
                 out.push_str(&format!(" {number}:{name}{modified} {base_style}"));
             }
         }
@@ -802,7 +1349,7 @@ impl Editor {
 
         let visible = self.visible_line_range();
         for screen_line in 0..self.content_height {
-            let row_no = screen_line + 2;
+            let row_no = screen_line + 4;
             out.push_str(&format!("\x1b[{row_no};1H"));
             if !self.sidebar_hidden {
                 out.push_str(&self.render_tree_line(screen_line));
@@ -815,8 +1362,8 @@ impl Editor {
                 let rendered = self.render_editor_line(line, line_no, syntax, text_width);
                 out.push_str(&rendered);
             } else {
-                out.push_str(&format!("\x1b[{row_no};{editor_start}H{}~{}", ansi_style(Some(GUTTER), Some(BG), false, true, false), reset_fg_bg()));
-                out.push_str(&fit_plain("", self.cols.saturating_sub(editor_start).saturating_add(1)));
+                out.push_str(&format!("\x1b[{row_no};{editor_start}H{}~", ansi_style(Some(GUTTER), Some(BG), false, true, false)));
+                out.push_str(&format!("{}{}{}", ansi_style(Some(FG), Some(BG), false, false, false), fit_plain("", self.cols.saturating_sub(editor_start).saturating_add(1)), reset_fg_bg()));
             }
         }
         out
@@ -863,7 +1410,12 @@ impl Editor {
             ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false)
         } else if row_idx < self.tree_rows.len() {
             let row = &self.tree_rows[row_idx];
-            ansi_style(Some(plugins::tree_color(&row.path, row.is_dir)), Some(BG_DARK), row.is_dir, false, false)
+            let is_open = !row.is_dir && self.tab().path.as_ref() == Some(&row.path);
+            if is_open {
+                ansi_style(Some(FG), Some(BG_HIGHLIGHT), true, false, false)
+            } else {
+                ansi_style(Some(plugins::tree_color(&row.path, row.is_dir)), Some(BG_DARK), row.is_dir, false, false)
+            }
         } else {
             ansi_style(Some(FG_DARK), Some(BG_DARK), false, false, false)
         };
@@ -922,128 +1474,116 @@ impl Editor {
     fn render_status_line(&self) -> String {
         let tab = self.tab();
         let path = tab.path.as_ref().map(|p| relative_path(&self.root, p)).unwrap_or_else(|| tab.name.clone());
-        let state = if tab.modified { "modified" } else { "saved" };
         let syntax_label = if tab.syntax_mode.is_some() { format!("{} manual", tab.syntax().label()) } else { tab.syntax().label().to_string() };
-        let focus = if self.focus == Focus::Tree { "tree" } else { "editor" };
-        let tree = if self.sidebar_hidden { "tree hidden" } else { "tree shown" };
+        let tree_label = if self.sidebar_hidden { "tree hidden" } else { "tree shown" };
         let large = if tab.large_file { "  LARGE" } else { "" };
         let stats = format!("Ln {}, Col {}  Lines {}  Words {}{}", tab.cursor.line + 1, tab.cursor.col + 1, tab.lines.len(), word_count(&tab.lines), large);
-        let left = format!(" {focus}  {path}  {state}  {syntax_label}  {tree} ");
-        let right = format!(" {}  {} ", self.message, stats);
-        let left_w = visual_width(&left);
-        let right_w = visual_width(&right);
-        let mut line = if left_w + right_w + 1 < self.cols {
-            format!("{}{}{}", left, " ".repeat(self.cols - left_w - right_w), right)
-        } else {
-            fit_plain(&format!("{left} {right}"), self.cols)
+        // One chip per item, all from the Tokyo Night palette (dark text on
+        // bright chips, light text on dark ones). State color follows content.
+        let mut chips: Vec<(String, &str, &str, bool)> = vec![
+            (format!(" {path} "), FG, BG_FLOAT, false),
+        ];
+        if tab.modified {
+            chips.push((" modified ".to_string(), BG_DARK, ORANGE, true));
+        }
+        chips.push((format!(" {syntax_label} "), BG_DARK, PURPLE, true));
+        chips.push((format!(" {tree_label} "), BG_DARK, CYAN, false));
+        let base = ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false);
+        let mut left = String::new();
+        let mut left_w = 0usize;
+        for (i, (text, fg, bg, bold)) in chips.iter().enumerate() {
+            if i > 0 {
+                left.push_str(&format!("{base} "));
+                left_w += 1;
+            }
+            left.push_str(&format!("{}{text}\x1b[0m", ansi_style(Some(*fg), Some(*bg), *bold, false, false)));
+            left_w += visual_width(text);
+        }
+        let stats_text = format!(" {stats} ");
+        let stats_w = visual_width(&stats_text);
+        let stats_rendered = format!("{}{stats_text}\x1b[0m", ansi_style(Some(BG_DARK), Some(YELLOW), true, false, false));
+        // Fresh messages blink orange (750ms window, ~250ms phases).
+        let blink_on = match self.status_flash_until {
+            Some(t) => {
+                let remaining = t.saturating_duration_since(Instant::now()).as_millis().min(750);
+                remaining > 0 && (750 - remaining) / 250 % 2 == 0
+            }
+            None => false,
         };
-        line = fit_plain(&line, self.cols);
-        format!("\x1b[{};1H{}{}\x1b[0m", self.status_line, ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false), line)
+        let msg_style = if blink_on {
+            ansi_style(Some(BG_DARK), Some(CYAN), true, false, false)
+        } else {
+            base.clone()
+        };
+        // Message takes whatever is left; chips always fit via fit_ansi below.
+        let msg_w = self.cols.saturating_sub(left_w + stats_w + 2);
+        let mut line = format!("{base}{left}{base} ");
+        if msg_w > 0 {
+            line.push_str(&format!("{msg_style}{}\x1b[0m", fit_plain(&format!("{} ", self.message), msg_w)));
+        }
+        line.push_str(&format!("{base} {stats_rendered}"));
+        format!("\x1b[{};1H{}\x1b[0m", self.status_line, fit_ansi(&line, self.cols))
     }
 
     fn cursor_screen_position(&self) -> (usize, usize) {
         if self.focus == Focus::Tree && !self.sidebar_hidden {
             let visible = self.tree_index.saturating_sub(self.tree_scroll);
-            return (2 + min(visible, self.content_height.saturating_sub(1)), 1);
+            return (4 + min(visible, self.content_height.saturating_sub(1)), 1);
         }
         let tab = self.tab();
-        let row = 2 + tab.cursor.line.saturating_sub(tab.row_offset);
+        let row = 4 + tab.cursor.line.saturating_sub(tab.row_offset);
         let visual = visual_width(&tab.lines[tab.cursor.line][tab.col_offset.min(tab.cursor.col)..tab.cursor.col]);
         let col = self.editor_start_col() + self.line_number_gutter_width() + min(visual, self.editor_text_width().saturating_sub(1));
         (max(1, min(self.rows, row)), max(1, min(self.cols, col)))
     }
 
     fn render_welcome_screen(&mut self) -> io::Result<()> {
-        let mut lines = vec![
-            "   __ _ ____".to_string(),
-            "  / _` |_  /".to_string(),
-            " | (_| |/ / ".to_string(),
-            r"  \__,_/___|".to_string(),
+        let hint = "  Ctrl+K for all shortcuts (searchable) ".to_string();
+        let lines = vec![
             String::new(),
-            "  A small, sane terminal editor for code and text.".to_string(),
+            "  A fast, small & sane text editor.".to_string(),
             String::new(),
-            "  START".to_string(),
-            "    az file.php       open a file".to_string(),
-            "    az project/       open a folder".to_string(),
+            "    Ctrl+O  Quick open file/symbol".to_string(),
+            "    Ctrl+P  Command palette".to_string(),
+            "    Ctrl+S  Save".to_string(),
+            "    Ctrl+Q  Quit".to_string(),
             String::new(),
-            "  ESSENTIALS".to_string(),
+            hint.clone(),
+            String::new(),
+            "  Press any key to continue ...".to_string(),
         ];
-        lines.extend(self.shortcut_help_lines());
-        lines.push(String::new());
-        lines.extend(self.language_help_lines());
-        lines.push(String::new());
-        lines.push("  Press any key to continue ...".to_string());
-        self.render_popup_box(&lines, &[0, 1, 2, 3])
+        let hint_idx = lines.iter().position(|l| *l == hint).unwrap_or(0);
+        self.render_popup_box(&lines, &[hint_idx], &ttfx_logo())
     }
 
-    fn show_shortcuts_help(&mut self) {
-        let mut lines = vec![
-            "   __ _ ____".to_string(),
-            "  / _` |_  /".to_string(),
-            " | (_| |/ / ".to_string(),
-            r"  \__,_/___|".to_string(),
-            String::new(),
-            "  Keyboard shortcuts".to_string(),
-            String::new(),
-        ];
-        lines.extend(self.shortcut_help_lines());
-        lines.push(String::new());
-        lines.extend(self.language_help_lines());
-        lines.push(String::new());
-        lines.push("  Press any key to return ...".to_string());
-        let _ = self.render();
-        let _ = self.render_popup_box(&lines, &[0, 1, 2, 3]);
-        let _ = self.read_key_blocking();
-        self.message = "Welcome screen closed".to_string();
-    }
-
-    fn language_help_lines(&self) -> Vec<String> {
-        vec![
-            "  LANGUAGES (22, Ctrl+P set …)".to_string(),
-            "    PHP Blade HTML CSS JS TS XML MD JSON TOML".to_string(),
-            "    YAML SH ENV INI LOG RUST NGINX APACHE".to_string(),
-            "    DOCKER SYSTEMD SQL + Plain (auto by file)".to_string(),
-        ]
-    }
-
-    fn shortcut_help_lines(&self) -> Vec<String> {
-        vec![
-            "    Ctrl+S  Save                   Ctrl+O  Quick open file/symbol".to_string(),
-            "    Ctrl+Z  Undo                   Ctrl+Y  Redo".to_string(),
-            "    Ctrl+P  Command palette        Ctrl+G  Go to line".to_string(),
-            "    Ctrl+N  New file               Ctrl+T  Show/focus tree".to_string(),
-            "    Ctrl+F  Find                   Ctrl+L  Find next".to_string(),
-            "    Ctrl+Shift+O  Find in files    %term   Case-sensitive find".to_string(),
-            "    Ctrl+R  Replace                Alt+1-9 Switch tab".to_string(),
-            "    Tab     Complete               Ctrl+D  Close tab".to_string(),
-            "    Ctrl+C  Copy                   Ctrl+Q  Quit".to_string(),
-            "    Ctrl+X  Cut                    Ctrl+A  Select all".to_string(),
-            "    Ctrl+V  Paste                  Ctrl+W  Remove line".to_string(),
-            "    Ctrl+H  Hide/show tree (tree)  +/-   Tree width (tree)".to_string(),
-            "    Ctrl+E  End of line            Home/End  Line start/end".to_string(),
-            "    Ctrl+Home/End File top/end     Alt+Up/Down same".to_string(),
-            "    Ctrl+/  Help                   az file:20 open at line".to_string(),
-            "    Ctrl+P  set php/blade/html/css/js/ts/md/json".to_string(),
-            "    Ctrl+P  set toml/yaml/sh/env/ini/log/rust/sql".to_string(),
-        ]
-    }
-
-    fn render_popup_box(&self, lines: &[String], logo_lines: &[usize]) -> io::Result<()> {
-        let width = min(self.cols.saturating_sub(4), max(56, lines.iter().map(|l| visual_width(l)).max().unwrap_or(30) + 4));
-        let height = min(self.rows.saturating_sub(2), lines.len() + 2);
+    fn render_popup_box(&self, lines: &[String], highlight_lines: &[usize], logo: &[(String, usize)]) -> io::Result<()> {
+        let content_w = lines.iter().map(|l| visual_width(l)).max().unwrap_or(30) + 4;
+        let need = max(56, max(content_w, if logo.is_empty() { 0 } else { TTFX_LOGO_WIDTH + 4 }));
+        let width = min(self.cols.saturating_sub(4), need);
+        let height = min(self.rows.saturating_sub(2), lines.len() + logo.len() + 2);
         let start_col = max(1, (self.cols.saturating_sub(width)) / 2 + 1);
         let start_row = max(1, (self.rows.saturating_sub(height)) / 2 + 1);
         let inner = width.saturating_sub(2);
         let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
+        let logo_bg = ansi_style(Some(FG), Some(BG_FLOAT), false, false, false);
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
-        for i in 0..height.saturating_sub(2) {
-            let row = start_row + 1 + i;
+        let mut drawn = 0usize;
+        for (styled, w) in logo.iter() {
+            if drawn >= height.saturating_sub(2) {
+                break;
+            }
+            let row = start_row + 1 + drawn;
+            drawn += 1;
+            let pad = " ".repeat(inner.saturating_sub(*w));
+            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{logo_bg}{styled}{pad}\x1b[0m{border}║\x1b[0m"));
+        }
+        for i in 0..height.saturating_sub(2).saturating_sub(drawn) {
+            let row = start_row + 1 + drawn + i;
             let raw = lines.get(i).map(String::as_str).unwrap_or("");
-            let is_logo = logo_lines.contains(&i);
-            let style = if is_logo {
-                ansi_style(Some(ORANGE), Some(BG_FLOAT), true, false, false)
+            let style = if highlight_lines.contains(&i) {
+                ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false)
             } else {
                 ansi_style(Some(FG), Some(BG_FLOAT), false, false, false)
             };
@@ -1516,16 +2056,20 @@ impl Editor {
     fn copy_selection_or_line(&mut self) {
         let text = self.selected_text().unwrap_or_else(|| self.tab().lines[self.tab().cursor.line].clone());
         self.clipboard = text.clone();
-        self.copy_to_system_clipboard(&text);
-        self.message = "Copied".to_string();
+        self.message = if self.copy_to_system_clipboard(&text) {
+            "Copied".to_string()
+        } else {
+            "Copied (OSC52)".to_string()
+        };
     }
 
     fn cut_selection_or_line(&mut self) {
         let before = self.tab().cursor;
+        let verified: bool;
         if let Some((a, b)) = self.selection_range() {
             let deleted = self.apply_delete_range(a, b);
             self.clipboard = deleted.clone();
-            self.copy_to_system_clipboard(&deleted);
+            verified = self.copy_to_system_clipboard(&deleted);
             self.push_history(HistoryEntry { ops: vec![TextOp::Delete { pos: a, text: deleted }], before, after: a });
         } else {
             let line = before.line;
@@ -1533,12 +2077,12 @@ impl Editor {
             let end = if line + 1 < self.tab().lines.len() { Pos { line: line + 1, col: 0 } } else { Pos { line, col: self.tab().lines[line].len() } };
             let deleted = self.apply_delete_range(start, end);
             self.clipboard = deleted.clone();
-            self.copy_to_system_clipboard(&deleted);
+            verified = self.copy_to_system_clipboard(&deleted);
             self.push_history(HistoryEntry { ops: vec![TextOp::Delete { pos: start, text: deleted }], before, after: start });
         }
         self.clear_selection();
         self.mark_edited();
-        self.message = "Cut".to_string();
+        self.message = if verified { "Cut".to_string() } else { "Cut (OSC52)".to_string() };
     }
 
     fn paste_clipboard(&mut self) {
@@ -1556,10 +2100,17 @@ impl Editor {
         self.message = "Selected all".to_string();
     }
 
-    fn copy_to_system_clipboard(&self, text: &str) {
-        let encoded = base64_encode(text.as_bytes());
-        print!("\x1b]52;c;{}\x07", encoded);
+    /// Sends `text` to the system clipboard. Returns true when an external
+    /// tool accepted it (verified); otherwise best-effort OSC52 was emitted.
+    fn copy_to_system_clipboard(&self, text: &str) -> bool {
+        // Over SSH only OSC52 reaches the local machine; try it first there.
+        let ssh = env::var("SSH_CONNECTION").is_ok() || env::var("SSH_TTY").is_ok();
+        if !ssh && try_clipboard_tool(text) {
+            return true;
+        }
+        print!("{}", osc52_sequence(text));
         let _ = io::stdout().flush();
+        !ssh || try_clipboard_tool(text)
     }
 
     fn move_cursor(&mut self, line_delta: isize, col_delta: isize, select: bool) {
@@ -1861,14 +2412,34 @@ impl Editor {
 
     fn prompt(&mut self, label: &str, default: &str) -> String {
         let mut value = default.to_string();
+        // Prompts block awaiting input, so the prompt line blinks until answered.
+        let normal = ansi_style(Some(FG), Some(BG_HIGHLIGHT), true, false, false);
+        let alert = ansi_style(Some(BG_DARK), Some(CYAN), true, false, false);
+        let mut phase = false;
+        let mut last_toggle = Instant::now();
+        let mut drawn_phase = true;
+        let mut redraw = true;
         loop {
-            let _ = self.render();
-            let text = format!(" az> {label}{value}");
-            print!("\x1b[{};1H{}{}\x1b[0m", self.status_line, ansi_style(Some(FG), Some(BG_HIGHLIGHT), true, false, false), fit_plain(&text, self.cols));
-            let cursor_col = min(self.cols, 6 + label.len() + value.len());
-            print!("\x1b[{};{}H\x1b[?25h", self.status_line, max(1, cursor_col));
-            let _ = io::stdout().flush();
-            let key = self.read_key_blocking().unwrap_or_default();
+            let now = Instant::now();
+            if now.duration_since(last_toggle) > Duration::from_millis(350) {
+                phase = !phase;
+                last_toggle = now;
+            }
+            if redraw || phase != drawn_phase {
+                redraw = false;
+                drawn_phase = phase;
+                let _ = self.render();
+                let style = if phase { &alert } else { &normal };
+                let text = format!(" az> {label}{value}");
+                print!("\x1b[{};1H{}{}\x1b[0m", self.status_line, style, fit_plain(&text, self.cols));
+                let cursor_col = min(self.cols, 6 + label.len() + value.len());
+                print!("\x1b[{};{}H\x1b[?25h", self.status_line, max(1, cursor_col));
+                let _ = io::stdout().flush();
+            }
+            let key = match self.read_key() {
+                Ok(Some(k)) => k,
+                _ => continue,
+            };
             match key.as_str() {
                 "\r" | "\n" => return value,
                 "\x1b" => return String::new(),
@@ -1882,6 +2453,7 @@ impl Editor {
                     }
                 }
             }
+            redraw = true;
         }
     }
 
@@ -1896,6 +2468,16 @@ impl Editor {
             selected = min(selected, matches.len().saturating_sub(1));
             self.render_quick_open(&query, &matches, selected);
             let key = self.read_key_blocking().unwrap_or_default();
+            if let Some(m) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
+                if !m.is_release && m.is_scroll() {
+                    if m.scroll_up() {
+                        selected = selected.saturating_sub(1);
+                    } else {
+                        selected = min(matches.len().saturating_sub(1), selected + 1);
+                    }
+                }
+                continue;
+            }
             match key.as_str() {
                 "\r" | "\n" => {
                     if bare_line {
@@ -1929,8 +2511,13 @@ impl Editor {
     }
 
     fn collect_quick_open_files(&self, limit: usize) -> Vec<PickerItem> {
+        let root = self.root.clone();
+        self.collect_files_under(&root, limit)
+    }
+
+    fn collect_files_under(&self, dir: &Path, limit: usize) -> Vec<PickerItem> {
         let mut out = Vec::new();
-        let mut stack = vec![self.root.clone()];
+        let mut stack = vec![dir.to_path_buf()];
         let skip: HashSet<&str> = [
             ".git",
             "node_modules",
@@ -2032,6 +2619,16 @@ impl Editor {
             self.message = old;
             self.render_simple_picker(" Command Palette ", if query.is_empty() { "type a command" } else { &query }, &matches, selected, "No matching commands", &query);
             let key = self.read_key_blocking().unwrap_or_default();
+            if let Some(m) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
+                if !m.is_release && m.is_scroll() {
+                    if m.scroll_up() {
+                        selected = selected.saturating_sub(1);
+                    } else {
+                        selected = min(matches.len().saturating_sub(1), selected + 1);
+                    }
+                }
+                continue;
+            }
             match key.as_str() {
                 "\r" | "\n" => {
                     if let Some(item) = matches.get(selected) {
@@ -2040,6 +2637,52 @@ impl Editor {
                     return;
                 }
                 "\x1b" => { self.message = "Command cancelled".to_string(); return; }
+                "\x1b[A" | "\x10" => selected = selected.saturating_sub(1),
+                "\x1b[B" | "\x0e" => selected = min(matches.len().saturating_sub(1), selected + 1),
+                "\x7f" | "\x08" => { remove_last_char(&mut query); selected = 0; }
+                "\x15" => { query.clear(); selected = 0; }
+                _ => {
+                    if let Some(pasted) = key.strip_prefix("\0AZPASTE:") {
+                        query.push_str(&pasted.replace('\r', " ").replace('\n', " "));
+                        selected = 0;
+                    } else if is_printable(&key) {
+                        query.push_str(&key);
+                        selected = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    fn shortcut_items(&self) -> Vec<PickerItem> {
+        shortcut_defs().iter().map(|(l, d)| PickerItem { label: (*l).to_string(), detail: (*d).to_string(), path: None, line: None, action: None }).collect()
+    }
+
+    fn shortcuts_dialog(&mut self) {
+        let shortcuts = self.shortcut_items();
+        let mut query = String::new();
+        let mut selected = 0usize;
+        loop {
+            let matches = self.filter_command_items(&shortcuts, &query);
+            selected = min(selected, matches.len().saturating_sub(1));
+            let old = self.message.clone();
+            self.message = "Keyboard shortcuts".to_string();
+            let _ = self.render();
+            self.message = old;
+            self.render_simple_picker(" Keyboard Shortcuts ", if query.is_empty() { "type to filter (Enter/Esc closes)" } else { &query }, &matches, selected, "No matching shortcuts", &query);
+            let key = self.read_key_blocking().unwrap_or_default();
+            if let Some(m) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
+                if !m.is_release && m.is_scroll() {
+                    if m.scroll_up() {
+                        selected = selected.saturating_sub(1);
+                    } else {
+                        selected = min(matches.len().saturating_sub(1), selected + 1);
+                    }
+                }
+                continue;
+            }
+            match key.as_str() {
+                "\r" | "\n" | "\x1b" => { self.message = "Shortcuts closed".to_string(); return; }
                 "\x1b[A" | "\x10" => selected = selected.saturating_sub(1),
                 "\x1b[B" | "\x0e" => selected = min(matches.len().saturating_sub(1), selected + 1),
                 "\x7f" | "\x08" => { remove_last_char(&mut query); selected = 0; }
@@ -2071,6 +2714,7 @@ impl Editor {
             ("Go to Start of File", "Ctrl+Home / Alt+Up", "go-file-top"),
             ("Go to End of File", "Ctrl+End / Alt+Down", "go-file-bottom"),
             ("Find in files", "search project files (Ctrl+Shift+O, %term = case-sensitive)", "project-search"),
+            ("Replace in files", "search & replace across project (Ctrl+Shift+H, %term = case-sensitive)", "replace-in-files"),
             ("Set syntax PHP", "force current tab to PHP", "set-syntax-php"),
             ("Set syntax Blade", "force current tab to Blade", "set-syntax-blade"),
             ("Set syntax HTML", "force current tab to HTML", "set-syntax-html"),
@@ -2100,7 +2744,7 @@ impl Editor {
             ("Focus tree/editor", "Ctrl+T", "focus-tree"),
             ("Close tab", "Ctrl+D", "close-tab"),
             ("Demo mode", "show welcome, command palette, quick open", "demo-mode"),
-            ("Welcome screen", "Ctrl+/", "help"),
+            ("Keyboard shortcuts", "searchable list (Ctrl+K)", "help"),
             ("Quit", "Ctrl+Q", "quit"),
         ];
         defs.iter().map(|(l, d, a)| PickerItem { label: (*l).to_string(), detail: (*d).to_string(), path: None, line: None, action: Some((*a).to_string()) }).collect()
@@ -2132,6 +2776,7 @@ impl Editor {
             "go-file-top" => self.go_to_file_top(false),
             "go-file-bottom" => self.go_to_file_bottom(false),
             "project-search" => self.project_search_prompt(),
+            "replace-in-files" => self.replace_in_files_prompt(),
             "set-syntax-php" => self.set_current_syntax(Some(SyntaxMode::Php)),
             "set-syntax-blade" => self.set_current_syntax(Some(SyntaxMode::Blade)),
             "set-syntax-html" => self.set_current_syntax(Some(SyntaxMode::Html)),
@@ -2161,7 +2806,7 @@ impl Editor {
             "focus-tree" => self.toggle_tree_focus(),
             "close-tab" => self.close_current_tab(),
             "demo-mode" => self.show_demo_mode(),
-            "help" => self.show_shortcuts_help(),
+            "help" => self.shortcuts_dialog(),
             "quit" => self.confirm_quit(),
             _ => self.message = "Unknown command".to_string(),
         }
@@ -2218,10 +2863,15 @@ impl Editor {
     }
 
     fn project_search_prompt(&mut self) {
+        let root = self.root.clone();
+        self.project_search_prompt_in(root);
+    }
+
+    fn project_search_prompt_in(&mut self, scope: PathBuf) {
         let mut query = String::new();
         let mut selected = 0usize;
         loop {
-            let matches = if query.is_empty() { Vec::new() } else { self.collect_project_search_results(&query, PROJECT_SEARCH_LIMIT) };
+            let matches = if query.is_empty() { Vec::new() } else { self.collect_project_search_results_in(&scope, &query, PROJECT_SEARCH_LIMIT) };
             selected = min(selected, matches.len().saturating_sub(1));
             let old = self.message.clone();
             self.message = "Find in files".to_string();
@@ -2232,6 +2882,16 @@ impl Editor {
             let highlight = if needle.is_empty() { query.clone() } else { needle };
             self.render_simple_picker(" Find in Files ", if query.is_empty() { "type text to search files (%Foo = case-sensitive)" } else { &query }, &matches, selected, "No matches", &highlight);
             let key = self.read_key_blocking().unwrap_or_default();
+            if let Some(m) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
+                if !m.is_release && m.is_scroll() {
+                    if m.scroll_up() {
+                        selected = selected.saturating_sub(1);
+                    } else {
+                        selected = min(matches.len().saturating_sub(1), selected + 1);
+                    }
+                }
+                continue;
+            }
             match key.as_str() {
                 "\r" | "\n" => {
                     if let Some(item) = matches.get(selected) {
@@ -2260,12 +2920,12 @@ impl Editor {
         }
     }
 
-    fn collect_project_search_results(&self, query: &str, limit: usize) -> Vec<PickerItem> {
+    fn collect_project_search_results_in(&self, scope: &Path, query: &str, limit: usize) -> Vec<PickerItem> {
         let (needle, ignore_case) = parse_search_query(query);
         if needle.is_empty() {
             return Vec::new();
         }
-        let files = self.collect_quick_open_files(3000);
+        let files = self.collect_files_under(scope, 3000);
         let mut results = Vec::new();
         for file in files {
             if results.len() >= limit { break; }
@@ -2287,6 +2947,118 @@ impl Editor {
             }
         }
         results
+    }
+
+    fn replace_in_files_prompt(&mut self) {
+        let root = self.root.clone();
+        self.replace_in_files_prompt_scoped(root);
+    }
+
+    fn replace_in_files_prompt_scoped(&mut self, scope: PathBuf) {
+        let scope_label = if scope == self.root {
+            "project".to_string()
+        } else {
+            relative_path(&self.root, &scope)
+        };
+        let query = self.prompt("Replace in files: ", &self.last_find.clone());
+        if query.is_empty() { self.message = "Replace in files cancelled".to_string(); return; }
+        self.last_find = query.clone();
+        let (needle, ignore_case) = parse_search_query(&query);
+        if needle.is_empty() { self.message = "Empty search".to_string(); return; }
+        let replacement = self.prompt("Replace with: ", "");
+        let files = self.collect_files_under(&scope, 3000);
+        let mut per_file: Vec<(PathBuf, usize)> = Vec::new();
+        let mut total = 0usize;
+        let mut truncated = false;
+        for file in &files {
+            let Some(path) = &file.path else { continue; };
+            let Ok(meta) = fs::metadata(path) else { continue; };
+            if meta.len() > 5 * 1024 * 1024 { continue; }
+            let Ok(text) = fs::read_to_string(path) else { continue; };
+            let mut count = 0usize;
+            for line in text.replace("\r\n", "\n").replace('\r', "\n").lines() {
+                count += count_matches_in_line(line, &needle, ignore_case);
+                if total + count >= REPLACE_MATCH_LIMIT { truncated = true; break; }
+            }
+            if count > 0 {
+                total += count;
+                per_file.push((path.clone(), count));
+            }
+            if truncated { break; }
+        }
+        if per_file.is_empty() { self.message = "No matches".to_string(); return; }
+        let with_note = if replacement.is_empty() { " (delete)" } else { "" };
+        let answer = self.prompt(
+            &format!(
+                "Replace {total} in {} file{} ({}){with_note}? y/N: ",
+                per_file.len(),
+                if per_file.len() == 1 { "" } else { "s" },
+                scope_label,
+            ),
+            "",
+        );
+        if answer.to_ascii_lowercase() != "y" { self.message = "Replace in files cancelled".to_string(); return; }
+        let mut files_ok = 0usize;
+        let mut applied = 0usize;
+        let mut skipped = 0usize;
+        let mut errors = 0usize;
+        for (path, _) in &per_file {
+            if self.tabs.iter().any(|t| t.path.as_ref() == Some(path) && t.modified) {
+                skipped += 1;
+                continue;
+            }
+            let Ok(text) = fs::read_to_string(path) else { errors += 1; continue; };
+            let norm = text.replace("\r\n", "\n").replace('\r', "\n");
+            let mut out_lines = Vec::new();
+            let mut count = 0usize;
+            for line in norm.lines() {
+                let (replaced, n) = replace_in_line(line, &needle, &replacement, ignore_case);
+                count += n;
+                out_lines.push(replaced);
+            }
+            let mut new_text = out_lines.join("\n");
+            if norm.ends_with('\n') {
+                new_text.push('\n');
+            }
+            if atomic_write_file(path, new_text.as_bytes()).is_err() { errors += 1; continue; }
+            files_ok += 1;
+            applied += count;
+            self.reload_open_tabs_for_path(path, &new_text);
+        }
+        let mut msg = format!("Replaced {applied} in {files_ok} file{}", if files_ok == 1 { "" } else { "s" });
+        if skipped > 0 {
+            msg.push_str(&format!(" ({skipped} skipped: unsaved open buffer{})", if skipped == 1 { "" } else { "s" }));
+        }
+        if errors > 0 {
+            msg.push_str(&format!(" ({errors} failed)"));
+        }
+        if truncated {
+            msg.push_str(" (capped: Narrow your search)");
+        }
+        self.message = msg;
+    }
+
+    /// Reload open tabs for a file rewritten on disk (project-wide replace).
+    /// Clears undo/redo: stored byte positions refer to the old content.
+    fn reload_open_tabs_for_path(&mut self, path: &Path, new_text: &str) {
+        for tab in &mut self.tabs {
+            if tab.path.as_ref() != Some(&path.to_path_buf()) {
+                continue;
+            }
+            let mut lines: Vec<String> = new_text.split('\n').map(str::to_string).collect();
+            if lines.is_empty() {
+                lines.push(String::new());
+            }
+            tab.lines = lines;
+            tab.cursor.line = min(tab.cursor.line, tab.lines.len().saturating_sub(1));
+            tab.cursor.col = clamp_char_boundary(&tab.lines[tab.cursor.line], min(tab.cursor.col, tab.lines[tab.cursor.line].len()));
+            tab.col_offset = 0;
+            tab.row_offset = 0;
+            tab.undo.clear();
+            tab.redo.clear();
+            tab.saved_revision = tab.revision;
+            tab.modified = false;
+        }
     }
 
     fn selected_tree_path(&mut self, prefer_current_file: bool) -> PathBuf {
@@ -2435,7 +3207,7 @@ impl Editor {
         let width = max(28, self.cols / 3);
         let height = max(8, self.rows / 2);
         let quick = vec!["main.rs".to_string(), "src/editor.rs".to_string(), "README.md".to_string(), "app.php  #function run".to_string()];
-        let cmd = vec!["Save                   Ctrl+S".to_string(), "Set syntax PHP         force current tab".to_string(), "Project search         find text in files".to_string(), "Welcome screen         Ctrl+/".to_string()];
+        let cmd = vec!["Save                   Ctrl+S".to_string(), "Set syntax PHP         force current tab".to_string(), "Project search         find text in files".to_string(), "Shortcuts              Ctrl+K".to_string()];
         let welcome = vec!["   __ _ ____".to_string(), "  / _` |_  /".to_string(), " | (_| |/ / ".to_string(), r"  \__,_/___|".to_string(), "Ctrl+O Quick open".to_string(), "Ctrl+P Command palette".to_string(), "Ctrl+T Tree/editor".to_string()];
         self.render_demo_tile(2, 2, width, height, "Welcome", &welcome, None, &[0,1,2,3]);
         self.render_demo_tile(2, 4 + width, width, height, "Quick Open", &quick, Some(0), &[]);
@@ -2788,6 +3560,22 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
 
 fn ansi_fg(hex: &str) -> String { let (r, g, b) = rgb(hex); format!("\x1b[38;2;{r};{g};{b}m") }
 fn ansi_bg(hex: &str) -> String { let (r, g, b) = rgb(hex); format!("\x1b[48;2;{r};{g};{b}m") }
+
+/// Welcome logo: `az` block letters with the ttfx `highlight` final gradient
+/// (Tokyo Night stops). Generated offline with ttfx — do not hand-edit.
+/// Each row is (styled text, plain visual width); rows are ragged, pad per row.
+const TTFX_LOGO_WIDTH: usize = 15;
+
+fn ttfx_logo() -> Vec<(String, usize)> {
+    vec![
+        ("\x1b[38;2;255;255;255m  ████   ██████".to_string(), 15),
+        ("\x1b[38;2;221;243;255m █    █       █".to_string(), 15),
+        ("\x1b[38;2;173;225;255m ██████      █".to_string(), 14),
+        ("\x1b[38;2;125;207;255m      █     █".to_string(), 13),
+        ("\x1b[38;2;122;187;252m █    █    █".to_string(), 12),
+        ("\x1b[38;2;122;172;249m  ████   ██████".to_string(), 15),
+    ]
+}
 fn ansi_style(fg: Option<&str>, bg: Option<&str>, bold: bool, dim: bool, underline: bool) -> String {
     let mut s = String::new();
     if let Some(f) = fg { s.push_str(&ansi_fg(f)); }
@@ -2890,8 +3678,63 @@ fn is_printable(key: &str) -> bool {
     !key.chars().any(|c| c.is_control())
 }
 
-fn is_ctrl_slash(k: &str) -> bool { k == "\x1f" || k == "\x1b[47;5u" || k == "\x1b[63;5u" }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MouseEvent {
+    button: u32,
+    x: usize,
+    y: usize,
+    is_release: bool,
+}
+
+impl MouseEvent {
+    fn is_scroll(&self) -> bool {
+        self.button & 64 != 0
+    }
+    fn scroll_up(&self) -> bool {
+        self.is_scroll() && self.button & 1 == 0
+    }
+}
+
+/// Legacy X10 mouse report (`ESC [ M Cb Cx Cy`, all bytes +32) for terminals
+/// without SGR-1006 support. Release is Cb==3, wheel is 64/65, drag is 32+btn.
+fn parse_legacy_mouse(key: &str) -> Option<MouseEvent> {
+    let b = key.as_bytes();
+    if b.len() != 6 || b[0] != 0x1b || b[1] != b'[' || b[2] != b'M' {
+        return None;
+    }
+    let button = b[3].wrapping_sub(32) as u32;
+    let col = b[4].wrapping_sub(32) as usize;
+    let row = b[5].wrapping_sub(32) as usize;
+    if col == 0 || row == 0 {
+        return None;
+    }
+    Some(MouseEvent { button, x: col, y: row, is_release: button == 3 })
+}
+/// `M` = press/drag/scroll, `m` = release. Returns 1-indexed `x`/`y`.
+/// Parse SGR mouse sequences: `ESC [ < Cb ; Cx ; Cy M/m`.
+fn parse_sgr_mouse(key: &str) -> Option<MouseEvent> {
+    let body = key.strip_prefix("\x1b[<")?;
+    let is_release = body.ends_with('m');
+    if !body.ends_with('M') && !is_release {
+        return None;
+    }
+    let inner = &body[..body.len().saturating_sub(1)];
+    let mut parts = inner.split(';');
+    let button: u32 = parts.next()?.parse().ok()?;
+    let x: usize = parts.next()?.parse().ok()?;
+    let y: usize = parts.next()?.parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    if x == 0 || y == 0 {
+        return None;
+    }
+    Some(MouseEvent { button, x, y, is_release })
+}
+
+fn is_ctrl_k(k: &str) -> bool { k == "\x0b" || k == "\x1b[75;5u" || k == "\x1b[107;5u" }
 fn is_ctrl_shift_o(k: &str) -> bool { k == "\x1b[79;6u" || k == "\x1b[111;6u" }
+fn is_ctrl_shift_h(k: &str) -> bool { k == "\x1b[72;6u" || k == "\x1b[104;6u" }
 /// Shared `%` convention: `%Foo` = case-sensitive, otherwise case-insensitive.
 /// Used by both in-file find and Find in Files so behaviour stays in sync.
 fn parse_search_query(query: &str) -> (String, bool) {
@@ -2911,6 +3754,63 @@ fn project_line_matches(line: &str, needle: &str, ignore_case: bool) -> bool {
         line.contains(needle)
     }
 }
+
+/// Count non-overlapping occurrences of `needle` in one line.
+/// Byte-safe: ASCII case-folding never changes byte length or boundaries.
+fn count_matches_in_line(line: &str, needle: &str, ignore_case: bool) -> usize {
+    if needle.is_empty() {
+        return 0;
+    }
+    let mut count = 0usize;
+    let mut from = 0usize;
+    if ignore_case {
+        let lower = line.to_ascii_lowercase();
+        let nl = needle.to_ascii_lowercase();
+        while let Some(p) = lower[from..].find(&nl).map(|p| p + from) {
+            count += 1;
+            from = p + needle.len();
+        }
+    } else {
+        while let Some(p) = line[from..].find(needle).map(|p| p + from) {
+            count += 1;
+            from = p + needle.len();
+        }
+    }
+    count
+}
+
+/// Replace all non-overlapping occurrences of `needle` in one line,
+/// returning the new line plus the replacement count.
+fn replace_in_line(line: &str, needle: &str, replacement: &str, ignore_case: bool) -> (String, usize) {
+    if needle.is_empty() {
+        return (line.to_string(), 0);
+    }
+    let mut out = String::with_capacity(line.len());
+    let mut count = 0usize;
+    let mut last = 0usize;
+    let mut from = 0usize;
+    if ignore_case {
+        let lower = line.to_ascii_lowercase();
+        let nl = needle.to_ascii_lowercase();
+        while let Some(p) = lower[from..].find(&nl).map(|p| p + from) {
+            out.push_str(&line[last..p]);
+            out.push_str(replacement);
+            count += 1;
+            last = p + needle.len();
+            from = last;
+        }
+    } else {
+        while let Some(p) = line[from..].find(needle).map(|p| p + from) {
+            out.push_str(&line[last..p]);
+            out.push_str(replacement);
+            count += 1;
+            last = p + needle.len();
+            from = last;
+        }
+    }
+    out.push_str(&line[last..]);
+    (out, count)
+}
 fn is_ctrl_shift_z(k: &str) -> bool { k == "\x1b[90;6u" || k == "\x1b[122;6u" }
 fn is_ctrl_backspace(k: &str) -> bool { k == "\x17" || k == "\x1b[127;5u" || k == "\x1b[8;5u" }
 fn is_ctrl_left(k: &str) -> bool { matches!(k, "\x1b[1;5D" | "\x1b[5D" | "\x1bO5D" | "\x1bOd" | "\x1b[1;3D" | "\x1b[3D") }
@@ -2929,6 +3829,112 @@ fn is_ctrl_shift_e(k: &str) -> bool { k == "\x1b[69;6u" || k == "\x1b[101;6u" }
 fn tab_number(k: &str) -> Option<usize> {
     if k.len() == 2 && k.as_bytes()[0] == 0x1b && (b'1'..=b'9').contains(&k.as_bytes()[1]) { return Some((k.as_bytes()[1] - b'0') as usize); }
     None
+}
+
+/// Map a click column to a byte index in `line`, starting the walk at
+/// `start_byte` (the current `col_offset`). `visual_target` is the 0-based
+/// cell offset from the first visible cell. Tab/wide/control chars use the
+/// same widths as rendering (`display_cell` + `visual_width`).
+fn editor_click_col(line: &str, start_byte: usize, visual_target: usize) -> usize {
+    let mut byte_i = clamp_char_boundary(line, min(start_byte, line.len()));
+    let mut used = 0usize;
+    while byte_i < line.len() {
+        let ch = next_char(line, byte_i);
+        let w = visual_width(&display_cell(ch));
+        if used + w > visual_target {
+            break;
+        }
+        used += w;
+        byte_i += ch.len();
+    }
+    byte_i
+}
+
+/// Byte range of the word at `col` (`is_word_char` run), if any.
+/// Only the end of line falls back to the word before the caret.
+fn word_range_at(line: &str, col: usize) -> Option<(usize, usize)> {
+    let col = clamp_char_boundary(line, min(col, line.len()));
+    let mut start = if col < line.len() && is_word_char(next_char(line, col)) {
+        col
+    } else if col == line.len() && col > 0 && is_word_char(prev_char(line, col)) {
+        prev_char_boundary(line, col)
+    } else {
+        return None;
+    };
+    while start > 0 && is_word_char(prev_char(line, start)) {
+        start = prev_char_boundary(line, start);
+    }
+    let mut end = start;
+    while end < line.len() && is_word_char(next_char(line, end)) {
+        end = next_char_boundary(line, end);
+    }
+    if start < end { Some((start, end)) } else { None }
+}
+
+/// All shortcuts shown in the Ctrl+K dialog: (keys, action).
+fn shortcut_defs() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("Ctrl+S", "Save"),
+        ("Ctrl+O", "Quick open file / symbol / file:line / :line"),
+        ("Ctrl+P", "Command palette"),
+        ("Ctrl+K", "This shortcuts dialog (searchable)"),
+        ("Ctrl+F", "Find in file (%term = case-sensitive)"),
+        ("Ctrl+L", "Find next (uses last pattern)"),
+        ("Ctrl+Shift+O", "Find in files (separate modal)"),
+        ("Ctrl+R", "Replace in current file"),
+        ("Ctrl+Shift+H", "Replace in files (dialog)"),
+        ("Ctrl+G", "Go to line"),
+        ("Ctrl+E", "Go to end of line"),
+        ("Home / End", "Go to start / end of line"),
+        ("Ctrl+Home / Alt+Up", "Go to start of file (Shift = select)"),
+        ("Ctrl+End / Alt+Down", "Go to end of file (Shift = select)"),
+        ("Ctrl+T", "Focus tree/editor"),
+        ("Ctrl+H", "Hide/show tree (tree focus only)"),
+        ("+ / -", "Tree width (tree focus only)"),
+        ("Ctrl+N", "New file tab"),
+        ("Ctrl+D", "Close tab (asks if modified)"),
+        ("Ctrl+Q", "Quit (asks if any tab modified)"),
+        ("Ctrl+Z / Ctrl+Y", "Undo / redo"),
+        ("Ctrl+C / Ctrl+X", "Copy / cut selection or line"),
+        ("Ctrl+V", "Paste"),
+        ("Ctrl+A", "Select all"),
+        ("Ctrl+W", "Delete current line"),
+        ("Alt+1-9", "Switch tab"),
+        ("Tab", "Accept autocomplete"),
+        ("Click", "Move cursor / open file / expand folder / switch tab"),
+        ("Drag", "Select text"),
+        ("Double-click", "Select word (editor) / rename (sidebar file)"),
+        ("Triple-click", "Select line"),
+        ("Right-click", "Context menu (tab / sidebar / editor)"),
+        ("Middle-click tab", "Close tab"),
+        ("Wheel", "Scroll sidebar / editor"),
+    ]
+}
+
+/// Map a 1-based topbar click column to a position in `tab_widths`.
+/// `prefix_w` is the plain-cell width of the bar prefix (title area).
+fn tab_hit_index(prefix_w: usize, tab_widths: &[usize], click_col: usize) -> Option<usize> {
+    if click_col == 0 || click_col <= prefix_w {
+        return None;
+    }
+    let mut x = prefix_w + 1;
+    for (i, w) in tab_widths.iter().enumerate() {
+        if click_col >= x && click_col < x + w {
+            return Some(i);
+        }
+        x += w;
+    }
+    None
+}
+
+/// Clamp a context menu into the visible area (1-based terminal cells).
+/// Returns (start_col, start_row, width, height); the status line stays clear.
+fn context_menu_geometry(item_count: usize, max_item_w: usize, col: usize, row: usize, cols: usize, rows: usize) -> (usize, usize, usize, usize) {
+    let width = min(max_item_w + 6, cols.saturating_sub(2)).max(12);
+    let height = min(item_count + 2, rows.saturating_sub(1)).max(3);
+    let start_col = min(col, (cols + 1).saturating_sub(width)).max(1);
+    let start_row = min(row, rows.saturating_sub(height)).max(1);
+    (start_col, start_row, width, height)
 }
 
 fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> { haystack.windows(needle.len()).position(|w| w == needle) }
@@ -3145,6 +4151,47 @@ fn base64_encode(data: &[u8]) -> String {
     out
 }
 
+fn osc52_sequence(text: &str) -> String {
+    format!("\x1b]52;c;{}\x07", base64_encode(text.as_bytes()))
+}
+
+/// Pipe `text` to a clipboard tool's stdin. True only on exit success.
+fn pipe_to_clipboard_tool(prog: &str, args: &[&str], text: &str) -> bool {
+    let mut child = match Command::new(prog)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let wrote = child
+        .stdin
+        .as_mut()
+        .map(|s| s.write_all(text.as_bytes()).is_ok())
+        .unwrap_or(false);
+    child.wait().map(|s| s.success()).unwrap_or(false) && wrote
+}
+
+/// Best-effort verified clipboard write via external tools:
+/// Wayland (`wl-copy`), X11 (`xclip`/`xsel`), macOS (`pbcopy`).
+fn try_clipboard_tool(text: &str) -> bool {
+    if env::var("WAYLAND_DISPLAY").is_ok() && pipe_to_clipboard_tool("wl-copy", &[], text) {
+        return true;
+    }
+    if env::var("DISPLAY").is_ok() {
+        if pipe_to_clipboard_tool("xclip", &["-selection", "clipboard"], text) {
+            return true;
+        }
+        if pipe_to_clipboard_tool("xsel", &["--clipboard", "--input"], text) {
+            return true;
+        }
+    }
+    pipe_to_clipboard_tool("pbcopy", &[], text)
+}
+
 fn simple_hash(data: &[u8]) -> String {
     let mut h: u64 = 0xcbf29ce484222325;
     for b in data { h ^= *b as u64; h = h.wrapping_mul(0x100000001b3); }
@@ -3307,6 +4354,67 @@ mod tests {
     }
 
     #[test]
+    fn ctrl_shift_h_binding() {
+        assert!(is_ctrl_shift_h("\x1b[72;6u"));
+        assert!(is_ctrl_shift_h("\x1b[104;6u"));
+        assert!(!is_ctrl_shift_h("\x1b[79;6u"));
+        assert!(!is_ctrl_shift_h("\x1b[H"));
+    }
+
+    #[test]
+    fn replace_in_line_cases() {
+        assert_eq!(replace_in_line("foo bar foo", "foo", "baz", false), ("baz bar baz".to_string(), 2));
+        assert_eq!(replace_in_line("Foo BAR foo", "foo", "baz", true), ("baz BAR baz".to_string(), 2));
+        assert_eq!(replace_in_line("Foo BAR", "foo", "baz", false), ("Foo BAR".to_string(), 0));
+        assert_eq!(replace_in_line("aaa", "aa", "b", false), ("ba".to_string(), 1));
+        assert_eq!(replace_in_line("hello", "", "x", false), ("hello".to_string(), 0));
+        assert_eq!(replace_in_line("hello", "l", "", false), ("heo".to_string(), 2));
+        assert_eq!(replace_in_line("héllo Héllo", "héllo", "hi", true), ("hi hi".to_string(), 2));
+        assert_eq!(count_matches_in_line("foo Foo", "foo", true), 2);
+        assert_eq!(count_matches_in_line("foo Foo", "foo", false), 1);
+        assert_eq!(count_matches_in_line("anything", "", true), 0);
+    }
+
+    #[test]
+    fn context_menu_geometry_clamps() {
+        // Fits as requested.
+        assert_eq!(context_menu_geometry(6, 20, 10, 5, 80, 24), (10, 5, 26, 8));
+        // Bottom-right corner: shifted up/left, status line stays clear.
+        let (c, r, w, h) = context_menu_geometry(9, 20, 79, 23, 80, 24);
+        assert_eq!((w, h), (26, 11));
+        assert!(c + w - 1 <= 80);
+        assert!(r + h - 1 <= 23);
+        // Narrow terminal: width clamped, still on screen.
+        let (c2, r2, w2, h2) = context_menu_geometry(9, 40, 30, 9, 30, 10);
+        assert!(w2 <= 28 && c2 >= 1 && c2 + w2 - 1 <= 30);
+        assert!(r2 >= 1 && r2 + h2 - 1 <= 9);
+    }
+
+    #[test]
+    fn ctrl_k_binding() {
+        assert!(is_ctrl_k("\x0b"));
+        assert!(is_ctrl_k("\x1b[75;5u"));
+        assert!(is_ctrl_k("\x1b[107;5u"));
+        assert!(!is_ctrl_k("\x1f"));
+        assert!(!is_ctrl_k("k"));
+        // Shortcuts dialog has full coverage including itself.
+        for want in [
+            "Ctrl+S", "Ctrl+O", "Ctrl+P", "Ctrl+K", "Ctrl+F", "Ctrl+L",
+            "Ctrl+Shift+O", "Ctrl+R", "Ctrl+Shift+H", "Ctrl+G",
+        ] {
+            assert!(shortcut_defs().iter().any(|(l, _)| *l == want), "missing {want}");
+        }
+    }
+
+    #[test]
+    fn osc52_sequence_bytes() {
+        assert_eq!(osc52_sequence("hi"), "\x1b]52;c;aGk=\x07");
+        assert_eq!(osc52_sequence(""), "\x1b]52;c;\x07");
+        // Missing tool fails fast without hanging.
+        assert!(!pipe_to_clipboard_tool("az-definitely-not-a-tool", &[], "x"));
+    }
+
+    #[test]
     fn escape_roundtrip() {
         let s = "a=b\tc\nd\\e";
         assert_eq!(unescape_state(&escape_state(s)), s);
@@ -3452,5 +4560,86 @@ mod tests {
         let out = apply_bold_ansi("main.rs", &[(0, 4)]);
         assert_eq!(out, "\x1b[1mmain\x1b[22m.rs");
         assert_eq!(apply_bold_ansi("abc", &[]), "abc");
+    }
+
+    #[test]
+    fn sgr_mouse_click_and_scroll() {
+        let click = parse_sgr_mouse("\x1b[<0;30;10M").unwrap();
+        assert_eq!(click.button, 0);
+        assert_eq!((click.x, click.y), (30, 10));
+        assert!(!click.is_release);
+        assert!(!click.is_scroll());
+
+        let release = parse_sgr_mouse("\x1b[<0;30;10m").unwrap();
+        assert!(release.is_release);
+
+        let up = parse_sgr_mouse("\x1b[<64;10;5M").unwrap();
+        assert!(up.is_scroll());
+        assert!(up.scroll_up());
+
+        let down = parse_sgr_mouse("\x1b[<65;10;5M").unwrap();
+        assert!(down.is_scroll());
+        assert!(!down.scroll_up());
+
+        assert!(parse_sgr_mouse("\x1b[A").is_none());
+        assert!(parse_sgr_mouse("\x1b[<0;0;0M").is_none());
+    }
+
+    #[test]
+    fn legacy_mouse_parsing() {
+        // ESC [ M Cb Cx Cy, all +32: ' '(0), '>'(30), '*'(10).
+        let click = parse_legacy_mouse("\x1b[M >*").unwrap();
+        assert_eq!(click.button, 0);
+        assert_eq!((click.x, click.y), (30, 10));
+        assert!(!click.is_release);
+        assert!(!click.is_scroll());
+        // Release is Cb==3 ('#'), wheel up/down are 64/65 ('`'/'a').
+        assert!(parse_legacy_mouse("\x1b[M#**").unwrap().is_release);
+        let up = parse_legacy_mouse("\x1b[M`*+").unwrap();
+        assert!(up.is_scroll() && up.scroll_up());
+        let down = parse_legacy_mouse("\x1b[Ma*+").unwrap();
+        assert!(down.is_scroll() && !down.scroll_up());
+        assert_eq!(parse_legacy_mouse("\x1b[<0;30;10M"), None);
+        assert_eq!(parse_legacy_mouse("\x1b[Mab"), None);
+        assert_eq!(parse_legacy_mouse("hello"), None);
+    }
+
+    #[test]
+    fn word_range_at_selects_words() {
+        assert_eq!(word_range_at("hello world", 0), Some((0, 5)));
+        assert_eq!(word_range_at("hello world", 4), Some((0, 5)));
+        assert_eq!(word_range_at("hello world", 6), Some((6, 11)));
+        assert_eq!(word_range_at("hello world", 5), None);
+        assert_eq!(word_range_at("a  b", 2), None);
+        // Caret just past a word still counts as inside it.
+        assert_eq!(word_range_at("hello world", 11), Some((6, 11)));
+        assert_eq!(word_range_at("foo_bar", 3), Some((0, 7)));
+        assert_eq!(word_range_at("a+b", 1), None);
+        assert_eq!(word_range_at("a+b", 2), Some((2, 3)));
+        assert_eq!(word_range_at("", 0), None);
+        assert_eq!(word_range_at("héllo", 1), Some((0, 6)));
+    }
+
+    #[test]
+    fn editor_click_col_maps_visual_to_bytes() {        // "a\tb": `a` is 1 cell, tab is 4 cells.
+        assert_eq!(editor_click_col("a\tb", 0, 0), 0);
+        assert_eq!(editor_click_col("a\tb", 0, 1), 1);
+        // Inside the tab (visual 1..5) stays at tab start.
+        assert_eq!(editor_click_col("a\tb", 0, 2), 1);
+        assert_eq!(editor_click_col("a\tb", 0, 5), 2);
+        // Past EOL clamps to line length.
+        assert_eq!(editor_click_col("a\tb", 0, 100), 3);
+        // Multi-byte: é is 2 bytes, 1 cell; wide char is 2 cells.
+        assert_eq!(editor_click_col("héllo", 0, 2), 3);
+        assert_eq!(editor_click_col("あx", 0, 1), 0);
+        assert_eq!(editor_click_col("あx", 0, 2), 3);
+        // Topbar: prefix occupies cols 1..=prefix_w, tabs follow back to back.
+        assert_eq!(tab_hit_index(10, &[5, 7], 10), None);
+        assert_eq!(tab_hit_index(10, &[5, 7], 11), Some(0));
+        assert_eq!(tab_hit_index(10, &[5, 7], 15), Some(0));
+        assert_eq!(tab_hit_index(10, &[5, 7], 16), Some(1));
+        assert_eq!(tab_hit_index(10, &[5, 7], 22), Some(1));
+        assert_eq!(tab_hit_index(10, &[5, 7], 23), None);
+        assert_eq!(tab_hit_index(10, &[], 11), None);
     }
 }

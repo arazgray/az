@@ -1,6 +1,6 @@
-# az 2.2 — User Manual
+# az 2.5 — User Manual
 
-`az` is a small, sane terminal text editor. Open fast, type immediately, stay keyboard-first.
+`az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
@@ -36,17 +36,20 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 ## 3. Screen Layout
 
 ```
-┌ topbar: az | sane editor | tabs 1:main.rs 2:README.md | 02:30 PM 30/09/2026 ┐
+┌ az  [Open] [Commands] [Shortcuts]                        02:30 PM 30/09/2026 ┐
+├──────────────────────────────────────────────────────────────────────────┤
+│                            ├ tabs 1:main.rs 2:README.md (`*` = modified)          ┤
 │ tree (28 cols default) │ gutter Ln │ editor text (horizontal scroll)        │
 │                        │           │                                        │
-└ status: tree/editor path saved/modified SYNTAX tree shown/hidden | message ┘
-  └ popups: welcome, help (Ctrl+/), quick open (Ctrl+O), palette (Ctrl+P)     ┘
+├──────────────────────────────────────────────────────────────────────────┤
+└ status chips: path state(modified-only) syntax tree | message | stats    ┘
+  └ popups: welcome, shortcuts (Ctrl+K), quick open (Ctrl+O), palette (Ctrl+P) ┘
 ```
 
-- Topbar: tabs `1:name`, `*` = modified. Press `Esc` to flash `Alt+1-9` hints.
+- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), clock — full-width separator below. Tab bar under the separator, above the editor: tabs `1:name`, `*` = modified, inactive tabs shaded lighter; click to switch, middle-click to close.
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, etc.).
 - Gutter: line numbers, min width 4.
-- Status: `focus path state syntax tree | message stats Ln,Col Lines Words`.
+- Status: one chip per item — path, state (`modified`, orange, only when dirty), syntax (purple), tree (cyan) | message (flashes light blue on change) | stats (yellow). Every prompt blinks light blue until answered.
 - No word wrap: long lines scroll horizontally. Cursor stays visible.
 
 ## 4. Keyboard — Complete Map
@@ -68,11 +71,15 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Ctrl+D` | Close tab (asks if modified) |
 | `Ctrl+Q` | Quit (asks if any tab modified) |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | Undo / Redo |
-| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all (OSC52 system copy) |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all (system copy via `wl-copy`/`xclip`/`xsel`/`pbcopy`, else OSC52) |
 | `Ctrl+W` / `Ctrl+Backspace` | Delete current line |
-| `Ctrl+/` (`Ctrl+_` / `0x1F`) | Help / welcome |
+| `Ctrl+K` | Keyboard shortcuts (searchable dialog, `Enter`/`Esc` closes) |
 | `Ctrl+Shift+O` | Find in files (separate modal, `%term` = case-sensitive) |
+| `Ctrl+Shift+H` | Replace in files (dialog, `%term` = case-sensitive) |
 | `Alt+1`..`Alt+9` (`Esc` then `1..9`) | Switch tab (first 9 visible) |
+| Click tab | Switch tab (inactive tabs shaded lighter) |
+| Middle-click tab | Close tab (asks if modified) |
+| Right-click | Context menu: tab (Close, Copy file path), sidebar and editor menus (see Mouse) |
 | `Esc` | Clear selection + show Alt hints |
 
 ### Editor Only
@@ -96,8 +103,11 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | Keys | Action |
 |------|--------|
 | `Up/Down`, `PgUp/PgDn` | Move selection |
-| `Enter` | Open file / expand-collapse dir |
+| `Enter` or click | Open file / expand-collapse dir |
 | `Left` / `Right` | Collapse / Expand dir |
+| Double-click file/dir | Rename (never root, refuses existing target) |
+| Click editor | Move cursor there |
+| Wheel over tree/editor | Scroll tree (moves selection) / scroll editor (moves cursor) |
 | `n` / `N` (Shift+N) | New file / New folder in selected dir |
 | `r` / `R` | Rename (never root, refuses existing target) |
 | `Del` | Delete file/folder (asks, closes affected tabs) |
@@ -122,7 +132,7 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Find in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Demo mode, Welcome, Quit`. Type `set php` to force language.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Demo mode, Keyboard shortcuts, Quit`. Type `set php` to force language.
 
 ### Find / Replace
 - Find: case-insensitive default, `%Foo` = case-sensitive. `Enter` finds, selection covers match. `Ctrl+L` finds next (wraps with `(wrapped)` notice).
@@ -134,6 +144,13 @@ Separate modal from Quick Open. Type to live-search file contents across the ope
 - Substring match across ≤3000 files, skips >5MB and binaries (via `read_to_string` failure). Shows `file:line + snippet` (80 results max).
 - `Enter` opens the selected match at that line, `Esc` cancels.
 - Requires a Kitty-protocol terminal for the direct shortcut (`CSI-u`); otherwise use `Ctrl+P` → `Find in files`. (`Ctrl+Shift+O` is used because most terminals reserve `Ctrl+Shift+F` for their own search.)
+
+### Replace in Files (palette or `Ctrl+Shift+H`)
+Dialog across the opened folder (or a sidebar subfolder via right-click → `Search & Replace here`):
+- Prompts `Replace in files:`, `Replace with:`, then `Replace N in M files (…) ? y/N` with the real counts. `%Foo` = case-sensitive (same `%` rule as `Ctrl+F`).
+- Same file scope as Find in Files: ≤3000 files, skips >5MB and binaries, 10k-match cap (narrow your search if capped). CRLF files are normalized to LF on write.
+- Open unmodified tabs reload from disk (cursor kept, undo cleared); files with unsaved open buffers are skipped and reported.
+- Requires a Kitty-protocol terminal for the direct shortcut; otherwise use `Ctrl+P` → `Replace in files`.
 
 ### Go to Line / Start / End
 - `Ctrl+G`, `:20` in quick open, or `az file:20` for a numbered line. Clamps to EOF.
@@ -154,6 +171,17 @@ Auto by extension (`.blade.php` -> Blade, `.php/.phtml` -> PHP, `.html/.htm/.xml
 ### Tree File Ops
 Select dir or file, then `n/N/r/Del` or palette equivalents. Create auto-makes parent dirs. Rename updates open tabs (including children if dir renamed). Delete removes tabs pointing inside.
 
+### Mouse
+Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern terminals, works over SSH).
+- Titlebar + tab bar: click a tab to switch (inactive tabs render lighter). Middle-click a tab to close it (asks if modified).
+- Sidebar: click a folder to expand/collapse, click a file to open it. Double-click a file (<500ms, same path) to rename it. The open file's row is highlighted.
+- Editor: click to move the cursor there (gutter click goes to line start; tab/wide chars map correctly). Drag with the button held to select text (selection follows the cursor). Double-click selects the word under the caret, triple-click selects the whole line. Clicking focuses the editor.
+- Wheel: scrolls the sidebar (`tree_index ±3`), the editor (cursor `±3` lines), and picker dialogs/menus (moves selection). Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
+- Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
+  - Tab: `Close tab`, `Copy file path`.
+  - Sidebar: `Open`, `Copy file path`, `Rename`, `Delete`, `Search here`, `Search & Replace here` (each opens its dialog; searches scope to that folder).
+  - Editor: `Cut`, `Copy`, `Paste`, `Select All`, `Find/Replace in File`, `Find/Replace in Files`, `Go to Line` (right-click keeps an active selection so Copy/Cut work on it).
+
 ## 6. Recovery & Sessions
 
 State dir: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust`.
@@ -166,7 +194,8 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions.
 
 ## 7. Copy/Paste
 
-- Internal clipboard + OSC52 `\x1b]52;c;BASE64\a` for terminal/system copy. Works over SSH in supporting terminals.
+- System copy cascade: `wl-copy` (Wayland) → `xclip`/`xsel` (X11) → `pbcopy` (macOS), then best-effort OSC52 `\x1b]52;c;BASE64\a`. Over SSH, OSC52 goes first (only path to the local clipboard). Status shows `Copied` when a tool confirmed, `Copied (OSC52)` when only the terminal sequence was sent.
+- Internal clipboard always works (`Ctrl+V` pastes even when the terminal ignored OSC52).
 - Bracketed paste (`\x1b[200~ … \x1b[201~`) inserts verbatim (up to 5MB). `Ctrl+V` pastes internal clipboard.
 
 ## 8. Troubleshooting
@@ -181,11 +210,15 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions.
 | Recovery prompt loop | `~/.local/state/az-rust/recovery/*.rec` — delete stale files if you always answer `N`. |
 | `az file:20` opens file named `file:20` | Fixed in 2.0.1+: colon splits line. Quote paths with spaces. |
 | Narrow terminal (<40 cols) | Picker clamps to `cols-2`, tree min 18. Hide tree (`Ctrl+H` in tree) for more width. |
+| Copy says `Copied` but outside paste is empty | Check the message: plain `Copied` = a clipboard tool confirmed. `Copied (OSC52)` = terminal ignored it (common in Guake/VTE). Install `wl-copy` (Wayland) or `xclip`/`xsel` (X11); in tmux set `set -g set-clipboard on`. |
+| Mouse clicks/scroll do nothing | Terminal doesn't forward SGR mouse (`1000`/`1002`/`1006`). Try Kitty, WezTerm, Alacritty, or recent GNOME Terminal. Legacy X10 (`ESC[M`) is handled as fallback. Keyboard works everywhere. |
+| Wheel does nothing | Needs content to move (short files / few tree rows won't visibly scroll). Pickers scroll their selection; prompts ignore wheel. |
 
 ## 9. Known Limitations (by design)
 
-- No word wrap (horizontal scroll only), no mouse, no split panes.
+- No word wrap (horizontal scroll only), no split panes.
 - No regex search, no multi-cursor.
+- Mouse: click + drag-select + wheel supported in tree/editor; requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`).
 - Undo `revision` is monotonic: undo after save still shows `modified` until next save (content matches but dirty flag stays). Save to clear.
 - Replace-all limit 20k ops, find in files 80 results, quick open 14 shown.
 - Binary files open via lossy UTF-8; saving rewrites as UTF-8.
