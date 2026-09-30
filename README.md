@@ -9,6 +9,13 @@
 Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
 
 ---
+# Install (Automatic single-command installer, builds on your machine):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
+```
+
+---
 
 ## Quick start
 
@@ -61,20 +68,39 @@ Full map: [`USER_MANUAL.md`](USER_MANUAL.md#4-keyboard--complete-map).
 For quick edits, small projects, server work, focused writing, and terminal code changes.
 No config drama, no plugins to install, no mouse required.
 
-## What is new in 2.1?
-
-- **Blade + CSS fix**: `#header`, `#fff`, `href="#section"`, `https://…` no longer gray as PHP `#` / `//` comments. `#id` now yellow, hex orange, URLs stay green. `user@example.com` no longer purple as Blade directive. 6 new regression tests (15 total).
-- **Smarter comments**: `//` / `#` ignored inside `"strings"`, `` `templates` ``, and `://` protocols.
-- **`--help` / `--version`**, `file:line`, `:line`, `newfile` CLI handling; absolute-path session keys.
-- **Faster topbar**: `date` cached per minute. Pickers safe on 30-col terminals. Tree/quick-open skip `target dist build __pycache__ .next .nuxt`.
-- **New keys**: `Ctrl+L` find-next, `+/-` tree width, `Ctrl+N` new file everywhere in help.
-- **Repo hygiene**: `.gitignore` for `target/`, `/az` binary, `*.tmp`, OS/IDE noise; binaries untracked.
-
-2.0 recap: Rust rewrite, tabs, tree, quick open, palette, find/replace, autocomplete, recovery, zero crates.
-
----
 
 ## Features
+
+- Written in Rust
+- Keyboard-first editing
+- Opens files or folders
+- Project tree sidebar
+- Different tree colors for different file extensions
+- Tabs with `Alt+1` to `Alt+9`
+- Quick open with `Ctrl+O`
+- Open files and jump to a line with `file.php:20`
+- Jump to a line in the current file with `:20`
+- Project search from quick open
+- Function and symbol opening from quick open
+- Command palette with `Ctrl+P`
+- Save, create files, switch language mode, and run editor actions from the command palette
+- Visible line numbers
+- Welcome screen on startup
+- `Ctrl+/` shows the same welcome/help screen
+- Find and replace
+- Case-insensitive search by default
+- Case-sensitive search with `%term`
+- Word wrapping
+- UTF-8 input support
+- Tokyo Night inspired interface colors
+- Syntax highlighting through plugins
+- Autocomplete through plugins
+- Huge file editing support
+- Recovery files for unsaved work
+- Terminal cleanup on quit
+
+
+### Features in one shot
 
 | Area | Details |
 |------|---------|
@@ -88,6 +114,24 @@ No config drama, no plugins to install, no mouse required.
 | Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe |
 
 > No word wrap by design — long lines scroll horizontally. No mouse, splits, or regex.
+
+### What is new in 2.1?
+
+- **Blade + CSS fix**: `#header`, `#fff`, `href="#section"`, `https://…` no longer gray as PHP `#` / `//` comments. `#id` now yellow, hex orange, URLs stay green. `user@example.com` no longer purple as Blade directive. 6 new regression tests (15 total).
+- **Smarter comments**: `//` / `#` ignored inside `"strings"`, `` `templates` ``, and `://` protocols.
+- **`--help` / `--version`**, `file:line`, `:line`, `newfile` CLI handling; absolute-path session keys.
+- **Faster topbar**: `date` cached per minute. Pickers safe on 30-col terminals. Tree/quick-open skip `target dist build __pycache__ .next .nuxt`.
+- **New keys**: `Ctrl+L` find-next, `+/-` tree width, `Ctrl+N` new file everywhere in help.
+- **Repo hygiene**: `.gitignore` for `target/`, `/az` binary, `*.tmp`, OS/IDE noise; binaries untracked.
+
+### What is new in 2.0?
+
+- Completely rewritten in Rust
+- Faster startup and rendering
+- Better handling for huge files
+- Modular language support through Rust plugins
+- Mixed syntax highlighting for files that contain PHP, HTML, CSS, Blade, and JavaScript together
+- File colors in the project tree based on extension
 
 ---
 
@@ -139,12 +183,6 @@ Custom dir:
 
 ```sh
 AZ_BIN_DIR="$HOME/bin" ./build.sh
-```
-
-Remote:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
 ```
 
 Requirements: `cargo` (recommended) or `rustc`. No crates. See [`AGENTS.md`](AGENTS.md#6-testing) for `cargo check/test/build`.
