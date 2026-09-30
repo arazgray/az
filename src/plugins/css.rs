@@ -1,4 +1,4 @@
-use crate::{BLUE, COMMENT, CYAN, GREEN, ORANGE, PURPLE, RED, Segment, CompletionItem};
+use crate::{BLUE, COMMENT, CYAN, GREEN, ORANGE, PURPLE, RED, YELLOW, Segment, CompletionItem};
 use super::{comp, find_between, find_prefixed_words, scan_ranges, string_ranges, suffix_token, CompletionContext};
 
 pub(crate) fn segments(line: &str) -> Vec<Segment> {
@@ -8,6 +8,7 @@ pub(crate) fn segments(line: &str) -> Vec<Segment> {
     for (a, b) in find_prefixed_words(line, '@') { s.push(Segment { start: a, end: b, color: PURPLE }); }
     for (a, b) in property_ranges(line) { s.push(Segment { start: a, end: b, color: BLUE }); }
     for (a, b) in hex_color_ranges(line) { s.push(Segment { start: a, end: b, color: ORANGE }); }
+    for (a, b) in id_selector_ranges(line) { s.push(Segment { start: a, end: b, color: YELLOW }); }
     for (a, b) in scan_ranges(line, |c| c.is_ascii_digit()) { s.push(Segment { start: a, end: b, color: ORANGE }); }
     if let Some(pos) = line.find("!important") { s.push(Segment { start: pos, end: pos + 10, color: RED }); }
     if !line.contains(':') && line.contains('{') { if let Some(pos) = line.find('{') { s.push(Segment { start: 0, end: pos, color: CYAN }); } }
@@ -79,6 +80,47 @@ fn hex_color_ranges(line: &str) -> Vec<(usize, usize)> {
             let len = i - start - 1;
             if matches!(len, 3 | 4 | 6 | 8) { out.push((start, i)); }
         } else { i += 1; }
+    }
+    out
+}
+
+/// CSS ID selectors: `#header`, `#app-1`. Skips hex colors (handled above)
+/// and `#` inside strings is already green — this only runs on raw text but
+/// hex ranges take precedence via ordering in `mixed_segments`/`color_at`.
+fn id_selector_ranges(line: &str) -> Vec<(usize, usize)> {
+    let bytes = line.as_bytes();
+    let strings = string_ranges(line);
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'#' {
+            if super::pos_in_ranges(i, &strings) {
+                i += 1;
+                continue;
+            }
+            let start = i;
+            i += 1;
+            // CSS id: # followed by letter/_/-, then alnum/_/-. Pure digits = not id.
+            if i < bytes.len() && (bytes[i].is_ascii_alphabetic() || bytes[i] == b'_' || bytes[i] == b'-') {
+                i += 1;
+                while i < bytes.len()
+                    && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b'-')
+                {
+                    i += 1;
+                }
+                // Don't double-mark hex colors as ids (e.g. #fff handled as hex).
+                let hex_len = i - start - 1;
+                let all_hex = line[start + 1..i].bytes().all(|b| b.is_ascii_hexdigit());
+                if all_hex && matches!(hex_len, 3 | 4 | 6 | 8) {
+                    // hex — leave to hex_color_ranges
+                } else {
+                    out.push((start, i));
+                }
+                continue;
+            }
+        } else {
+            i += 1;
+        }
     }
     out
 }

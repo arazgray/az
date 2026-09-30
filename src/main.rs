@@ -208,10 +208,20 @@ struct Editor {
     autocomplete_start_col: usize,
     autocomplete_prefix: String,
     last_recovery_write: HashMap<String, Instant>,
+    cached_clock_minute: u64,
+    cached_clock_text: String,
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        print_help();
+        return;
+    }
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("az 2.1.0");
+        return;
+    }
     let mut editor = Editor::new(args);
     if let Err(err) = editor.run() {
         let _ = editor.cleanup();
@@ -219,9 +229,31 @@ fn main() {
     }
 }
 
+fn print_help() {
+    println!("az 2.1.0 - a small, sane terminal text editor");
+    println!();
+    println!("USAGE:");
+    println!("  az [OPTIONS] [PATH]");
+    println!();
+    println!("ARGS:");
+    println!("  [PATH]  File, folder, file:line (e.g. main.rs:20), or :line for current file");
+    println!();
+    println!("OPTIONS:");
+    println!("  -h, --help     Show this help");
+    println!("  -V, --version  Show version");
+    println!();
+    println!("KEYS:");
+    println!("  Ctrl+S save, Ctrl+O quick open, Ctrl+P commands, Ctrl+F find, Ctrl+L find next,");
+    println!("  Ctrl+R replace, Ctrl+G go to line, Ctrl+T tree focus, Ctrl+H tree hide (tree),");
+    println!("  Ctrl+D close tab, Ctrl+N new file, Ctrl+Q quit, Ctrl+/ help, Alt+1-9 tabs");
+}
+
 impl Editor {
     fn new(args: Vec<String>) -> Self {
-        let target = args.get(1).map(PathBuf::from).unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        let raw_target = args.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        // Support `file:line` and `:line` CLI forms. `:line` alone opens CWD.
+        let (target_str, cli_line) = parse_cli_path(&raw_target);
+        let target = PathBuf::from(&target_str);
         let abs = absolute_path(&target, None);
         let mut tabs = Vec::new();
         let root;
@@ -229,20 +261,54 @@ impl Editor {
         let mut show_welcome = false;
         let mut hide_initial_untitled = false;
         let mut message = "Welcome to Az".to_string();
+        let pending_go_line: Option<usize> = cli_line;
 
         if abs.is_file() {
             root = abs.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
             match Tab::from_path(abs.clone()) {
-                Ok(tab) => tabs.push(tab),
+                Ok(mut tab) => {
+                    if let Some(n) = pending_go_line {
+                        let max_line = tab.lines.len().saturating_sub(1);
+                        tab.cursor.line = min(n.saturating_sub(1), max_line);
+                        tab.cursor.col = 0;
+                        message = format!("Opened {}:{}", tab.name, n);
+                    }
+                    tabs.push(tab);
+                }
                 Err(_) => tabs.push(Tab::empty()),
             }
-        } else {
-            root = if abs.is_dir() { abs } else { env::current_dir().unwrap_or_else(|_| PathBuf::from(".")) };
+        } else if abs.is_dir() {
+            root = abs;
             tabs.push(Tab::empty());
             focus = Focus::Tree;
             show_welcome = true;
             hide_initial_untitled = true;
             message = "Folder opened. Ctrl+O quick open, Ctrl+P commands, Ctrl+T switches tree/editor".to_string();
+        } else {
+            // Non-existent path: treat as a new file to create (e.g. `az newfile.txt`
+            // or `az sub/dir/file.rs:10`). Root is the nearest existing ancestor or CWD.
+            let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let mut ancestor = abs.parent();
+            let mut root_candidate: Option<PathBuf> = None;
+            while let Some(a) = ancestor {
+                if a.is_dir() {
+                    root_candidate = Some(a.to_path_buf());
+                    break;
+                }
+                ancestor = a.parent();
+            }
+            root = root_candidate.unwrap_or(cwd);
+            let name = abs.file_name().and_then(OsStr::to_str).unwrap_or("Untitled").to_string();
+            let mut tab = Tab::empty();
+            tab.path = Some(abs.clone());
+            tab.name = name;
+            if let Some(n) = pending_go_line {
+                // New file only has 1 line; keep cursor at top but remember intent.
+                message = format!("New file {} (line {} beyond EOF)", tab.name, n);
+            } else {
+                message = format!("New file {}", tab.name);
+            }
+            tabs.push(tab);
         }
 
         let mut expanded = HashSet::new();
@@ -281,6 +347,8 @@ impl Editor {
             autocomplete_start_col: 0,
             autocomplete_prefix: String::new(),
             last_recovery_write: HashMap::new(),
+            cached_clock_minute: 0,
+            cached_clock_text: String::new(),
         }
     }
 
@@ -488,10 +556,30 @@ impl Editor {
             "\x10" => { self.command_palette(); true }
             "\x07" => { self.go_to_line_prompt(); true }
             "\x14" => { self.toggle_tree_focus(); true }
-            "\x08" => { self.toggle_sidebar(); true }
+            // NOTE: 0x08 is both Ctrl+H and Backspace-on-some-terminals.
+            // In Editor focus, let it fall through to backspace handling so
+            // Backspace never toggles the tree. In Tree focus, toggle sidebar.
+            "\x08" => {
+                if self.focus == Focus::Editor {
+                    return false;
+                } else {
+                    self.toggle_sidebar();
+                    return true;
+                }
+            }
             "\x06" => { self.find_prompt(); true }
+            "\x0c" => {
+                // Ctrl+L: find next using last pattern (F3-style). Falls back to prompt.
+                if self.last_find.is_empty() {
+                    self.find_prompt();
+                } else {
+                    let q = self.last_find.clone();
+                    self.find_next(&q);
+                }
+                true
+            }
             "\x12" => { self.replace_prompt(); true }
-            "\x0e" => { self.new_tab(true); self.message = "New file".to_string(); true }
+            "\x0e" => { self.new_tab(true); self.message = "New file (Ctrl+S to save)".to_string(); true }
             "\x04" => { self.close_current_tab(); true }
             "\x03" => { self.copy_selection_or_line(); true }
             "\x18" => { self.cut_selection_or_line(); true }
@@ -515,6 +603,14 @@ impl Editor {
             "n" => self.new_tree_file_prompt(),
             "N" => self.new_tree_folder_prompt(),
             "r" | "R" => self.rename_tree_path_prompt(false),
+            "+" | "=" => {
+                self.base_tree_width = min(44, self.base_tree_width + 2);
+                self.message = format!("Tree width {}", self.base_tree_width);
+            }
+            "-" | "_" => {
+                self.base_tree_width = max(18, self.base_tree_width.saturating_sub(2));
+                self.message = format!("Tree width {}", self.base_tree_width);
+            }
             "\x1b[3~" => self.delete_tree_path_prompt(false),
             "\x1b[A" => self.tree_index = self.tree_index.saturating_sub(1),
             "\x1b[B" => self.tree_index = min(self.tree_rows.len().saturating_sub(1), self.tree_index + 1),
@@ -612,9 +708,19 @@ impl Editor {
         io::stdout().flush()
     }
 
-    fn render_topbar(&self) -> String {
+    fn clock_text(&mut self) -> String {
+        let minute = current_minute();
+        if minute != self.cached_clock_minute || self.cached_clock_text.is_empty() {
+            self.cached_clock_minute = minute;
+            self.cached_clock_text = time_date_text();
+        }
+        self.cached_clock_text.clone()
+    }
+
+    fn render_topbar(&mut self) -> String {
         let style = ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false);
-        let right = format!(" {} ", time_date_text());
+        let clock = self.clock_text();
+        let right = format!(" {} ", clock);
         let title = " az | sane editor ";
         let prefix = if self.sidebar_hidden {
             format!("{title} ")
@@ -744,7 +850,12 @@ impl Editor {
         if self.tree_width < 18 {
             vec!["Enter open".to_string(), "N file  R rename".to_string(), "Del delete".to_string()]
         } else {
-            vec!["Enter open/fold".to_string(), "N file  Shift+N folder".to_string(), "R rename  Del delete".to_string()]
+            vec![
+                "Enter open/fold".to_string(),
+                "N file  Shift+N folder".to_string(),
+                "R rename  Del delete".to_string(),
+                "+/- tree width".to_string(),
+            ]
         }
     }
 
@@ -863,15 +974,17 @@ impl Editor {
             "    Ctrl+S  Save                   Ctrl+O  Quick open file/symbol".to_string(),
             "    Ctrl+Z  Undo                   Ctrl+Y  Redo".to_string(),
             "    Ctrl+P  Command palette        Ctrl+G  Go to line".to_string(),
-            "    Ctrl+W  Remove line            Ctrl+T  Show/focus tree".to_string(),
-            "    Ctrl+F  Find                   Ctrl+H  Hide/show tree".to_string(),
+            "    Ctrl+N  New file               Ctrl+T  Show/focus tree".to_string(),
+            "    Ctrl+F  Find                   Ctrl+L  Find next".to_string(),
             "    Ctrl+R  Replace                Alt+1-9 Switch tab".to_string(),
             "    Tab     Complete               Ctrl+D  Close tab".to_string(),
             "    %term   Case-sensitive find    Ctrl+/  Help".to_string(),
             "    Ctrl+C  Copy                   Ctrl+Q  Quit".to_string(),
             "    Ctrl+X  Cut                    Ctrl+A  Select all".to_string(),
-            "    Ctrl+V  Paste                  Ctrl+O  file:line or :line".to_string(),
+            "    Ctrl+V  Paste                  Ctrl+W  Remove line".to_string(),
+            "    Ctrl+H  Hide/show tree (tree)  +/-   Tree width (tree)".to_string(),
             "    Ctrl+P  set php/html/css/js/blade/plain".to_string(),
+            "    az file:20  open at line  az :20  go to line".to_string(),
         ]
     }
 
@@ -927,7 +1040,24 @@ impl Editor {
         for entry in read.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name == "." || name == ".." || matches!(name.as_str(), ".git" | "node_modules" | "vendor" | ".idea" | ".vscode") { continue; }
+            if name == "." || name == ".."
+                || matches!(
+                    name.as_str(),
+                    ".git"
+                        | "node_modules"
+                        | "vendor"
+                        | ".idea"
+                        | ".vscode"
+                        | "target"
+                        | "dist"
+                        | "build"
+                        | "__pycache__"
+                        | ".next"
+                        | ".nuxt"
+                )
+            {
+                continue;
+            }
             if path.is_dir() { dirs.push(path); } else if path.is_file() { files.push(path); }
         }
         dirs.sort_by_key(|p| p.file_name().map(|s| s.to_string_lossy().to_ascii_lowercase()).unwrap_or_default());
@@ -1058,14 +1188,31 @@ impl Editor {
         let name = self.prompt("Save as: ", &default);
         if name.trim().is_empty() { self.message = "Save as cancelled".to_string(); return; }
         let path = absolute_path(Path::new(name.trim()), Some(&self.root));
-        let old_path = self.tab().path.clone();
-        {
-            let tab = self.tab_mut();
-            tab.path = Some(path.clone());
-            tab.name = path.file_name().and_then(OsStr::to_str).unwrap_or("Untitled").to_string();
+        let text = self.tab().text();
+        // Write first; only switch tab path on success so a failed save
+        // never orphans the original path.
+        if atomic_write_file(&path, text.as_bytes()).is_ok() {
+            let old_path = self.tab().path.clone();
+            let rev = self.tab().revision;
+            {
+                let tab = self.tab_mut();
+                tab.path = Some(path.clone());
+                tab.name = path.file_name().and_then(OsStr::to_str).unwrap_or("Untitled").to_string();
+                tab.saved_revision = rev;
+                tab.modified = false;
+            }
+            self.delete_recovery_for_tab(self.tab());
+            if let Some(old) = old_path {
+                if old != path {
+                    self.delete_recovery_file(&old);
+                }
+            }
+            self.needs_tree_refresh = true;
+            self.reveal_path_in_tree(&path);
+            self.message = format!("Saved {}", relative_path(&self.root, &path));
+        } else {
+            self.message = "Save as failed".to_string();
         }
-        self.save_current_tab();
-        if let Some(old) = old_path { if old != path { self.delete_recovery_file(&old); } }
     }
 
     fn confirm_quit(&mut self) {
@@ -1513,22 +1660,68 @@ impl Editor {
     fn find_next(&mut self, query: &str) -> bool {
         let (needle, ignore_case) = self.parse_find_query(query);
         if needle.is_empty() { self.message = "Empty search".to_string(); return false; }
-        let start = self.tab().cursor;
-        let total = self.tab().lines.len();
-        for pass in 0..2 {
-            let range: Box<dyn Iterator<Item = usize>> = if pass == 0 {
-                Box::new(start.line..total)
+        // If selection is exactly the previous match, start from its end so we
+        // never re-find the same match.
+        let mut start = self.tab().cursor;
+        if let Some((a, b)) = self.selection_range() {
+            let sel = text_between(&self.tab().lines, a, b);
+            let is_match = if ignore_case {
+                sel.to_ascii_lowercase() == needle.to_ascii_lowercase()
             } else {
-                Box::new(0..=start.line)
+                sel == needle
             };
-            for line_no in range {
-                let offset = if line_no == start.line && pass == 0 { min(start.col + 1, self.tab().lines[line_no].len()) } else { 0 };
-                if let Some(pos) = find_in_line(&self.tab().lines[line_no], &needle, offset, ignore_case) {
-                    self.tab_mut().cursor = Pos { line: line_no, col: pos };
-                    self.selection_anchor = Some(Pos { line: line_no, col: pos + needle.len() });
-                    self.message = format!("Found {}", needle);
-                    return true;
+            if is_match {
+                start = b;
+            } else {
+                // Fresh cursor: nudge past cursor so a match exactly at cursor
+                // is still found (use cursor pos, not +1, to handle multi-byte).
+                // Keep start as cursor.
+            }
+        }
+        let total = self.tab().lines.len();
+        // Pass 0: start.line..end from start.col. Pass 1 (wrap): 0..start.line
+        // plus start.line[0..start.col] for true wrap matches.
+        for line_no in start.line..total {
+            let offset = if line_no == start.line { min(start.col, self.tab().lines[line_no].len()) } else { 0 };
+            if let Some(pos) = find_in_line(&self.tab().lines[line_no], &needle, offset, ignore_case) {
+                self.tab_mut().cursor = Pos { line: line_no, col: pos };
+                self.selection_anchor = Some(Pos { line: line_no, col: pos + needle.len() });
+                self.message = format!("Found {}", needle);
+                return true;
+            }
+        }
+        for line_no in 0..=start.line.min(total.saturating_sub(1)) {
+            let limit = if line_no == start.line { start.col } else { usize::MAX };
+            if let Some(pos) = find_in_line(&self.tab().lines[line_no], &needle, 0, ignore_case) {
+                if line_no == start.line && pos >= limit {
+                    // Match is at/after start; already covered in pass 0.
+                    // Look for earlier wrap match only; check if another match
+                    // exists before limit.
+                    let mut off = 0usize;
+                    let mut best: Option<usize> = None;
+                    while let Some(p) = find_in_line(&self.tab().lines[line_no], &needle, off, ignore_case) {
+                        if p < limit {
+                            best = Some(p);
+                            off = p + needle.len().max(1);
+                            if off >= self.tab().lines[line_no].len() {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    if let Some(p) = best {
+                        self.tab_mut().cursor = Pos { line: line_no, col: p };
+                        self.selection_anchor = Some(Pos { line: line_no, col: p + needle.len() });
+                        self.message = format!("Found {} (wrapped)", needle);
+                        return true;
+                    }
+                    continue;
                 }
+                self.tab_mut().cursor = Pos { line: line_no, col: pos };
+                self.selection_anchor = Some(Pos { line: line_no, col: pos + needle.len() });
+                self.message = format!("Found {} (wrapped)", needle);
+                return true;
             }
         }
         self.message = "Not found".to_string();
@@ -1672,7 +1865,21 @@ impl Editor {
     fn collect_quick_open_files(&self, limit: usize) -> Vec<PickerItem> {
         let mut out = Vec::new();
         let mut stack = vec![self.root.clone()];
-        let skip: HashSet<&str> = [".git", "node_modules", "vendor", ".idea", ".vscode"].into_iter().collect();
+        let skip: HashSet<&str> = [
+            ".git",
+            "node_modules",
+            "vendor",
+            ".idea",
+            ".vscode",
+            "target",
+            "dist",
+            "build",
+            "__pycache__",
+            ".next",
+            ".nuxt",
+        ]
+        .into_iter()
+        .collect();
         while let Some(dir) = stack.pop() {
             if out.len() >= limit { break; }
             let Ok(read) = fs::read_dir(&dir) else { continue; };
@@ -1854,7 +2061,12 @@ impl Editor {
 
     fn render_simple_picker(&self, title: &str, query_line: &str, matches: &[PickerItem], selected: usize, empty: &str) {
         let rows = min(12, max(1, self.rows.saturating_sub(8)));
-        let panel_width = min(self.cols.saturating_sub(6), max(50, self.cols * 62 / 100)).max(30);
+        // Clamp panel to terminal: at least 10 cols margin on wide screens,
+        // but never exceed cols-2 so narrow terminals (30 cols) still render.
+        let desired = max(50, self.cols * 62 / 100);
+        let max_allowed = self.cols.saturating_sub(2).max(20);
+        let min_allowed = max_allowed.min(30);
+        let panel_width = min(max_allowed, desired).max(min_allowed).max(20);
         let panel_height = rows + 4;
         let start_col = max(1, (self.cols.saturating_sub(panel_width)) / 2 + 1);
         let start_row = max(2, (self.rows.saturating_sub(panel_height)) / 2 + 1);
@@ -2307,6 +2519,7 @@ impl Editor {
         if self.tabs.len() != 1 || self.tabs[0].path.is_some() { return; }
         let Ok(data) = fs::read_to_string(self.session_file()) else { return; };
         let mut tabs = Vec::new();
+        let mut saved_tab_index: usize = 0;
         for line in data.lines() {
             if let Some(rest) = line.strip_prefix("tab=") {
                 let parts: Vec<String> = rest.split('\t').map(unescape_state).collect();
@@ -2324,11 +2537,15 @@ impl Editor {
                 }
             } else if let Some(rest) = line.strip_prefix("expanded=") {
                 self.expanded.insert(PathBuf::from(unescape_state(rest)));
-            } else if line == "sidebar_hidden=1" { self.sidebar_hidden = true; }
+            } else if line == "sidebar_hidden=1" {
+                self.sidebar_hidden = true;
+            } else if let Some(rest) = line.strip_prefix("tab_index=") {
+                saved_tab_index = rest.parse().unwrap_or(0);
+            }
         }
         if !tabs.is_empty() {
             self.tabs = tabs;
-            self.tab_index = 0;
+            self.tab_index = min(saved_tab_index, self.tabs.len().saturating_sub(1));
             self.hide_initial_untitled = false;
             self.focus = if self.sidebar_hidden { Focus::Editor } else { Focus::Tree };
             self.message = "Session restored".to_string();
@@ -2358,12 +2575,8 @@ impl Editor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Segment { pub(crate) start: usize, pub(crate) end: usize, pub(crate) color: &'static str }
-
-fn comp(label: &str, insert: &str, detail: &str) -> CompletionItem {
-    CompletionItem { label: label.to_string(), insert: insert.to_string(), detail: detail.to_string() }
-}
 
 fn highlight_segments(line: &str, syntax: SyntaxMode) -> Vec<Segment> {
     plugins::highlight_segments(line, syntax)
@@ -2383,12 +2596,56 @@ fn time_date_text() -> String {
 }
 
 fn absolute_path(path: &Path, base: Option<&Path>) -> PathBuf {
+    let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let joined = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        base.unwrap_or_else(|| Path::new(".")).join(path)
+        // Resolve relative paths against explicit base, or CWD if base is
+        // relative/missing. This ensures session/recovery keys and tree roots
+        // are stable regardless of how az was invoked.
+        let b = base.unwrap_or(&cwd);
+        let abs_base = if b.is_absolute() {
+            b.to_path_buf()
+        } else {
+            cwd.join(b)
+        };
+        abs_base.join(path)
     };
-    joined.components().collect()
+    // Lexically normalise `.` and `..` without touching the filesystem
+    // (so non-existent new files still resolve).
+    let mut out = PathBuf::new();
+    for comp in joined.components() {
+        use std::path::Component;
+        match comp {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
+fn parse_cli_path(raw: &str) -> (String, Option<usize>) {
+    // Returns (path, line). Supports `file:line`, `:line`, and plain paths.
+    // Windows drive `C:\...` is not specially handled (Linux-first editor).
+    let t = raw.trim();
+    if let Some(rest) = t.strip_prefix(':') {
+        if let Ok(n) = rest.trim().parse::<usize>() {
+            return (".".to_string(), Some(n));
+        }
+        return (t.to_string(), None);
+    }
+    if let Some((left, right)) = t.rsplit_once(':') {
+        if !left.is_empty() {
+            if let Ok(n) = right.trim().parse::<usize>() {
+                // Avoid splitting `dir:` with empty line part handled above.
+                return (left.to_string(), Some(n));
+            }
+        }
+    }
+    (t.to_string(), None)
 }
 
 fn relative_path(root: &Path, path: &Path) -> String {
@@ -2720,4 +2977,129 @@ fn parse_state_headers(headers: &str) -> HashMap<String, String> {
         if let Some((k, v)) = line.split_once('=') { map.insert(k.to_string(), unescape_state(v)); }
     }
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_path_file_line() {
+        assert_eq!(parse_cli_path("main.rs:20"), ("main.rs".to_string(), Some(20)));
+        assert_eq!(parse_cli_path("a/b.php:1"), ("a/b.php".to_string(), Some(1)));
+    }
+
+    #[test]
+    fn cli_path_bare_line() {
+        assert_eq!(parse_cli_path(":20"), (".".to_string(), Some(20)));
+    }
+
+    #[test]
+    fn cli_path_plain() {
+        assert_eq!(parse_cli_path("src/main.rs"), ("src/main.rs".to_string(), None));
+        assert_eq!(parse_cli_path("."), (".".to_string(), None));
+    }
+
+    #[test]
+    fn absolute_is_absolute() {
+        let p = absolute_path(Path::new("src/main.rs"), None);
+        assert!(p.is_absolute(), "expected absolute, got {p:?}");
+    }
+
+    #[test]
+    fn absolute_normalises_dotdot() {
+        let cwd = env::current_dir().unwrap();
+        let p = absolute_path(Path::new("a/../b"), Some(&cwd));
+        assert!(!p.to_string_lossy().contains(".."));
+        assert!(p.to_string_lossy().ends_with("b"));
+    }
+
+    #[test]
+    fn quick_open_query_parsing() {
+        assert_eq!(
+            parse_quick_open_query(":20"),
+            (true, String::new(), Some(20))
+        );
+        let (bare, q, line) = parse_quick_open_query("main.rs:20");
+        assert!(!bare);
+        assert_eq!(q, "main.rs");
+        assert_eq!(line, Some(20));
+    }
+
+    #[test]
+    fn html_auto_close_recovers_tag_after_gt() {
+        assert_eq!(
+            crate::plugins::html::last_unclosed_tag("<div>"),
+            Some("div".to_string())
+        );
+        assert_eq!(crate::plugins::html::last_unclosed_tag("<br/>"), None);
+        assert_eq!(
+            crate::plugins::html::last_unclosed_tag("</div>"),
+            None
+        );
+    }
+
+    #[test]
+    fn find_case_insensitive() {
+        assert_eq!(find_in_line("Hello World", "world", 0, true), Some(6));
+        assert_eq!(find_in_line("Hello World", "world", 0, false), None);
+    }
+
+    #[test]
+    fn escape_roundtrip() {
+        let s = "a=b\tc\nd\\e";
+        assert_eq!(unescape_state(&escape_state(s)), s);
+    }
+
+    fn has_comment(segs: &[crate::Segment]) -> bool {
+        segs.iter().any(|s| s.color == crate::COMMENT)
+    }
+
+    #[test]
+    fn blade_css_id_is_not_php_comment() {
+        // Real Blade <style> case: #header is ID selector, not PHP `#` comment.
+        let segs = crate::plugins::highlight_segments("#header { background: #fff; }", SyntaxMode::Blade);
+        assert!(!has_comment(&segs), "CSS ID line flagged as comment: {segs:?}");
+        // ID selector should highlight (yellow), hex should highlight (orange via css).
+        let id_hit = segs.iter().any(|s| s.start == 0 && s.end == 7);
+        assert!(id_hit, "expected #header range, got {segs:?}");
+    }
+
+    #[test]
+    fn blade_hex_color_is_not_comment() {
+        let segs = crate::plugins::highlight_segments("  color: #fff;", SyntaxMode::Blade);
+        assert!(!has_comment(&segs), "hex color flagged as comment: {segs:?}");
+    }
+
+    #[test]
+    fn blade_href_hash_is_not_comment() {
+        let segs = crate::plugins::highlight_segments("<a href=\"#section\">", SyntaxMode::Blade);
+        assert!(!has_comment(&segs), "href #section flagged as comment: {segs:?}");
+    }
+
+    #[test]
+    fn blade_https_is_not_comment() {
+        let segs = crate::plugins::highlight_segments("<a href=\"https://example.com\">", SyntaxMode::Blade);
+        assert!(!has_comment(&segs), "https URL flagged as comment: {segs:?}");
+        let segs_php = crate::plugins::highlight_segments("$u = \"https://example.com\";", SyntaxMode::Php);
+        assert!(!has_comment(&segs_php), "PHP string URL flagged as comment: {segs_php:?}");
+    }
+
+    #[test]
+    fn php_real_comments_still_work() {
+        let segs = crate::plugins::highlight_segments("# real comment", SyntaxMode::Php);
+        assert!(has_comment(&segs));
+        let segs2 = crate::plugins::highlight_segments("$x = 1; // trailing", SyntaxMode::Php);
+        assert!(has_comment(&segs2));
+    }
+
+    #[test]
+    fn blade_directive_vs_email() {
+        let segs = crate::plugins::highlight_segments("  @if($x)", SyntaxMode::Blade);
+        assert!(segs.iter().any(|s| s.color == crate::PURPLE), "expected @if purple: {segs:?}");
+        let segs2 = crate::plugins::highlight_segments("contact user@example.com here", SyntaxMode::Blade);
+        // @example in email must NOT be marked as Blade directive.
+        let bad = segs2.iter().any(|s| s.color == crate::PURPLE);
+        assert!(!bad, "email flagged as Blade: {segs2:?}");
+    }
 }

@@ -307,6 +307,10 @@ pub(crate) fn after_nonspace_is(line: &str, from: usize, ch: char) -> bool {
     line[from..].chars().find(|c| !c.is_whitespace()) == Some(ch)
 }
 
+pub(crate) fn pos_in_ranges(pos: usize, ranges: &[(usize, usize)]) -> bool {
+    ranges.iter().any(|(a, b)| pos >= *a && pos < *b)
+}
+
 pub(crate) fn is_name_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b':' | b'.')
 }

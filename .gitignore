@@ -1,0 +1,23 @@
+# Rust build output
+/target/
+**/*.rs.bk
+
+# az release binary copied to repo root by build.sh (rebuilt via `cargo build --release`)
+/az
+
+# Editor / OS noise
+*~
+*.swp
+*.swo
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE dirs (project uses plain rustc/cargo, no editor config tracked)
+.vscode/
+.idea/
+
+# Local state (sessions/recovery live in $XDG_STATE_HOME, never in repo)
+*.rec
+session-*.txt

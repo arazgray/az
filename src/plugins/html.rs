@@ -54,9 +54,26 @@ pub(crate) fn symbols(line: &str) -> Vec<String> {
 }
 
 pub(crate) fn last_unclosed_tag(before: &str) -> Option<String> {
-    let lt = before.rfind('<')?;
-    if before[lt..].contains('/') || before[lt..].contains('>') { return None; }
-    let tag: String = before[lt + 1..].chars().take_while(|c| c.is_alphanumeric() || *c == '-' || *c == ':').collect();
+    // Called right after `>` is typed, so `before` usually ends with `>`.
+    // Strip that single just-typed `>` to recover the tag (e.g. `<div>` -> `<div`).
+    let inner = if before.ends_with('>') {
+        &before[..before.len().saturating_sub(1)]
+    } else {
+        before
+    };
+    let lt = inner.rfind('<')?;
+    // If there is another `>` after `<`, this tag was already closed earlier.
+    if inner[lt..].contains('>') {
+        return None;
+    }
+    // Self-closing `<br/>` or closing `</div` must not auto-close.
+    if inner[lt..].contains('/') {
+        return None;
+    }
+    let tag: String = inner[lt + 1..]
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == ':')
+        .collect();
     if tag.is_empty() { None } else { Some(tag) }
 }
 

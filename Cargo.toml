@@ -1,10 +1,10 @@
 [package]
 name = "az"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
-authors = ["Araz Gholami", "Rust rewrite by ChatGPT"]
+authors = ["Araz Gholami"]
 description = "A fast, sane terminal text editor for code and large text files."
-license = "MIT"
+license = "WTFPL"
 
 [profile.release]
 opt-level = 3

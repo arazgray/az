@@ -1,146 +1,172 @@
-# az text editor 2.0
+# az text editor 2.1
 
 `az` is a small, sane terminal text editor for code and text.
 
-Version 2.0 is a complete rewrite in Rust. It keeps the original idea: open fast, stay simple, feel familiar, and make terminal editing less annoying.
-
-It opens ready to type, works with files or project folders, and includes the practical things you expect from a modern editor: tabs, project tree, quick open, command palette, line numbers, find and replace, word wrap, syntax highlighting, autocomplete, and recovery files.
+> Open fast. Type immediately. Stay keyboard-first. Zero dependencies.
 
 ![az](az-editor.jpg)
 
+Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
+
+---
+
+## Quick start
+
+```sh
+./build.sh          # builds release + installs to ~/.local/bin/az
+az --help
+az file.php         # open file
+az project/         # open folder
+az file.php:20      # open at line 20
+az newfile.txt      # new file tab
+```
+
+```text
+Ctrl+S  save              Ctrl+O  quick open (file, symbol, file:line, :line)
+Ctrl+P  command palette   Ctrl+F  find (%term = case-sensitive)   Ctrl+L  find next
+Ctrl+R  replace           Ctrl+G  go to line                      Ctrl+N  new file
+Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)        +/-   tree width (in tree)
+Ctrl+D  close tab         Ctrl+Q  quit                            Alt+1-9  switch tab
+Ctrl+Z / Ctrl+Y  undo / redo      Ctrl+C / X / V / A  copy / cut / paste / select all
+Ctrl+/  help
+```
+
+Full map: [`USER_MANUAL.md`](USER_MANUAL.md#4-keyboard--complete-map).
+
+---
+
+## What it looks like
+
+```text
+┌ az | sane editor │ 1:main.blade.php  2:style.css │  02:30 PM  30/09/2026 ─┐
+│ ▾ project/              │  1  @extends('layouts.app')                    │
+│   ▾ resources/          │  2  @section('content')                        │
+│     ▾ views/            │  3  <style>                                    │
+│       main.blade.php    │  4  #header { background: #fff; }  ← ID yellow │
+│       style.css         │  5  </style>         hex #fff orange, not gray │
+│   Enter open/fold       │  6  <div id="app">{{ $user->name }}</div>      │
+│   N file  Shift+N folder│  7  @if($x) … @endif   ← @ purple, $x red     │
+└ editor  main.blade.php  saved  BLADE  tree shown │ Found $user  Ln 6… ───┘
+```
+
+- Topbar: tabs (`*` = modified). Press `Esc` to flash `Alt+1-9` hints.
+- Tree: colors by extension (PHP purple, Blade magenta, HTML orange, JS yellow, CSS blue).
+- Editor: line numbers, horizontal scroll, Tokyo Night colors, mixed-language highlighting.
+- Status: focus · path · saved/modified · language · message · `Ln,Col Lines Words`.
+
+---
+
 ## Why az?
 
-`az` is for quick edits, small projects, server work, focused writing, and code changes directly inside the terminal.
-It is a simple editor that behaves like a normal text editor, stays keyboard-friendly, and gets out of your way.
+For quick edits, small projects, server work, focused writing, and terminal code changes.
+No config drama, no plugins to install, no mouse required.
 
-## What is new in 2.0?
+## What is new in 2.1?
 
-- Completely rewritten in Rust
-- Faster startup and rendering
-- Better handling for huge files
-- Modular language support through Rust plugins
-- Mixed syntax highlighting for files that contain PHP, HTML, CSS, Blade, and JavaScript together
-- File colors in the project tree based on extension
+- **Blade + CSS fix**: `#header`, `#fff`, `href="#section"`, `https://…` no longer gray as PHP `#` / `//` comments. `#id` now yellow, hex orange, URLs stay green. `user@example.com` no longer purple as Blade directive. 6 new regression tests (15 total).
+- **Smarter comments**: `//` / `#` ignored inside `"strings"`, `` `templates` ``, and `://` protocols.
+- **`--help` / `--version`**, `file:line`, `:line`, `newfile` CLI handling; absolute-path session keys.
+- **Faster topbar**: `date` cached per minute. Pickers safe on 30-col terminals. Tree/quick-open skip `target dist build __pycache__ .next .nuxt`.
+- **New keys**: `Ctrl+L` find-next, `+/-` tree width, `Ctrl+N` new file everywhere in help.
+- **Repo hygiene**: `.gitignore` for `target/`, `/az` binary, `*.tmp`, OS/IDE noise; binaries untracked.
+
+2.0 recap: Rust rewrite, tabs, tree, quick open, palette, find/replace, autocomplete, recovery, zero crates.
+
+---
 
 ## Features
 
-- Written in Rust
-- Keyboard-first editing
-- Opens files or folders
-- Project tree sidebar
-- Different tree colors for different file extensions
-- Tabs with `Alt+1` to `Alt+9`
-- Quick open with `Ctrl+O`
-- Open files and jump to a line with `file.php:20`
-- Jump to a line in the current file with `:20`
-- Project search from quick open
-- Function and symbol opening from quick open
-- Command palette with `Ctrl+P`
-- Save, create files, switch language mode, and run editor actions from the command palette
-- Visible line numbers
-- Welcome screen on startup
-- `Ctrl+/` shows the same welcome/help screen
-- Find and replace
-- Case-insensitive search by default
-- Case-sensitive search with `%term`
-- Word wrapping
-- UTF-8 input support
-- Tokyo Night inspired interface colors
-- Syntax highlighting through plugins
-- Autocomplete through plugins
-- Huge file editing support
-- Recovery files for unsaved work
-- Terminal cleanup on quit
+| Area | Details |
+|------|---------|
+| Open | Files, folders, `file:line`, `:line`, non-existent → new tab |
+| Navigate | Tree, quick open (fuzzy file + symbol), project search, go-to-line, `Alt+1-9` |
+| Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OSC52), select-all, delete-line |
+| Search | Case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
+| Highlight | PHP, Blade, HTML, CSS, JS mixed per-line; Blade `{{ }}` / `{{-- --}}` / `@dir`; CSS `#id` + hex; HTML tags/attrs/entities |
+| Complete | `Tab` context items: PHP `$vars`/members, HTML tags/attrs, CSS props/values/`@rules`, JS members/snippets, Blade directives |
+| Safety | Atomic saves, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
+| Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe |
+
+> No word wrap by design — long lines scroll horizontally. No mouse, splits, or regex.
+
+---
 
 ## Language plugins
 
-Language support lives in `src/plugins`.
+`src/plugins/` — one file per language, std-only, line-local.
 
-Included plugins:
+| Plugin | File | Provides |
+|--------|------|----------|
+| PHP | `php.rs` | keywords/functions/`$vars`/`#` `//` (string + CSS aware) |
+| Blade | `blade.rs` | `@directives` (boundary + string aware), `{{ }}`, symbols |
+| HTML | `html.rs` | tags/attrs/entities, void-tag close, inline-style detect |
+| CSS | `css.rs` | props/hex/`#id`/`@rules`/`!important`, selector symbols |
+| JavaScript | `javascript.rs` | keywords/builtins/`` `templates` ``/regex/`//` (protocol aware) |
+| Example | `example.rs` | skeleton for new languages |
 
-- PHP
-- Blade
-- HTML
-- CSS
-- JavaScript
-- Example plugin skeleton
+Add one in ~15 min — see [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) + [`AGENTS.md`](AGENTS.md#4-plugin-api-add-language-in-15-min).
 
-Each plugin is a separate Rust file. A plugin can provide syntax highlighting, autocomplete, symbol extraction, and tree colors.
+```blade
+{{-- real Blade: all three languages on one screen --}}
+@extends('layouts.app')
+@section('content')
+<style>
+  #header { background: #fff; color: #333; }   /* # = ID/hex, not comment */
+  .container { max-width: 1200px; }
+</style>
+<div id="app" class="container">
+  <a href="#section">jump</a>
+  <a href="https://example.com">link</a>       {{-- // inside string, not comment --}}
+  {{ $user->name }}                            {{-- $var red, {{ }} teal --}}
+  @if($x) … @endif                             {{-- @ purple, not email --}}
+</div>
+@endsection
+```
 
-Read `PLUGIN_GUIDE.md` to add a new language.
+---
 
 ## Build and install
 
-Build from source:
-
 ```sh
 ./build.sh
-```
-
-`build.sh` builds the editor, creates `./az`, installs it to:
-
-```text
-~/.local/bin/az
-```
-
-and adds `~/.local/bin` to your `PATH` in `~/.profile` when needed.
-
-After the first install, restart your terminal or run:
-
-```sh
-. ~/.profile
-```
-
-Then run:
-
-```sh
+# → target/release/az → ./az → ~/.local/bin/az
+# adds ~/.local/bin to PATH via ~/.profile if needed
+. ~/.profile   # first time only, or restart terminal
 az
 ```
 
-To install into a different folder:
+Custom dir:
 
 ```sh
 AZ_BIN_DIR="$HOME/bin" ./build.sh
 ```
 
-## Remote install
+Remote:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
 ```
 
-The remote installer clones the repository, builds the Rust version, and installs the `az` binary to `~/.local/bin`.
+Requirements: `cargo` (recommended) or `rustc`. No crates. See [`AGENTS.md`](AGENTS.md#6-testing) for `cargo check/test/build`.
 
-## Requirements
-
-Use one of these:
-
-- Cargo, recommended
-- Rust compiler, `rustc`
-
-No external Rust crates are required.
+---
 
 ## Basic usage
 
 ```sh
 az file.php
 az project/
+az file.php:20
+az newfile.txt
+az --help
+az --version
 ```
 
-Useful shortcuts:
+State lives in `$XDG_STATE_HOME/az-rust` (or `~/.local/state/az-rust`): `session-<hash>.txt`, `recovery/*.rec`.
 
-```text
-Ctrl+S   Save
-Ctrl+O   Quick open
-Ctrl+P   Command palette
-Ctrl+F   Find
-Ctrl+R   Replace
-Ctrl+T   Switch tree/editor
-Ctrl+H   Hide/show tree
-Ctrl+D   Close tab
-Ctrl+Q   Quit
-Ctrl+/   Help
-```
+Troubleshooting (Backspace vs `Ctrl+H`, Alt numbers, colors, slow quick-open): [`USER_MANUAL.md`](USER_MANUAL.md#8-troubleshooting).
+
+---
 
 ## License
 

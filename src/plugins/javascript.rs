@@ -1,13 +1,17 @@
 use crate::{BLUE, COMMENT, CYAN, GREEN, MAGENTA, ORANGE, PURPLE, YELLOW, Segment, CompletionItem};
-use super::{after_nonspace_is, comp, find_prefixed_words, find_words, scan_ranges, string_ranges, word_suffix, CompletionContext};
+use super::{after_nonspace_is, comp, find_prefixed_words, find_words, pos_in_ranges, scan_ranges, string_ranges, word_suffix, CompletionContext};
 
 pub(crate) fn segments(line: &str) -> Vec<Segment> {
     let mut s = Vec::new();
-    for (a, b) in template_ranges(line) { s.push(Segment { start: a, end: b, color: GREEN }); }
-    for (a, b) in string_ranges(line) { s.push(Segment { start: a, end: b, color: GREEN }); }
+    let templates = template_ranges(line);
+    let strings = string_ranges(line);
+    for (a, b) in &templates { s.push(Segment { start: *a, end: *b, color: GREEN }); }
+    for (a, b) in &strings { s.push(Segment { start: *a, end: *b, color: GREEN }); }
     for (a, b) in regex_ranges(line) { s.push(Segment { start: a, end: b, color: ORANGE }); }
     for (a, b) in find_prefixed_words(line, '@') { s.push(Segment { start: a, end: b, color: MAGENTA }); }
-    if let Some(pos) = line.find("//") { s.push(Segment { start: pos, end: line.len(), color: COMMENT }); }
+    if let Some(pos) = line_comment_start(line, &strings, &templates) {
+        s.push(Segment { start: pos, end: line.len(), color: COMMENT });
+    }
     if let Some((a, b)) = block_comment_range(line) { s.push(Segment { start: a, end: b, color: COMMENT }); }
     for (a, b) in find_words(line) {
         let w = &line[a..b];
@@ -151,6 +155,27 @@ fn regex_ranges(line: &str) -> Vec<(usize, usize)> {
 fn likely_regex_start(line: &str, slash: usize) -> bool {
     let before = line[..slash].trim_end();
     before.is_empty() || before.ends_with('(') || before.ends_with('=') || before.ends_with(':') || before.ends_with(',') || before.ends_with("return")
+}
+
+/// First `//` outside strings/templates, skipping `://` protocols.
+fn line_comment_start(line: &str, strings: &[(usize, usize)], templates: &[(usize, usize)]) -> Option<usize> {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'/' && bytes[i + 1] == b'/' {
+            if pos_in_ranges(i, strings) || pos_in_ranges(i, templates) {
+                i += 2;
+                continue;
+            }
+            if i > 0 && bytes[i - 1] == b':' {
+                i += 2;
+                continue;
+            }
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
 }
 
 fn keywords() -> Vec<&'static str> { vec!["as","async","await","break","case","catch","class","const","continue","debugger","default","delete","do","else","export","extends","finally","for","from","function","get","if","import","in","instanceof","let","new","of","return","set","static","super","switch","this","throw","try","typeof","var","void","while","with","yield"] }
