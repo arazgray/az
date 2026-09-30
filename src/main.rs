@@ -65,6 +65,26 @@ pub(crate) enum SyntaxMode {
     Dockerfile,
     Systemd,
     Sql,
+    Python,
+    Java,
+    Csharp,
+    Cpp,
+    C,
+    Go,
+    Kotlin,
+    Swift,
+    Ruby,
+    Dart,
+    Scala,
+    R,
+    Lua,
+    Perl,
+    Haskell,
+    Elixir,
+    Clojure,
+    Zig,
+    Julia,
+    Objc,
     Plain,
 }
 
@@ -235,6 +255,7 @@ struct Editor {
     last_editor_click: Option<(Instant, Pos, u8)>,
     last_rendered_message: String,
     status_flash_until: Option<Instant>,
+    pending_update: Option<String>,
 }
 
 fn main() {
@@ -244,10 +265,14 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("az 2.5.0");
+        println!("az {}", env!("CARGO_PKG_VERSION"));
         return;
     }
     let mut editor = Editor::new(args);
+    // Check GitHub for a newer release before taking over the terminal.
+    // Slow/offline networks fail silently (short curl timeout); the notice
+    // is shown as a modal inside run().
+    editor.pending_update = check_for_updates();
     if let Err(err) = editor.run() {
         let _ = editor.cleanup();
         eprintln!("az: {err}");
@@ -255,7 +280,7 @@ fn main() {
 }
 
 fn print_help() {
-    println!("az 2.5.0 - a fast, small & sane text editor");
+    println!("az {} - a fast, small & sane text editor", env!("CARGO_PKG_VERSION"));
     println!();
     println!("USAGE:");
     println!("  az [OPTIONS] [PATH]");
@@ -387,6 +412,7 @@ impl Editor {
             last_editor_click: None,
             last_rendered_message: String::new(),
             status_flash_until: None,
+            pending_update: None,
         }
     }
 
@@ -402,6 +428,12 @@ impl Editor {
             self.render_welcome_screen()?;
             let _ = self.read_key_blocking()?;
             self.show_welcome = false;
+        }
+
+        if let Some(remote) = self.pending_update.take() {
+            self.render()?;
+            self.render_update_notice(&remote)?;
+            let _ = self.read_key_blocking()?;
         }
 
         let mut needs_render = true;
@@ -573,7 +605,10 @@ impl Editor {
             return;
         }
         if key.starts_with("\x1b[<") || key.starts_with("\x1b[M") {
-            if let Some(ev) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
+            // Fast wheel scrolling (and touchpads) deliver several mouse
+            // reports in one stdin read; dispatch each instead of parsing the
+            // whole chunk as one event (which fails and drops the burst).
+            for ev in parse_mouse_events(&key) {
                 self.handle_mouse(ev);
             }
             return;
@@ -1554,6 +1589,19 @@ impl Editor {
         ];
         let hint_idx = lines.iter().position(|l| *l == hint).unwrap_or(0);
         self.render_popup_box(&lines, &[hint_idx], &ttfx_logo())
+    }
+
+    fn render_update_notice(&self, remote: &str) -> io::Result<()> {
+        let title = format!("  A new version of az is available: {remote} (you have {}).", env!("CARGO_PKG_VERSION"));
+        let lines = vec![
+            title.clone(),
+            String::new(),
+            "  Upgrade with:".to_string(),
+            "  curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh".to_string(),
+            String::new(),
+            "  Press any key to continue ...".to_string(),
+        ];
+        self.render_popup_box(&lines, &[0], &[])
     }
 
     fn render_popup_box(&self, lines: &[String], highlight_lines: &[usize], logo: &[(String, usize)]) -> io::Result<()> {
@@ -2736,6 +2784,26 @@ impl Editor {
             ("Set syntax Dockerfile", "force current tab to Dockerfile", "set-syntax-dockerfile"),
             ("Set syntax Systemd", "force current tab to systemd", "set-syntax-systemd"),
             ("Set syntax SQL", "force current tab to SQL", "set-syntax-sql"),
+            ("Set syntax Python", "force current tab to Python", "set-syntax-python"),
+            ("Set syntax Java", "force current tab to Java", "set-syntax-java"),
+            ("Set syntax C#", "force current tab to C#", "set-syntax-csharp"),
+            ("Set syntax C++", "force current tab to C++", "set-syntax-cpp"),
+            ("Set syntax C", "force current tab to C", "set-syntax-c"),
+            ("Set syntax Go", "force current tab to Go", "set-syntax-go"),
+            ("Set syntax Kotlin", "force current tab to Kotlin", "set-syntax-kotlin"),
+            ("Set syntax Swift", "force current tab to Swift", "set-syntax-swift"),
+            ("Set syntax Ruby", "force current tab to Ruby", "set-syntax-ruby"),
+            ("Set syntax Dart", "force current tab to Dart", "set-syntax-dart"),
+            ("Set syntax Scala", "force current tab to Scala", "set-syntax-scala"),
+            ("Set syntax R", "force current tab to R", "set-syntax-r"),
+            ("Set syntax Lua", "force current tab to Lua", "set-syntax-lua"),
+            ("Set syntax Perl", "force current tab to Perl", "set-syntax-perl"),
+            ("Set syntax Haskell", "force current tab to Haskell", "set-syntax-haskell"),
+            ("Set syntax Elixir", "force current tab to Elixir", "set-syntax-elixir"),
+            ("Set syntax Clojure", "force current tab to Clojure", "set-syntax-clojure"),
+            ("Set syntax Zig", "force current tab to Zig", "set-syntax-zig"),
+            ("Set syntax Julia", "force current tab to Julia", "set-syntax-julia"),
+            ("Set syntax Objective-C", "force current tab to Objective-C", "set-syntax-objc"),
             ("Set syntax Auto", "use file extension again", "set-syntax-auto"),
             ("Set syntax Plain", "disable highlighting/completion", "set-syntax-plain"),
             ("Find in current file", "Ctrl+F", "find"),
@@ -2798,6 +2866,26 @@ impl Editor {
             "set-syntax-dockerfile" => self.set_current_syntax(Some(SyntaxMode::Dockerfile)),
             "set-syntax-systemd" => self.set_current_syntax(Some(SyntaxMode::Systemd)),
             "set-syntax-sql" => self.set_current_syntax(Some(SyntaxMode::Sql)),
+            "set-syntax-python" => self.set_current_syntax(Some(SyntaxMode::Python)),
+            "set-syntax-java" => self.set_current_syntax(Some(SyntaxMode::Java)),
+            "set-syntax-csharp" => self.set_current_syntax(Some(SyntaxMode::Csharp)),
+            "set-syntax-cpp" => self.set_current_syntax(Some(SyntaxMode::Cpp)),
+            "set-syntax-c" => self.set_current_syntax(Some(SyntaxMode::C)),
+            "set-syntax-go" => self.set_current_syntax(Some(SyntaxMode::Go)),
+            "set-syntax-kotlin" => self.set_current_syntax(Some(SyntaxMode::Kotlin)),
+            "set-syntax-swift" => self.set_current_syntax(Some(SyntaxMode::Swift)),
+            "set-syntax-ruby" => self.set_current_syntax(Some(SyntaxMode::Ruby)),
+            "set-syntax-dart" => self.set_current_syntax(Some(SyntaxMode::Dart)),
+            "set-syntax-scala" => self.set_current_syntax(Some(SyntaxMode::Scala)),
+            "set-syntax-r" => self.set_current_syntax(Some(SyntaxMode::R)),
+            "set-syntax-lua" => self.set_current_syntax(Some(SyntaxMode::Lua)),
+            "set-syntax-perl" => self.set_current_syntax(Some(SyntaxMode::Perl)),
+            "set-syntax-haskell" => self.set_current_syntax(Some(SyntaxMode::Haskell)),
+            "set-syntax-elixir" => self.set_current_syntax(Some(SyntaxMode::Elixir)),
+            "set-syntax-clojure" => self.set_current_syntax(Some(SyntaxMode::Clojure)),
+            "set-syntax-zig" => self.set_current_syntax(Some(SyntaxMode::Zig)),
+            "set-syntax-julia" => self.set_current_syntax(Some(SyntaxMode::Julia)),
+            "set-syntax-objc" => self.set_current_syntax(Some(SyntaxMode::Objc)),
             "set-syntax-plain" => self.set_current_syntax(Some(SyntaxMode::Plain)),
             "set-syntax-auto" => self.set_current_syntax(None),
             "find" => self.find_prompt(),
@@ -3710,6 +3798,43 @@ fn parse_legacy_mouse(key: &str) -> Option<MouseEvent> {
     }
     Some(MouseEvent { button, x: col, y: row, is_release: button == 3 })
 }
+/// Split one input chunk into individual mouse events.
+/// `read_key` may glue several SGR (`ESC [ < Cb ; Cx ; Cy M/m`) or legacy
+/// (`ESC [ M Cb Cx Cy`) reports together when the terminal flushes a burst
+/// (fast wheel scrolling, touchpad gestures). Parsing the chunk as a single
+/// event fails, so the whole burst would be silently dropped.
+fn parse_mouse_events(key: &str) -> Vec<MouseEvent> {
+    const SGR_PREFIX: &str = "\x1b[<";
+    const LEGACY_PREFIX: &str = "\x1b[M";
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < key.len() {
+        let rest = &key[i..];
+        if let Some(tail) = rest.strip_prefix(SGR_PREFIX) {
+            match tail.find(['M', 'm']) {
+                Some(end) => {
+                    if let Some(ev) = parse_sgr_mouse(&rest[..SGR_PREFIX.len() + end + 1]) {
+                        out.push(ev);
+                    }
+                    i += SGR_PREFIX.len() + end + 1;
+                }
+                None => break, // trailing partial report; ignore
+            }
+        } else if rest.starts_with(LEGACY_PREFIX) {
+            if rest.len() < 6 {
+                break; // trailing partial report; ignore
+            }
+            if let Some(ev) = parse_legacy_mouse(&rest[..6]) {
+                out.push(ev);
+            }
+            i += 6;
+        } else {
+            // Stray bytes between reports; skip one char and keep scanning.
+            i += rest.chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+        }
+    }
+    out
+}
 /// `M` = press/drag/scroll, `m` = release. Returns 1-indexed `x`/`y`.
 /// Parse SGR mouse sequences: `ESC [ < Cb ; Cx ; Cy M/m`.
 fn parse_sgr_mouse(key: &str) -> Option<MouseEvent> {
@@ -4151,6 +4276,74 @@ fn base64_encode(data: &[u8]) -> String {
     out
 }
 
+/// Update check: compare our version against `Cargo.toml` on GitHub main.
+/// Runs once at launch (short curl timeout, silent on any failure). Set
+/// `AZ_NO_UPDATE_CHECK=1` to skip.
+const UPDATE_CHECK_URL: &str = "https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/Cargo.toml";
+
+/// Reads the `[package] version` from Cargo.toml text.
+fn parse_remote_version(text: &str) -> Option<String> {
+    let mut in_package = false;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_package = t == "[package]";
+            continue;
+        }
+        if !in_package {
+            continue;
+        }
+        let Some(rest) = t.strip_prefix("version") else { continue; };
+        let Some(rest) = rest.trim_start().strip_prefix('=') else { continue; };
+        let Some(quoted) = rest.trim_start().strip_prefix('"') else { continue; };
+        let Some(end) = quoted.find('"') else { continue; };
+        return Some(quoted[..end].to_string());
+    }
+    None
+}
+
+fn version_part_num(s: &str) -> u64 {
+    s.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().unwrap_or(0)
+}
+
+/// True when `remote` is a strictly newer dotted version than `local`.
+fn is_newer_version(remote: &str, local: &str) -> bool {
+    let r: Vec<&str> = remote.trim().split('.').collect();
+    let l: Vec<&str> = local.trim().split('.').collect();
+    for i in 0..max(r.len(), l.len()) {
+        let a = r.get(i).map(|s| version_part_num(s)).unwrap_or(0);
+        let b = l.get(i).map(|s| version_part_num(s)).unwrap_or(0);
+        if a != b {
+            return a > b;
+        }
+    }
+    false
+}
+
+fn fetch_remote_version() -> Option<String> {
+    if env::var("AZ_NO_UPDATE_CHECK").is_ok() {
+        return None;
+    }
+    let out = Command::new("curl")
+        .args(["-fsSL", "--max-time", "5", UPDATE_CHECK_URL])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_remote_version(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// Returns the newer remote version, if any. Never blocks long, never errors.
+fn check_for_updates() -> Option<String> {
+    let remote = fetch_remote_version()?;
+    if is_newer_version(&remote, env!("CARGO_PKG_VERSION")) {
+        Some(remote)
+    } else {
+        None
+    }
+}
+
 fn osc52_sequence(text: &str) -> String {
     format!("\x1b]52;c;{}\x07", base64_encode(text.as_bytes()))
 }
@@ -4172,6 +4365,10 @@ fn pipe_to_clipboard_tool(prog: &str, args: &[&str], text: &str) -> bool {
         .as_mut()
         .map(|s| s.write_all(text.as_bytes()).is_ok())
         .unwrap_or(false);
+    // Close stdin so the tool sees EOF before we wait: clipboard tools
+    // (wl-copy/xclip/xsel/pbcopy) read stdin to end before exiting, so
+    // waiting with the pipe still open deadlocks the editor.
+    drop(child.stdin.take());
     child.wait().map(|s| s.success()).unwrap_or(false) && wrote
 }
 
@@ -4489,6 +4686,26 @@ mod tests {
             ("apache", SyntaxMode::Apache),
             ("dockerfile", SyntaxMode::Dockerfile),
             ("sql", SyntaxMode::Sql),
+            ("python", SyntaxMode::Python),
+            ("java", SyntaxMode::Java),
+            ("csharp", SyntaxMode::Csharp),
+            ("cpp", SyntaxMode::Cpp),
+            ("c", SyntaxMode::C),
+            ("go", SyntaxMode::Go),
+            ("kotlin", SyntaxMode::Kotlin),
+            ("swift", SyntaxMode::Swift),
+            ("ruby", SyntaxMode::Ruby),
+            ("dart", SyntaxMode::Dart),
+            ("scala", SyntaxMode::Scala),
+            ("r", SyntaxMode::R),
+            ("lua", SyntaxMode::Lua),
+            ("perl", SyntaxMode::Perl),
+            ("haskell", SyntaxMode::Haskell),
+            ("elixir", SyntaxMode::Elixir),
+            ("clojure", SyntaxMode::Clojure),
+            ("zig", SyntaxMode::Zig),
+            ("julia", SyntaxMode::Julia),
+            ("objc", SyntaxMode::Objc),
             ("ts", SyntaxMode::TypeScript),
             ("xml", SyntaxMode::Xml),
         ];
@@ -4511,6 +4728,27 @@ mod tests {
         assert_eq!(SyntaxMode::from_path(Some(Path::new("nginx.conf"))), SyntaxMode::Nginx);
         assert_eq!(SyntaxMode::from_path(Some(Path::new(".htaccess"))), SyntaxMode::Apache);
         assert_eq!(SyntaxMode::from_path(Some(Path::new("a.service"))), SyntaxMode::Systemd);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.py"))), SyntaxMode::Python);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("A.java"))), SyntaxMode::Java);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.cs"))), SyntaxMode::Csharp);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.cpp"))), SyntaxMode::Cpp);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.c"))), SyntaxMode::C);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.go"))), SyntaxMode::Go);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.kt"))), SyntaxMode::Kotlin);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.swift"))), SyntaxMode::Swift);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.rb"))), SyntaxMode::Ruby);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Gemfile"))), SyntaxMode::Ruby);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.dart"))), SyntaxMode::Dart);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.scala"))), SyntaxMode::Scala);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.r"))), SyntaxMode::R);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.lua"))), SyntaxMode::Lua);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.pl"))), SyntaxMode::Perl);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.hs"))), SyntaxMode::Haskell);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ex"))), SyntaxMode::Elixir);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.clj"))), SyntaxMode::Clojure);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.zig"))), SyntaxMode::Zig);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.jl"))), SyntaxMode::Julia);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.m"))), SyntaxMode::Objc);
     }
 
     #[test]
@@ -4532,11 +4770,54 @@ mod tests {
             ("SELECT 1 -- c", SyntaxMode::Sql),
             ("const x: number = 1", SyntaxMode::TypeScript),
             ("<tag attr=\"v\">", SyntaxMode::Xml),
+            ("def hello(): # c", SyntaxMode::Python),
+            ("public class A // c", SyntaxMode::Java),
+            ("public class A // c", SyntaxMode::Csharp),
+            ("int main() // c", SyntaxMode::Cpp),
+            ("int main() // c", SyntaxMode::C),
+            ("func main() // c", SyntaxMode::Go),
+            ("fun main() // c", SyntaxMode::Kotlin),
+            ("func view() // c", SyntaxMode::Swift),
+            ("def hello # c", SyntaxMode::Ruby),
+            ("class App // c", SyntaxMode::Dart),
+            ("def hello // c", SyntaxMode::Scala),
+            ("x <- 1 # c", SyntaxMode::R),
+            ("local x = 1 -- c", SyntaxMode::Lua),
+            ("my $x = 1; # c", SyntaxMode::Perl),
+            ("main = putStrLn x -- c", SyntaxMode::Haskell),
+            ("def hello do # c", SyntaxMode::Elixir),
+            ("(defn hello [] ; c", SyntaxMode::Clojure),
+            ("fn main() // c", SyntaxMode::Zig),
+            ("function f() # c", SyntaxMode::Julia),
+            ("@interface App // c", SyntaxMode::Objc),
         ];
         for (line, mode) in cases {
             let segs = crate::plugins::highlight_segments(line, mode);
             assert!(!segs.is_empty(), "no segments for {line:?} in {mode:?}");
         }
+    }
+
+    #[test]
+    fn remote_version_parsing() {
+        let toml = "[package]\nname = \"az\"\nversion = \"2.6.0\"\nedition = \"2021\"\n";
+        assert_eq!(parse_remote_version(toml), Some("2.6.0".to_string()));
+        assert_eq!(parse_remote_version("nothing here"), None);
+        // A version outside [package] must not match.
+        assert_eq!(parse_remote_version("[dependencies]\nfoo = \"1\"\n"), None);
+        // Malformed entries are skipped, not fatal.
+        assert_eq!(parse_remote_version("[package]\nname = \"az\"\n"), None);
+    }
+
+    #[test]
+    fn newer_version_comparison() {
+        assert!(is_newer_version("2.6.0", "2.5.0"));
+        assert!(is_newer_version("2.6", "2.5.0"));
+        assert!(is_newer_version("3.0.0", "2.9.9"));
+        assert!(is_newer_version("2.5.1", "2.5.0"));
+        assert!(!is_newer_version("2.5.0", "2.5.0"));
+        assert!(!is_newer_version("2.4.9", "2.5.0"));
+        assert!(!is_newer_version("2.5.0", "2.6.0"));
+        assert!(!is_newer_version("2.5.0", "2.5"));
     }
 
     #[test]
@@ -4641,5 +4922,63 @@ mod tests {
         assert_eq!(tab_hit_index(10, &[5, 7], 22), Some(1));
         assert_eq!(tab_hit_index(10, &[5, 7], 23), None);
         assert_eq!(tab_hit_index(10, &[], 11), None);
+    }
+
+    #[test]
+    fn mouse_burst_splits_into_events() {
+        // Fast scrolling glues several SGR reports into one stdin read.
+        let evs = parse_mouse_events("\x1b[<65;60;10M\x1b[<65;60;10M\x1b[<64;60;10M");
+        assert_eq!(evs.len(), 3);
+        assert!(evs[0].is_scroll() && !evs[0].scroll_up());
+        assert_eq!((evs[1].x, evs[1].y), (60, 10));
+        assert!(evs[2].scroll_up());
+        // Single reports still yield exactly one event.
+        assert_eq!(parse_mouse_events("\x1b[<0;30;10M").len(), 1);
+        // Trailing partial report is ignored, complete ones are kept.
+        assert_eq!(parse_mouse_events("\x1b[<65;60;10M\x1b[<65;").len(), 1);
+        // Legacy bursts split into 6-byte reports too.
+        assert_eq!(parse_mouse_events("\x1b[Ma*+\x1b[M`*+").len(), 2);
+        // Non-mouse input yields nothing (and never loops forever).
+        assert!(parse_mouse_events("hello").is_empty());
+    }
+
+    #[test]
+    fn wheel_events_scroll_editor_and_tree() {
+        let dir = std::env::temp_dir().join("az-wheel-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0..10 {
+            std::fs::write(dir.join(format!("f{i}.txt")), "x\n").unwrap();
+        }
+        let big = dir.join("big.txt");
+        std::fs::write(&big, (0..100).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n")).unwrap();
+        let mut ed = Editor::new(vec!["az".to_string(), big.to_str().unwrap().to_string()]);
+        ed.rows = 24;
+        ed.cols = 80;
+        ed.content_height = 19;
+        ed.refresh_tree();
+        // Single wheel-down over the editor moves the cursor 3 lines...
+        ed.handle_key("\x1b[<65;60;10M".to_string());
+        assert_eq!(ed.tab().cursor.line, 3);
+        // ...and a burst of 3 applies all three steps (previously dropped).
+        ed.handle_key("\x1b[<65;60;10M\x1b[<65;60;10M\x1b[<65;60;10M".to_string());
+        assert_eq!(ed.tab().cursor.line, 12);
+        // Wheel-up scrolls back.
+        ed.handle_key("\x1b[<64;60;10M".to_string());
+        assert_eq!(ed.tab().cursor.line, 9);
+        // Wheel over the sidebar moves the tree selection.
+        ed.tree_index = 0;
+        ed.handle_key("\x1b[<65;5;10M".to_string());
+        assert_eq!(ed.tree_index, 3);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn clipboard_pipe_closes_stdin_before_wait() {
+        // `cat` only exits after stdin EOF: proves stdin is closed before
+        // wait() instead of deadlocking (wl-copy/xclip/xsel/pbcopy read
+        // stdin to end the same way).
+        assert!(pipe_to_clipboard_tool("cat", &[], "hello"));
+        assert!(!pipe_to_clipboard_tool("az-definitely-missing-tool", &[], "hello"));
     }
 }

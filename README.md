@@ -1,4 +1,4 @@
-# az text editor 2.5
+# az text editor 2.6
 
 `az` is a fast, small & sane text editor.
 
@@ -9,11 +9,13 @@
 Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHANGELOG.md`](CHANGELOG.md) (release notes) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
 
 ---
-# Install (Automatic single-command installer, builds on your machine):
+# Install or upgrade (automatic single-command installer, builds on your machine):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
 ```
+
+The same script installs fresh and upgrades in place (re-clones, rebuilds, reinstalls to `~/.local/bin/az`). On every launch `az` also checks GitHub for a newer release and shows an upgrade notice with this command when one exists (skipped offline; `AZ_NO_UPDATE_CHECK=1` opts out).
 
 ---
 
@@ -117,12 +119,20 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 | Navigate | Tree, quick open (fuzzy file + symbol), find in files, go-to-line/start/end, `Alt+1-9` |
 | Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OSC52), select-all, delete-line |
 | Search | Find in file + Find in files modal (`Ctrl+Shift+O`), case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
-| Highlight | 22 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
-| Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words |
+| Highlight | 42 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
+| Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words, keywords + symbols for the 20 new languages |
 | Safety | Atomic saves, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
 | Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll |
 
 > No word wrap by design — long lines scroll horizontally. No splits or regex.
+
+### What is new in 2.6?
+
+- **20 new language plugins** (42 built in): Python, Java, C#, C++, C, Go, Kotlin, Swift, Ruby, Dart, Scala, R, Lua, Perl, Haskell, Elixir, Clojure, Zig, Julia, Objective-C. Auto-detected by extension/filename (`Gemfile` → Ruby, `.h` → C), switchable via `Ctrl+P` → `set …`. Each brings keywords/types/comments/numbers, call highlighting, symbol extraction + word completion.
+- **Startup update check**: every launch compares against `Cargo.toml` on GitHub main (short `curl` timeout, silent when offline; `AZ_NO_UPDATE_CHECK=1` opts out). When a newer release exists, a modal shows the version and the one-line upgrade command above.
+- **Wheel that keeps up**: fast scrolling and touchpads flush several mouse reports per read — the whole burst used to be silently dropped. Each report is now dispatched, so kinetic scrolling works in the editor, sidebar, and pickers.
+- **Clipboard you can trust**: stdin is now closed before waiting on `wl-copy`/`xclip`/`xsel`/`pbcopy` (they read stdin to EOF — previously copy could hang when a tool was installed). Status still shows `Copied` (tool accepted) vs `Copied (OSC52)` (terminal fallback).
+- **Tests**: 38 total (new: mouse-burst splitting, end-to-end wheel scrolling, clipboard-pipe EOF, remote-version parsing + comparison).
 
 ### What is new in 2.5?
 
@@ -143,7 +153,7 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
-## Supported languages (22 built in)
+## Supported languages (42 built in)
 
 `src/plugins/` — one file per language, std-only, line-local. Auto-detected by filename/extension; override anytime via `Ctrl+P` → `set …`.
 
@@ -170,6 +180,26 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 | Dockerfile | `Dockerfile*` | `FROM`/`RUN`/… instructions, `$vars`, `#` comments |
 | systemd | `*.service`, `*.timer` | `[Sections]`, `key=`, `#`/`;` comments, symbols |
 | SQL | `*.sql` | keywords, strings/numbers, `--` + `/* */`, `CREATE TABLE` symbols |
+| Python | `*.py`, `*.pyw`, `*.pyi` | keywords/builtins, `#` comments, `@decorators`, `def`/`class` symbols |
+| Java | `*.java` | keywords/types, `//` + `/* */`, `class`/`interface`/`enum` + method symbols |
+| C# | `*.cs`, `*.csx` | keywords/types, `//` + `/* */`, `[attrs]`, `class`/`namespace` symbols |
+| C++ | `*.cpp`, `*.cxx`, `*.cc`, `*.hpp`, `*.hh`, `*.hxx` | keywords/types, `#include`, `class`/`namespace` symbols |
+| C | `*.c`, `*.h` | keywords/types, `#include`, `struct`/`enum` symbols |
+| Go | `*.go` | keywords/types, `//` + `/* */`, `func`/`type` symbols |
+| Kotlin | `*.kt`, `*.kts` | keywords/types, `//` + `/* */`, `fun`/`class`/`object` symbols |
+| Swift | `*.swift` | keywords/types, `//` + `/* */`, `@attrs`, `func`/`struct`/`protocol` symbols |
+| Ruby | `*.rb`, `Gemfile`, `Rakefile` | keywords/builtins, `#` comments, `:symbols`, `def`/`class`/`module` symbols |
+| Dart | `*.dart` | keywords/types, `//` + `/* */`, `class`/`mixin` symbols |
+| Scala | `*.scala`, `*.sc` | keywords/types, `//` + `/* */`, `def`/`class`/`object`/`trait` symbols |
+| R | `*.r` | keywords/builtins, `#` comments, `name <- function()` symbols |
+| Lua | `*.lua` | keywords/builtins, `--` comments, `function` symbols |
+| Perl | `*.pl`, `*.pm`, `*.t` | keywords/builtins, `#` comments, `$@%` sigils, `sub`/`package` symbols |
+| Haskell | `*.hs`, `*.lhs` | keywords/types, `--` + `{- -}`, `name :: Type` + definition symbols |
+| Elixir | `*.ex`, `*.exs` | keywords/builtins, `#` comments, `@attrs`, `def`/`defmodule` symbols |
+| Clojure | `*.clj`, `*.cljs`, `*.cljc`, `*.edn` | keywords/builtins, `;` comments, `:keywords`, `defn`/`ns` symbols |
+| Zig | `*.zig` | keywords/types, `//` comments, `fn`/`const`/`test` symbols |
+| Julia | `*.jl` | keywords/types, `#` + `#= =#`, `function`/`struct`/`macro` symbols |
+| Objective-C | `*.m`, `*.mm` | keywords/types, `#import`, `@directives`, `@interface` + `- (…)` method symbols |
 | Plain | `*.txt` + fallback | no highlighting, always available via `set Plain` |
 
 > **Want more? Just ask your AI agent.** `az` ships [`AGENTS.md`](AGENTS.md) — a guide that teaches any AI coding agent the plugin API, architecture, and test rules. Ask it to *"add language support for X"* and it can scaffold `src/plugins/x.rs`, wire `mod.rs` + `SyntaxMode` + palette, and add regression tests, following [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md).

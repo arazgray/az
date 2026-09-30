@@ -38,6 +38,26 @@ pub(crate) mod systemd;
 pub(crate) mod sql;
 pub(crate) mod typescript;
 pub(crate) mod xml;
+pub(crate) mod python;
+pub(crate) mod java;
+pub(crate) mod csharp;
+pub(crate) mod cpp;
+pub(crate) mod c;
+pub(crate) mod go;
+pub(crate) mod kotlin;
+pub(crate) mod swift;
+pub(crate) mod ruby;
+pub(crate) mod dart;
+pub(crate) mod scala;
+pub(crate) mod r;
+pub(crate) mod lua;
+pub(crate) mod perl;
+pub(crate) mod haskell;
+pub(crate) mod elixir;
+pub(crate) mod clojure;
+pub(crate) mod zig;
+pub(crate) mod julia;
+pub(crate) mod objc;
 pub(crate) mod example;
 
 #[derive(Clone, Copy)]
@@ -69,6 +89,26 @@ pub(crate) fn mode_label(mode: SyntaxMode) -> &'static str {
         SyntaxMode::Dockerfile => "DOCKER",
         SyntaxMode::Systemd => "SYSTEMD",
         SyntaxMode::Sql => "SQL",
+        SyntaxMode::Python => "PY",
+        SyntaxMode::Java => "JAVA",
+        SyntaxMode::Csharp => "CS",
+        SyntaxMode::Cpp => "CPP",
+        SyntaxMode::C => "C",
+        SyntaxMode::Go => "GO",
+        SyntaxMode::Kotlin => "KT",
+        SyntaxMode::Swift => "SWIFT",
+        SyntaxMode::Ruby => "RB",
+        SyntaxMode::Dart => "DART",
+        SyntaxMode::Scala => "SCALA",
+        SyntaxMode::R => "R",
+        SyntaxMode::Lua => "LUA",
+        SyntaxMode::Perl => "PL",
+        SyntaxMode::Haskell => "HS",
+        SyntaxMode::Elixir => "EX",
+        SyntaxMode::Clojure => "CLJ",
+        SyntaxMode::Zig => "ZIG",
+        SyntaxMode::Julia => "JL",
+        SyntaxMode::Objc => "OBJC",
         SyntaxMode::Plain => "PLAIN",
     }
 }
@@ -96,6 +136,26 @@ pub(crate) fn from_word(word: &str) -> Option<SyntaxMode> {
         "dockerfile" | "docker" | "containerfile" => Some(SyntaxMode::Dockerfile),
         "systemd" | "service" | "unit" => Some(SyntaxMode::Systemd),
         "sql" => Some(SyntaxMode::Sql),
+        "python" | "py" => Some(SyntaxMode::Python),
+        "java" => Some(SyntaxMode::Java),
+        "csharp" | "c#" | "cs" => Some(SyntaxMode::Csharp),
+        "cpp" | "c++" | "cxx" => Some(SyntaxMode::Cpp),
+        "c" => Some(SyntaxMode::C),
+        "go" | "golang" => Some(SyntaxMode::Go),
+        "kotlin" | "kt" => Some(SyntaxMode::Kotlin),
+        "swift" => Some(SyntaxMode::Swift),
+        "ruby" | "rb" => Some(SyntaxMode::Ruby),
+        "dart" => Some(SyntaxMode::Dart),
+        "scala" => Some(SyntaxMode::Scala),
+        "r" => Some(SyntaxMode::R),
+        "lua" => Some(SyntaxMode::Lua),
+        "perl" | "pl" => Some(SyntaxMode::Perl),
+        "haskell" | "hs" => Some(SyntaxMode::Haskell),
+        "elixir" | "ex" => Some(SyntaxMode::Elixir),
+        "clojure" | "clj" => Some(SyntaxMode::Clojure),
+        "zig" => Some(SyntaxMode::Zig),
+        "julia" | "jl" => Some(SyntaxMode::Julia),
+        "objc" | "objective-c" | "objectivec" | "mm" => Some(SyntaxMode::Objc),
         "plain" | "text" | "txt" => Some(SyntaxMode::Plain),
         _ => None,
     }
@@ -118,6 +178,9 @@ pub(crate) fn from_path(path: Option<&Path>) -> SyntaxMode {
     if name == "nginx.conf" || (name.starts_with("nginx") && name.ends_with(".conf")) {
         return SyntaxMode::Nginx;
     }
+    if name == "gemfile" || name == "rakefile" {
+        return SyntaxMode::Ruby;
+    }
     match path.extension().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase().as_str() {
         "php" | "phtml" => SyntaxMode::Php,
         "html" | "htm" => SyntaxMode::Html,
@@ -135,6 +198,26 @@ pub(crate) fn from_path(path: Option<&Path>) -> SyntaxMode {
         "log" => SyntaxMode::Log,
         "rs" => SyntaxMode::Rust,
         "sql" => SyntaxMode::Sql,
+        "py" | "pyw" | "pyi" => SyntaxMode::Python,
+        "java" => SyntaxMode::Java,
+        "cs" | "csx" => SyntaxMode::Csharp,
+        "cpp" | "cxx" | "cc" | "hpp" | "hh" | "hxx" => SyntaxMode::Cpp,
+        "c" | "h" => SyntaxMode::C,
+        "go" => SyntaxMode::Go,
+        "kt" | "kts" => SyntaxMode::Kotlin,
+        "swift" => SyntaxMode::Swift,
+        "rb" | "gemspec" => SyntaxMode::Ruby,
+        "dart" => SyntaxMode::Dart,
+        "scala" | "sc" => SyntaxMode::Scala,
+        "r" => SyntaxMode::R,
+        "lua" => SyntaxMode::Lua,
+        "pl" | "pm" | "t" => SyntaxMode::Perl,
+        "hs" | "lhs" => SyntaxMode::Haskell,
+        "ex" | "exs" => SyntaxMode::Elixir,
+        "clj" | "cljs" | "cljc" | "edn" => SyntaxMode::Clojure,
+        "zig" => SyntaxMode::Zig,
+        "jl" => SyntaxMode::Julia,
+        "m" | "mm" => SyntaxMode::Objc,
         "service" | "timer" | "socket" | "unit" => SyntaxMode::Systemd,
         _ => SyntaxMode::Plain,
     }
@@ -164,6 +247,25 @@ pub(crate) fn tree_color(path: &Path, is_dir: bool) -> &'static str {
         "js" | "mjs" | "cjs" | "jsx" => YELLOW,
         "ts" | "tsx" | "mts" | "cts" => CYAN,
         "rs" => ORANGE,
+        "py" | "pyw" | "pyi" => GREEN,
+        "java" => RED,
+        "cs" | "csx" => CYAN,
+        "cpp" | "cxx" | "cc" | "hpp" | "hh" | "hxx" | "c" | "h" => BLUE,
+        "go" => CYAN,
+        "kt" | "kts" => ORANGE,
+        "swift" => RED,
+        "rb" => RED,
+        "dart" => CYAN,
+        "scala" | "sc" => RED,
+        "r" => BLUE,
+        "lua" => PURPLE,
+        "pl" | "pm" | "t" => YELLOW,
+        "hs" | "lhs" => PURPLE,
+        "ex" | "exs" => MAGENTA,
+        "clj" | "cljs" | "cljc" | "edn" => GREEN,
+        "zig" => ORANGE,
+        "jl" => MAGENTA,
+        "m" | "mm" => ORANGE,
         "md" | "mkd" | "markdown" | "txt" => GREEN,
         "json" | "jsonc" | "json5" | "toml" | "yaml" | "yml" => CYAN,
         "sh" | "bash" | "zsh" => RED,
@@ -199,6 +301,26 @@ pub(crate) fn highlight_segments(line: &str, syntax: SyntaxMode) -> Vec<Segment>
         SyntaxMode::Dockerfile => dockerfile::segments(line),
         SyntaxMode::Systemd => systemd::segments(line),
         SyntaxMode::Sql => sql::segments(line),
+        SyntaxMode::Python => python::segments(line),
+        SyntaxMode::Java => java::segments(line),
+        SyntaxMode::Csharp => csharp::segments(line),
+        SyntaxMode::Cpp => cpp::segments(line),
+        SyntaxMode::C => c::segments(line),
+        SyntaxMode::Go => go::segments(line),
+        SyntaxMode::Kotlin => kotlin::segments(line),
+        SyntaxMode::Swift => swift::segments(line),
+        SyntaxMode::Ruby => ruby::segments(line),
+        SyntaxMode::Dart => dart::segments(line),
+        SyntaxMode::Scala => scala::segments(line),
+        SyntaxMode::R => r::segments(line),
+        SyntaxMode::Lua => lua::segments(line),
+        SyntaxMode::Perl => perl::segments(line),
+        SyntaxMode::Haskell => haskell::segments(line),
+        SyntaxMode::Elixir => elixir::segments(line),
+        SyntaxMode::Clojure => clojure::segments(line),
+        SyntaxMode::Zig => zig::segments(line),
+        SyntaxMode::Julia => julia::segments(line),
+        SyntaxMode::Objc => objc::segments(line),
         SyntaxMode::Plain => Vec::new(),
     }
 }
@@ -276,6 +398,34 @@ pub(crate) fn completion_context(syntax: SyntaxMode, before: &str, explicit: boo
         if let Some(ctx) = rust::completion_context(before, explicit) { return Some(ctx); }
     }
 
+    macro_rules! word_mode {
+        ($mode:ident, $plug:ident) => {
+            if syntax == SyntaxMode::$mode {
+                if let Some(ctx) = $plug::completion_context(before, explicit) { return Some(ctx); }
+            }
+        };
+    }
+    word_mode!(Python, python);
+    word_mode!(Java, java);
+    word_mode!(Csharp, csharp);
+    word_mode!(Cpp, cpp);
+    word_mode!(C, c);
+    word_mode!(Go, go);
+    word_mode!(Kotlin, kotlin);
+    word_mode!(Swift, swift);
+    word_mode!(Ruby, ruby);
+    word_mode!(Dart, dart);
+    word_mode!(Scala, scala);
+    word_mode!(R, r);
+    word_mode!(Lua, lua);
+    word_mode!(Perl, perl);
+    word_mode!(Haskell, haskell);
+    word_mode!(Elixir, elixir);
+    word_mode!(Clojure, clojure);
+    word_mode!(Zig, zig);
+    word_mode!(Julia, julia);
+    word_mode!(Objc, objc);
+
     if syntax == SyntaxMode::Xml {
         if let Some(ctx) = xml::completion_context(before, explicit) { return Some(ctx); }
     }
@@ -316,6 +466,26 @@ pub(crate) fn completion_items(kind: &str, prefix: &str, ctx: CompletionContext<
         "apache" => apache::completion_items(kind, ctx),
         "dockerfile" => dockerfile::completion_items(kind, ctx),
         "rust" => rust::completion_items(kind, ctx),
+        "python" => python::completion_items(kind, ctx),
+        "java" => java::completion_items(kind, ctx),
+        "csharp" => csharp::completion_items(kind, ctx),
+        "cpp" => cpp::completion_items(kind, ctx),
+        "c" => c::completion_items(kind, ctx),
+        "go" => go::completion_items(kind, ctx),
+        "kotlin" => kotlin::completion_items(kind, ctx),
+        "swift" => swift::completion_items(kind, ctx),
+        "ruby" => ruby::completion_items(kind, ctx),
+        "dart" => dart::completion_items(kind, ctx),
+        "scala" => scala::completion_items(kind, ctx),
+        "r" => r::completion_items(kind, ctx),
+        "lua" => lua::completion_items(kind, ctx),
+        "perl" => perl::completion_items(kind, ctx),
+        "haskell" => haskell::completion_items(kind, ctx),
+        "elixir" => elixir::completion_items(kind, ctx),
+        "clojure" => clojure::completion_items(kind, ctx),
+        "zig" => zig::completion_items(kind, ctx),
+        "julia" => julia::completion_items(kind, ctx),
+        "objc" => objc::completion_items(kind, ctx),
         "markdown" => markdown::completion_items(kind, ctx),
         "json" => json::completion_items(kind, ctx),
         "toml" => toml::completion_items(kind, ctx),
@@ -376,6 +546,26 @@ pub(crate) fn extract_symbols(text: &str, syntax: SyntaxMode) -> Vec<(String, us
             SyntaxMode::Dockerfile => out.extend(dockerfile::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::Systemd => out.extend(systemd::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::Sql => out.extend(sql::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Python => out.extend(python::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Java => out.extend(java::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Csharp => out.extend(csharp::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Cpp => out.extend(cpp::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::C => out.extend(c::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Go => out.extend(go::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Kotlin => out.extend(kotlin::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Swift => out.extend(swift::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Ruby => out.extend(ruby::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Dart => out.extend(dart::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Scala => out.extend(scala::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::R => out.extend(r::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Lua => out.extend(lua::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Perl => out.extend(perl::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Haskell => out.extend(haskell::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Elixir => out.extend(elixir::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Clojure => out.extend(clojure::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Zig => out.extend(zig::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Julia => out.extend(julia::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Objc => out.extend(objc::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::Plain => {}
         }
     }

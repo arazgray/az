@@ -2,7 +2,7 @@
 
 Language support now lives in `src/plugins`.
 
-Files included (22 languages):
+Files included (42 languages):
 
 - `php.rs` / `blade.rs` / `html.rs` / `css.rs` / `javascript.rs`: as before (mixed highlighting for Blade/PHP/HTML)
 - `typescript.rs`: JS highlighting + `interface`/`type`/`enum`, TS symbols
@@ -16,6 +16,22 @@ Files included (22 languages):
 - `nginx.rs` / `apache.rs`: directives/blocks, `$vars`, completion
 - `dockerfile.rs`: `FROM`/`RUN`/… instructions, `$vars`, completion
 - `sql.rs`: keywords, `--` comments, keyword completion
+- `python.rs`: keywords/builtins, `#` comments, `@decorators`, `def`/`class` symbols
+- `java.rs` / `csharp.rs` / `kotlin.rs` / `scala.rs`: keywords/types, `//` + `/* */`, class-ish symbols
+- `cpp.rs` / `c.rs`: keywords/types, `#include`, `class`/`struct`/`namespace` symbols
+- `go.rs`: keywords/types, `func`/`type` symbols
+- `swift.rs`: keywords/types, `@attrs`, `func`/`struct`/`protocol` symbols
+- `ruby.rs`: keywords/builtins, `#` comments, `:symbols`, `def`/`class`/`module` symbols
+- `dart.rs`: keywords/types, `class`/`mixin` symbols
+- `r.rs`: keywords/builtins, `#` comments, `name <- function()` symbols
+- `lua.rs`: keywords/builtins, `--` comments, `function` symbols
+- `perl.rs`: keywords/builtins, `#` comments, `$@%` sigils, `sub`/`package` symbols
+- `haskell.rs`: keywords/types, `--` + `{- -}`, `name :: Type` symbols
+- `elixir.rs`: keywords/builtins, `#` comments, `@attrs`, `def`/`defmodule` symbols
+- `clojure.rs`: keywords/builtins, `;` comments, `:keywords`, `defn`/`ns` symbols
+- `zig.rs`: keywords/types, `fn`/`const`/`test` symbols
+- `julia.rs`: keywords/types, `#` + `#= =#`, `function`/`struct`/`macro` symbols
+- `objc.rs`: keywords/types, `#import`, `@directives`, `@interface` + method symbols
 - `example.rs`: documented skeleton for adding a new plugin
 - `mod.rs`: plugin registry and mixed-language facade used by the editor
 

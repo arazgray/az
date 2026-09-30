@@ -1,12 +1,12 @@
-# AGENTS.md — AI Agent Guide for `az` 2.5
+# AGENTS.md — AI Agent Guide for `az` 2.6
 
-> Read this before editing. `az` is a single-binary Rust TUI editor (~3000 lines, zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
+> Read this before editing. `az` is a single-binary Rust TUI editor (~4900 lines, zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
 ## 1. Quick Facts
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
-- Entry: `src/main.rs` (~3150 lines) + `src/plugins/*.rs` (23 files: 22 languages + `example.rs` skeleton).
-- Build: `cargo check` (fast), `cargo test` (33 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az`).
+- Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (42 files: 41 languages + `example.rs` skeleton).
+- Build: `cargo check` (fast), `cargo test` (38 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -25,7 +25,7 @@ src/main.rs
   struct TreeRow, PickerItem, CompletionItem
   enum Focus { Editor, Tree }
   struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write,
-                last_tree_click_time/path }
+                last_tree_click_time/path, pending_update }
   impl Editor {
     new(args) / run() / enable_raw_mode() / cleanup()
     read_key(), read_bracketed_paste(), handle_key(), handle_global_shortcut(),
@@ -119,7 +119,14 @@ Manual smoke (no PTY in CI):
 cargo build --release
 ```
 
-## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5) — Don't Regress
+## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5 + 2.6) — Don't Regress
+
+2.6 (languages + update check + input/clipboard fixes):
+- 20 new plugins (41 total + Plain = 42 modes): python, java, csharp, cpp, c, go, kotlin, swift, ruby, dart, scala, r, lua, perl, haskell, elixir, clojure, zig, julia, objc. Each wires `mod X;` + `mode_label` + `from_word` + `from_path` + `tree_color` + `highlight_segments` + word completion/symbols, plus `SyntaxMode::X` + palette `set-syntax-x` + `run_command` in `main.rs`. `.h` → C (C++ headers highlight as C — accepted, documented). `Gemfile`/`Rakefile` → Ruby.
+- Startup update check: `check_for_updates()` (curl `--max-time 5` of raw GitHub `Cargo.toml`, silent on failure, `AZ_NO_UPDATE_CHECK=1` opt-out) runs in `main()` before raw mode; newer version shown via `render_update_notice()` modal in `run()`. `--version`/`--help` use `env!("CARGO_PKG_VERSION")`, never a hardcoded string.
+- Wheel bursts: `read_key()` glues multi-report stdin reads; `handle_key()` now dispatches `parse_mouse_events()` (splits concatenated SGR/legacy reports, ignores trailing partials) instead of parsing the chunk as one event. Never route menu keys through global shortcuts (unchanged).
+- Clipboard deadlock: `pipe_to_clipboard_tool()` drops stdin before `wait()` — tools read stdin to EOF, so waiting first hung the editor. Tests: `cat`-based EOF test (hangs pre-fix, passes post-fix).
+- Tests: 38 total (new: mouse-burst splitting, end-to-end wheel scrolling, clipboard-pipe EOF, remote-version parsing + comparison).
 
 2.5 (replace-all + context menus + chrome):
 - Replace in Files is `Ctrl+Shift+H` only (`is_ctrl_shift_h`); caps: 3000 files, 5MB, 10k matches. Open modified tabs are skipped (never clobber unsaved buffers); reloaded tabs get `undo/redo` cleared (positions refer to old content).

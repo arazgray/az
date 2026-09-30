@@ -1,5 +1,14 @@
 # az — Changelog
 
+## 2.6
+
+- **20 new language plugins** (42 built in): Python, Java, C#, C++, C, Go, Kotlin, Swift, Ruby, Dart, Scala, R, Lua, Perl, Haskell, Elixir, Clojure, Zig, Julia, Objective-C. Auto-detected by extension/filename (`Gemfile` → Ruby, `.h` → C), switchable via `Ctrl+P` → `set …`. Each brings keywords/types/comments/numbers, call highlighting, symbol extraction + word completion.
+- **Startup update check**: every launch compares against `Cargo.toml` on GitHub main (short `curl` timeout, silent when offline; `AZ_NO_UPDATE_CHECK=1` opts out). When a newer release exists, a modal shows the version and the one-line upgrade command (the installer script installs fresh and upgrades in place).
+- **Wheel burst fix**: fast scrolling/touchpads flush several mouse reports per stdin read; the whole burst used to be silently dropped (`parse_sgr_mouse` failed on the glued chunk). Each report is now dispatched via `parse_mouse_events()`, so kinetic scrolling works in the editor, sidebar, and pickers.
+- **Clipboard deadlock fix**: `pipe_to_clipboard_tool()` now closes stdin before `wait()` — `wl-copy`/`xclip`/`xsel`/`pbcopy` all read stdin to EOF, so copy could previously hang the editor whenever a tool was installed.
+- **`--version`/`--help` read `CARGO_PKG_VERSION`** instead of a hardcoded string, so the reported version can never drift from `Cargo.toml`.
+- **Tests**: 38 total (new: mouse-burst splitting, end-to-end wheel scrolling, clipboard-pipe EOF, remote-version parsing + comparison).
+
 ## 2.5
 
 - **Replace in Files dialog** (`Ctrl+Shift+H`, or `Ctrl+P` → `Replace in files`): prompts search → replacement → confirm with real counts, then rewrites files across the project (≤3000 files, skips >5MB/binaries, 10k-match cap, `%Foo` = case-sensitive). Open unmodified tabs reload (undo cleared); files with unsaved buffers are skipped and reported. Also scoped via sidebar right-click → `Search & Replace here`.
