@@ -12,7 +12,7 @@ Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHA
 # Install (Automatic single-command installer, builds on your machine):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/arazgray/az/refs/heads/main/install.sh | sh
 ```
 
 ---
