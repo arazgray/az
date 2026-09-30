@@ -1,5 +1,4 @@
-# az
- sane text editor | v2.5
+# az editor
 
 `az` is a fast, small & sane text editor.
 
