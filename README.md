@@ -1,10 +1,8 @@
-# az text editor 2.6
+# az editor
 
-`az` is a fast, small & sane text editor.
+Meet `az`, a fast, small & sane text editor. It opens fast. Type immediately. Stay keyboard-first. Zero dependencies.
 
-> Open fast. Type immediately. Stay keyboard-first. Zero dependencies.
-
-![az](az-editor.jpg)
+![az](screenshot.png)
 
 Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHANGELOG.md`](CHANGELOG.md) (release notes) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
 
@@ -12,7 +10,7 @@ Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHA
 # Install or upgrade (automatic single-command installer, builds on your machine):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/arazgray/az/refs/heads/main/install.sh | sh
 ```
 
 The same script installs fresh and upgrades in place (re-clones, rebuilds, reinstalls to `~/.local/bin/az`). On every launch `az` also checks GitHub for a newer release and shows an upgrade notice with this command when one exists (skipped offline; `AZ_NO_UPDATE_CHECK=1` opts out).
