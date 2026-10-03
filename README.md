@@ -25,7 +25,6 @@ This script handles both fresh installations and in-place upgrades (rebuilding a
 ## Command-Line Usage
 
 ```sh
-<<<<<<< HEAD
 ./build.sh          # release build; installs ~/.local/bin/az and /usr/local/bin/az
 az --help
 az file.php         # open file
@@ -172,29 +171,6 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 - **Clipboard, sudo save, and fast paste.** A confirmed copy pastes from the OS clipboard; `Copied (OSC52)` pastes the editor text. A permission error asks for the root password and saves with `sudo`. A long paste is one insert. The installer also copies `/usr/local/bin/az` so `sudo az` can find it.
 - **Tests**: 56 total (55 run, 1 ignored Wayland roundtrip).
 
-### What is new in 2.6?
-
-- **20 new language plugins** (42 built in): Python, Java, C#, C++, C, Go, Kotlin, Swift, Ruby, Dart, Scala, R, Lua, Perl, Haskell, Elixir, Clojure, Zig, Julia, Objective-C. Auto-detected by extension/filename (`Gemfile` → Ruby, `.h` → C), switchable via `Ctrl+P` → `set …`. Each brings keywords/types/comments/numbers, call highlighting, symbol extraction + word completion.
-- **Startup update check**: every launch compares against `Cargo.toml` on GitHub main (short `curl` timeout, silent when offline; `AZ_NO_UPDATE_CHECK=1` opts out). When a newer release exists, a modal shows the version and the one-line upgrade command above.
-- **Wheel that keeps up**: fast scrolling and touchpads flush several mouse reports per read — the whole burst used to be silently dropped. Each report is now dispatched, so kinetic scrolling works in the editor, sidebar, and pickers.
-- **Clipboard you can trust**: stdin is now closed before waiting on `wl-copy`/`xclip`/`xsel`/`pbcopy` (they read stdin to EOF — previously copy could hang when a tool was installed). Status still shows `Copied` (tool accepted) vs `Copied (OSC52)` (terminal fallback).
-- **Tests**: 38 total (new: mouse-burst splitting, end-to-end wheel scrolling, clipboard-pipe EOF, remote-version parsing + comparison).
-
-### What is new in 2.5?
-
-- **Replace in Files dialog** (`Ctrl+Shift+H`, or `Ctrl+P` → `Replace in files`): prompts search → replacement → confirm with real counts (`Replace N in M files`), then rewrites files across the project (≤3000 files, skips >5MB/binaries, 10k-match cap, `%Foo` = case-sensitive). Open unmodified tabs reload (undo cleared); files with unsaved buffers are skipped and reported. Also scoped via sidebar right-click → `Search & Replace here`.
-- **Right-click context menus** (SGR mouse): tab (`Close tab`, `Copy file path`), sidebar (`Open`, `Copy file path`, `Rename`, `Delete`, `Search here`, `Search & Replace here` — each opens its dialog), editor (`Cut/Copy/Paste`, `Select All`, `Find/Replace in File`, `Find/Replace in Files`, `Go to Line`). Keyboard navigable (`Up/Down`, `Enter`, `Esc`, `1-9`).
-- **Middle-click a tab closes it** (asks if modified). Inactive tabs now use a lighter background (`BG_TAB`); the open file's sidebar row is highlighted.
-- **Mouse text selection**: drag with the button held to select; double-click selects the word, triple-click the line — alongside click-to-move-cursor.
-- **Dedicated titlebar**: blue `az` + mode chips, plain-text `[Open]`/`[Commands]`/`[Shortcuts]` buttons, clock — with a full-width separator below; tabs sit on the bar under it, above the editor, with click behavior intact.
-- **Empty-space fill**: rows past end-of-file now paint the editor background instead of the terminal default.
-- **Status bar chips**: path, state (`modified`, orange, only when dirty), syntax, tree, and stats each render on their own Tokyo Night chip; a matching separator sits above the bar.
-- **Blinking alerts**: new status messages flash light blue once; every prompt blinks light blue until you answer.
-- **Searchable shortcuts dialog** (`Ctrl+K`, replaces `Ctrl+/`): every shortcut filterable like the command palette. Welcome screen trimmed to 4 essentials + a highlighted `Ctrl+K` hint, with a ttfx-`highlight` gradient logo.
-- **Reliable clipboard**: system copy now tries `wl-copy` → `xclip`/`xsel` → `pbcopy` before OSC52 (OSC52 first over SSH); status shows `Copied` vs `Copied (OSC52)` so you know what worked.
-- **Wheel that works everywhere**: editor, sidebar, and all picker dialogs/menus scroll; legacy X10 mouse reports supported for terminals without SGR.
-- **Tests**: 33 total (new: replace counting, menu geometry, `Ctrl+Shift+H`, word range, `Ctrl+K` + shortcut coverage, OSC52 bytes, legacy mouse).
-
 Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 =======
 * **Navigation:** Browse via the project tree, Quick Open (fuzzy finding for files and symbols), global find-in-files, and line jumping.
@@ -210,7 +186,6 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 
 `az` automatically detects file types by extension and filename, applying targeted syntax highlighting, comment handling, and symbol extraction. Override the active language at any time via `Ctrl+P` → `set [Language]`.
 
-<<<<<<< HEAD
 | Language | Files | What you get |
 |----------|-------|--------------|
 | PHP | `*.php`, `*.phtml` | keywords/functions/`$vars`, `#` `//` (string + CSS aware), symbols |
