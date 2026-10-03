@@ -1,12 +1,12 @@
-# AGENTS.md — AI Agent Guide for `az` 2.6
+# AGENTS.md — AI Agent Guide for `az` 3.0
 
-> Read this before editing. `az` is a single-binary Rust TUI editor (~4900 lines, zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
+> Read this before editing. `az` is a single-binary Rust TUI editor (zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
 ## 1. Quick Facts
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
 - Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (42 files: 41 languages + `example.rs` skeleton).
-- Build: `cargo check` (fast), `cargo test` (45 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
+- Build: `cargo check` (fast), `cargo test` (56 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -20,12 +20,16 @@ src/main.rs
   struct Pos { line, col }          // col = BYTE index, always char-boundary
   enum TextOp { Insert, Delete }
   struct HistoryEntry { ops, before, after }
-  struct Tab { path, name, lines: Vec<String>, cursor, row_offset, col_offset,
-               modified, revision, saved_revision, syntax_mode, undo/redo, large_file }
+  struct Tab { path, name, lines: Vec<String>, cursor, row_offset,
+               col_offset,  // VISUAL column, not a byte index
+               modified, revision, saved_revision, saved_hash, syntax_mode,
+               undo/redo, large_file, crlf }
   struct TreeRow, PickerItem, CompletionItem
   enum Focus { Editor, Tree }
   struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write,
-                last_tree_click_time/path, pending_input, pending_update }
+                last_tree_click_time/path, pending_input, pending_update,
+                clipboard_verified, follow_cursor, tree_h_offset, show_hscroll,
+                prompt_history, hscroll_drag }
   impl Editor {
     new(args) / run() / enable_raw_mode() / cleanup()
     read_key(), read_escape(), handle_key(), handle_global_shortcut(),
@@ -58,7 +62,7 @@ Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock).
 
 Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters. Mouse: SGR `1000`+`1002`+`1006` enabled in `enable_raw_mode()`, disabled in `cleanup()`; `read_key()` breaks on `M/m` for `ESC[<…` (or 6-byte `ESC[M` legacy); `handle_key()` routes both via `parse_sgr_mouse()` / `parse_legacy_mouse()` → `handle_mouse()`. Picker loops (quick open, palette, find-in-files, shortcuts) and `context_menu()` scroll selection on wheel.
 
-Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()`. Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) scrolls tree by moving `tree_index ±1` or editor by moving cursor `±1` (keeps `ensure_*_visible()` invariants; scroll never changes focus, click sets it). Right-click (`Cb&3==2`) opens `context_menu()` (tab/sidebar/editor items, `context_menu_geometry()` clamps to screen minus status line); middle-click (`==1`) on tab bar closes via `close_tab_at()`. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start` (tab-index guarded); double-click selects `word_range_at()`, triple-click the line. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status.
+Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()` (plain prefix is ` az   {mode} `, 7 + mode length; the hit starts on the label). Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) is ±1 per report: tab bar (`y==3`) cycles tabs, sidebar moves `tree_index`, editor sets `follow_cursor = false` and pans `row_offset` (caret and selection stay). Do not put the ±3 step back, and do not move the caret from the wheel. Right-click (`Cb&3==2`) opens `context_menu()`; middle-click (`==1`) on a tab closes via `close_tab_at()` (the `+` button is not a tab). Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start`. Picker dialogs and the search/replace dialog close on a click outside `picker_frame`. Autocomplete: click inside accepts, click outside closes and the click still lands. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status. When `show_hscroll`, the last content row is the shared horizontal bar and `editor_view_rows` is one shorter.
 
 ## 3. Critical Invariants (do not break)
 
@@ -66,7 +70,7 @@ Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-c
 2. **Raw mode must restore.** `enable_raw_mode()` saves `stty -g`, `cleanup()` restores or `stty sane`, plus `\x1b[?1002l \x1b[?1006l \x1b[?1000l \x1b[?2004l \x1b[0m \x1b[?25h \x1b[?1049l`. Every early return in `run()` must call `cleanup()`.
 3. **`0x08` duality.** `Ctrl+H` == Backspace on some terms. Rule: in `Focus::Editor`, `0x08` falls through to editor backspace; in `Tree`, toggles sidebar. Don't re-add global `0x08` → toggle unconditionally.
 4. **`absolute_path()` must stay absolute.** Resolves against CWD + lexical `..` normalisation without FS access (supports new files). Session/recovery hashes depend on it.
-5. **History byte positions.** `apply_insert/delete` mutate `lines` + set `cursor=start`. `undo()` iterates `ops.rev()`, `redo()` forward. `mark_edited()` bumps `revision` (monotonic — undo stays dirty by design).
+5. **History byte positions.** `apply_insert/delete` mutate `lines` + set `cursor=start`. `undo()` iterates `ops.rev()`, `redo()` forward. `mark_edited()` bumps `revision` (monotonic — do not decrement it; that breaks redo). `modified` is `buffer_hash(lines) != saved_hash`. Undo back to the saved text clears the dirty flag. `col_offset` is a visual column (`fit_visual_offset`), not a byte index.
 6. **No crates.** Std only (`fs`, `io`, `env`, `process::Command` for `date`, raw `ioctl` FFI). Don't add deps without discussion.
 7. **Picker widths.** Clamp to `cols-2`. Narrow terminals (30 cols) must not overflow. See `render_simple_picker()`.
 8. **Skip lists must stay in sync.** `add_tree_rows()` + `collect_quick_open_files()` both skip `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Update both together.
@@ -96,17 +100,17 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 | New keybinding | `handle_global_shortcut()` (global) or `handle_editor_key()` / `handle_tree_key()`. Update `shortcut_help_lines()`, `print_help()`, `USER_MANUAL.md`. |
 | New palette command | `command_items()` + `run_command()` + handler method. |
 | Rendering glitch | `render_content()`, `render_editor_line()`, `cursor_screen_position()`, `ensure_editor_visible()`. Remember `visual_width()` for tabs/wide/control chars. |
-| Find/replace | `find_next()` (wrap-aware, selection-aware), `replace_one/all()`, `parse_find_query()` (`%` prefix). |
+| Find/replace | `search_replace_dialog()` (path, find, replace, count, Tab, Enter, Cancel, click-outside). `find_next()`, `replace_all()`, `apply_project_replace()`, `parse_search_query()` (`%` prefix). |
 | Tree / file ops | `add_tree_rows()`, `collect_quick_open_files()`, `reveal_path_in_tree()`, `create/rename/delete_*_prompt()`. |
 | Autocomplete | `autocomplete_context()` → `plugins::completion_context()`, `refresh_autocomplete()`, per-plugin `completion_*`. |
 | Session/recovery | `state_dir()`, `session_file()`, `try_restore_session()` (reads `tab_index`), `save_session()`, `write_recovery_for_current_tab()` (250ms throttle), `offer_recovery()`. |
-| Perf | `clock_text()` caches `date` subprocess per minute; symbol scan caps (600 files/1MB), search caps (3000 files/5MB). Don't remove caps. |
+| Perf | `clock_text()` caches `date` subprocess per minute. Quick-open symbols scan 20 files per `read_key` wake; find-in-files scans 25; the replace count scans 20. Caps stay (600 files/1MB symbols, 3000 files/5MB search, 10k matches). Don't remove caps. Don't add a thread. |
 
 ## 6. Testing
 
 ```sh
 cargo check   # fast gate
-cargo test    # 45 tests: cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel ±1, paste, sudo message, wayland socketpair
+cargo test    # 56 tests (55 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, wrap, dirty-hash, CRLF
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -120,7 +124,23 @@ Manual smoke (no PTY in CI):
 cargo build --release
 ```
 
-## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5 + 2.6) — Don't Regress
+## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5 + 2.6 + 3.0) — Don't Regress
+
+3.0 (viewport, dialogs, tabs, bash rc files, dirty flag, CRLF, scrollbars, clipboard, sudo save, paste):
+- Wheel is one row per report. Editor pans `row_offset` with `follow_cursor = false` (caret and selection stay). Tree moves `tree_index` ±1. Tab-bar wheel calls `cycle_tab`. Do not put the ±3 step back and do not move the caret from the wheel.
+- Tabs: `visible_tab_indexes` uses `window_indexes` (max 9, centered on the current tab). `Alt+1-9` hits that window. `+` is an extra width after the tabs (`tab_hit_index` == `visible.len()`); middle/right-click on it must not close a tab. `Ctrl+N` and `+` call `new_tab(true)`. Saving a pathless tab prompts `Filename:`.
+- `Ctrl+F` / `Ctrl+R` / `Ctrl+Shift+H` open `search_replace_dialog`. Enter replaces all in the target (empty path or the current file = buffer; a directory = project replace, no y/N). Caps stay. Click-outside uses `picker_frame` / `PickerMouse` for every list dialog.
+- `col_offset` is a visual column (`fit_visual_offset`, `byte_at_visual`). Horizontal bar is the last content row when either pane overflows (`refresh_hscroll`). Do not steal the status row. Do not add word wrap unless asked.
+- Bash: `is_shell_rc_name` in `from_path`, `syntax_from_shebang` only when `from_path` is Plain. `Tab::syntax()` checks a manual mode first. `bash.rs` itself is unchanged.
+- `modified` compares `buffer_hash` to `saved_hash`. Do not decrement `revision`. Recovery sets `saved_hash` to `hash.wrapping_add(1)` so the restored tab stays dirty. `Tab.crlf` is detected before LF normalization; `text()` joins with `\r\n` when set. Project replace preserves it.
+- Clipboard: `clipboard_verified` is true only when a tool or Wayland confirmed. Paste prefers the OS clipboard only then; otherwise the internal clipboard when it is non-empty. SSH still prints OSC52 first. Do not call the live Wayland clipboard from tests. `wayland_clipboard_roundtrip` stays ignored.
+- Copy/cut of an unselected line uses `line_as_clipboard` (newline unless it is the last line). `(` `{` `[` `"` `'` on a selection call `wrap_selection`. Empty pairs are `(` `{` `[` only.
+- Paste burst: `pending_is_paste_burst` is 16+ bytes, or a newline AND length >= 8. A lone Enter must stay auto-indent.
+- Prompts: `apply_line_edit` (Left/Right/Home/End, Ctrl+U). Up/Down walk `prompt_history` (cap 50, skip secrets).
+- Resize: `terminal_resized()` in the input loop. Status flash uses `was_flashing` for one clear frame. Welcome and the update notice pass the dismissing key to `handle_key`.
+- `./build.sh` `install_system_wide` copies `/usr/local/bin/az` (directly when root or the dir is writable, otherwise `sudo cp`). Failure must not fail the `~/.local/bin` install. `sudo` `secure_path` does not include `~/.local/bin`.
+- Permission-denied save (`ErrorKind::PermissionDenied`, and not already root): status blinks red (`message_is_error`), `prompt_secret` (RED, `*` masking), then `write_file_with_sudo` (`sudo -k -S -p ''`, password + newline on stdin only, payload staged in a temp file). Other status flashes stay cyan.
+- Tests: 56 (55 run). Ignored `wayland_clipboard_roundtrip` restores the previous clipboard. Do not run it.
 
 2.6 (languages + update check + input/clipboard fixes):
 - 20 new plugins (41 total + Plain = 42 modes): python, java, csharp, cpp, c, go, kotlin, swift, ruby, dart, scala, r, lua, perl, haskell, elixir, clojure, zig, julia, objc. Each wires `mod X;` + `mode_label` + `from_word` + `from_path` + `tree_color` + `highlight_segments` + word completion/symbols, plus `SyntaxMode::X` + palette `set-syntax-x` + `run_command` in `main.rs`. `.h` → C (C++ headers highlight as C — accepted, documented). `Gemfile`/`Rakefile` → Ruby.
@@ -128,14 +148,6 @@ cargo build --release
 - Wheel bursts: `read_key()` glues multi-report stdin reads; `handle_key()` now dispatches `parse_mouse_events()` (splits concatenated SGR/legacy reports, ignores trailing partials) instead of parsing the chunk as one event. Never route menu keys through global shortcuts (unchanged).
 - Clipboard deadlock: `pipe_to_clipboard_tool()` drops stdin before `wait()` — tools read stdin to EOF, so waiting first hung the editor. Tests: `cat`-based EOF test (hangs pre-fix, passes post-fix).
 - Tests: 38 total (new: mouse-burst splitting, end-to-end wheel scrolling, clipboard-pipe EOF, remote-version parsing + comparison).
-
-Unreleased (wheel step, OS clipboard, sudo save, fast paste):
-- Wheel is one row per report (`handle_mouse_wheel` ±1). Do not put the ±3 step back.
-- Clipboard write order: SSH prints OSC52 first; then `try_clipboard_tool()`, then `wayland_clip::copy()`. Local tries tools, then Wayland, then OSC52. True means a tool or Wayland confirmed. `wayland_clip` speaks `ext-data-control-v1` with no crates. `copy` re-execs `az --clipboard-hold` (handled in `main` before the editor) so the selection stays alive. `Ctrl+V` uses `read_system_clipboard()` first.
-- `./build.sh` `install_system_wide` copies `/usr/local/bin/az` (directly when root or the dir is writable, otherwise `sudo cp`). Failure must not fail the `~/.local/bin` install. `sudo` `secure_path` does not include `~/.local/bin`.
-- Permission-denied save (`ErrorKind::PermissionDenied`, and not already root): status blinks red (`message_is_error`), `prompt_secret` (RED, `*` masking), then `write_file_with_sudo` (`sudo -k -S -p ''`, password + newline on stdin only, payload staged in a temp file). Other status flashes stay cyan.
-- Paste: `read_escape` treats `\x1b[200~` as a paste prefix and reads through `\x1b[201~` (5MB cap, stall gives up after a few quiet reads). `coalesce_burst` turns an already-buffered run (newline/CR, or 16+ bytes) into one `\0AZPASTE:` insert. `apply_insert_at` rebuilds the line vec once for multi-line text.
-- Tests: 45, plus an ignored Wayland roundtrip (`wayland_clipboard_roundtrip`) that restores the previous clipboard.
 
 2.5 (replace-all + context menus + chrome):
 - Replace in Files is `Ctrl+Shift+H` only (`is_ctrl_shift_h`); caps: 3000 files, 5MB, 10k matches. Open modified tabs are skipped (never clobber unsaved buffers); reloaded tabs get `undo/redo` cleared (positions refer to old content).
@@ -169,12 +181,11 @@ Unreleased (wheel step, OS clipboard, sudo save, fast paste):
 
 ## 8. Known Issues / TODO for Agents
 
-- `revision` monotonic → undo-after-save stays `modified`. Fix requires content-hash or saved-text compare; currently by design — document, don't “fix” by decrementing revision (breaks redo).
-- `word wrap` in README was misleading — now documented as horizontal scroll. Real wrap needs `render_editor_line()` + `cursor_screen_position()` + `ensure_editor_visible()` rework (screen-row vs file-line mapping).
-- `collect_quick_open_symbols()` (600 files) + `collect_project_search_results()` (3000 files) block UI. Future: cache index or background thread with `mpsc`.
+- `revision` stays monotonic. `modified` is `buffer_hash != saved_hash`. Do not “fix” a stale dirty flag by decrementing revision (breaks redo).
+- No word wrap. Horizontal scroll plus a scrollbar row is the current behavior. Real wrap needs `render_editor_line()` + `cursor_screen_position()` + `ensure_editor_visible()` rework (screen-row vs file-line mapping).
+- Quick-open symbols and find-in-files scan a chunk per input wake. The file list is still collected up front (caps unchanged) and can stall once. A background index is future work. Do not add a crate or a thread for it.
 - Recovery separator `---TEXT---\n` collides if filename ends with that string (filenames can't contain `\n`, so risk tiny). Proper fix: length-prefixed body or NUL separator with migration.
-- Prompt line editing: no Left/Right, no history. Add `prompt_history` if needed.
-- No drag-select, no splits, no regex — out of scope unless requested.
+- No splits, no regex — out of scope unless requested. Drag-select already exists (left-drag, double-click word, triple-click line).
 
 ## 9. Style & PR Rules
 

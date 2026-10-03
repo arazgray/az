@@ -2,8 +2,20 @@
 
 ## Unreleased
 
-- **Wheel scrolls one line at a time.** Each wheel report moves the editor cursor or the sidebar selection by one row. A burst of reports still applies every report before the next paint.
-- **System clipboard both ways.** `Ctrl+C` / `Ctrl+X` copy to the OS clipboard (`wl-copy`, `xclip`/`xsel`, `pbcopy`, or Wayland `ext-data-control` when those tools are missing). `Ctrl+V` pastes the OS clipboard, and falls back to the editor's own clipboard when nothing outside is available. Status shows `Copied` when a tool or the compositor confirmed, and `Copied (OSC52)` when only the terminal sequence was sent.
+## 3.0
+
+- **Wheel pans the editor.** Each report moves the viewport one row. The caret and the selection stay put. The sidebar selection still moves one row. The wheel on the tab bar cycles tabs. A burst of reports still applies every report before the next paint.
+- **Tabs past the ninth stay reachable.** At most nine tabs are drawn, windowed around the current one. `Alt+1-9` hits that window. `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle every open tab. `+` on the tab bar and `Ctrl+N` open an empty unsaved tab. Saving it asks for a filename.
+- **Search and replace is a dialog.** `Ctrl+F`, `Ctrl+R`, and `Ctrl+Shift+H` open one box: path, find, replace, a live count, Replace, and Cancel. `Tab` moves between the fields. `Enter` replaces. A click outside closes it. The same click-outside rule covers quick open, the command palette, find in files, and shortcuts.
+- **Horizontal scroll bars.** When a line or a sidebar name is wider than its pane, the last content row is a scrollbar. The editor offset is a visual column, so a tab no longer leaves the caret off the right edge.
+- **Shell rc files highlight as Bash.** `*.sh`, `*.bash`, and `*.zsh` already did. `~/.bashrc` has no extension, so it was plain. Basenames (`.bashrc`, `.bash_profile`, `.zshrc`, `.profile`, and the other shell startup names) and a `#!` line for sh/bash/zsh/ksh/dash/ash/mksh now select Bash when the name would otherwise be plain. A syntax mode you set by hand still wins.
+- **The dirty flag follows the text.** Undo back to the saved buffer clears `modified`. `revision` stays monotonic.
+- **CRLF files stay CRLF.** The buffer is LF. Save and replace-in-files write `\r\n` back when the file had it.
+- **Copy and cut of a whole line match,** including the newline, except on the last line. `(` `{` `[` `"` `'` wrap a selection. `(` `{` `[` still insert an empty pair when nothing is selected.
+- **Paste keeps the copy you just made.** A confirmed OS copy reads the system clipboard. An OSC52-only copy pastes the editor text, so an older system clipboard does not replace it. A typed character plus Enter is a newline. A real paste (16 bytes, or a newline inside 8 or more bytes) is still one insert.
+- **Prompts move the cursor.** Left/Right/Home/End, and Up/Down through recent answers. The root-password prompt has no history.
+- **The screen follows the terminal.** A size change redraws on the next input wake. A status flash paints one clear frame when the timer ends. The key that dismisses welcome or the update notice is handled. Status `Col` is the screen column. On a narrow terminal the message stays by dropping the tree and syntax chips first.
+- **System clipboard both ways.** `Ctrl+C` / `Ctrl+X` copy to the OS clipboard (`wl-copy`, `xclip`/`xsel`, `pbcopy`, or Wayland `ext-data-control` when those tools are missing). Status shows `Copied` when a tool or the compositor confirmed, and `Copied (OSC52)` when only the terminal sequence was sent.
 - **`sudo az`.** The installer also copies the binary to `/usr/local/bin/az`. `sudo`'s `secure_path` includes that directory and does not include `~/.local/bin`, which is why `sudo az` was "command not found".
 - **Save when the file is not writable.** A permission error blinks the status message red, asks for the root password (shown as `*`), and writes the buffer with `sudo -S`. The password is sent on stdin and is not put on the command line. Cancel with `Esc`.
 - **Long pastes insert in one step.** Bracketed paste and a raw burst of text are one insert and one undo step, instead of a character-by-character redraw.

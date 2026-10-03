@@ -1,4 +1,4 @@
-# az 2.6 — User Manual
+# az 3.0 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
@@ -48,11 +48,11 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
   └ popups: welcome, shortcuts (Ctrl+K), quick open (Ctrl+O), palette (Ctrl+P) ┘
 ```
 
-- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), clock — full-width separator below. Tab bar under the separator, above the editor: tabs `1:name`, `*` = modified, inactive tabs shaded lighter; click to switch, middle-click to close.
-- Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, etc.).
+- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
+- Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.).
 - Gutter: line numbers, min width 4.
-- Status: one chip per item — path, state (`modified`, orange, only when dirty), syntax (purple), tree (cyan) | message (flashes light blue on change, red on a permission error) | stats (yellow). Prompts blink light blue until answered. The root-password prompt blinks red.
-- No word wrap: long lines scroll horizontally. Cursor stays visible.
+- Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the tree chip, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
+- No word wrap. Long lines scroll horizontally, and the caret stays on screen (a tab is four columns). When the editor or the sidebar is wider than its pane, the last content row is a horizontal scrollbar for both. Wheel on that row moves four columns. Drag the thumb to jump.
 
 ## 4. Keyboard — Complete Map
 
@@ -60,25 +60,26 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 
 | Keys | Action |
 |------|--------|
-| `Ctrl+S` | Save (prompts Save-as for Untitled) |
+| `Ctrl+S` | Save (asks `Filename:` for an unsaved tab) |
 | `Ctrl+O` | Quick open file / symbol / `file:line` / `:line` |
 | `Ctrl+P` | Command palette |
-| `Ctrl+F` | Find in file (`%term` = case-sensitive) |
-| `Ctrl+L` | Find next (uses last pattern) |
-| `Ctrl+R` | Replace (one or all) |
+| `Ctrl+F` | Search & replace dialog, find field (`%term` = case-sensitive) |
+| `Ctrl+L` | Find next (uses last pattern; also inside the replace dialog) |
+| `Ctrl+R` | Search & replace dialog, replace field |
 | `Ctrl+G` | Go to line |
 | `Ctrl+T` | Toggle tree focus (shows tree if hidden) |
 | `Ctrl+H` | Hide/show tree — **tree focus only**. In editor, `0x08` acts as Backspace for terminals sending `^H` |
-| `Ctrl+N` | New file tab |
+| `Ctrl+N` | New empty unsaved tab |
 | `Ctrl+D` | Close tab (asks if modified) |
 | `Ctrl+Q` | Quit (asks if any tab modified) |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | Undo / Redo |
-| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all (OS clipboard; OSC52 fallback). Paste reads the OS clipboard first |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all. A confirmed OS copy pastes from the system clipboard; `Copied (OSC52)` pastes the editor text |
 | `Ctrl+W` / `Ctrl+Backspace` | Delete current line |
 | `Ctrl+K` | Keyboard shortcuts (searchable dialog, `Enter`/`Esc` closes) |
 | `Ctrl+Shift+O` | Find in files (separate modal, `%term` = case-sensitive) |
-| `Ctrl+Shift+H` | Replace in files (dialog, `%term` = case-sensitive) |
-| `Alt+1`..`Alt+9` (`Esc` then `1..9`) | Switch tab (first 9 visible) |
+| `Ctrl+Shift+H` | Search & replace dialog for the project (`%term` = case-sensitive) |
+| `Alt+1`..`Alt+9` (`Esc` then `1..9`) | Switch a tab in the visible window |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous open tab |
 | Click tab | Switch tab (inactive tabs shaded lighter) |
 | Middle-click tab | Close tab (asks if modified) |
 | Right-click | Context menu: tab (Close, Copy file path), sidebar and editor menus (see Mouse) |
@@ -95,7 +96,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Ctrl+End` / `Alt+Down` | Go to end of file (Shift = select) |
 | `Backspace` (`0x7F` or `0x08`) / `Del` | Delete backward / forward |
 | `Enter` | Newline with auto-indent (`{ [ ( :` adds 4 spaces) |
-| `(` `{` | Auto-close `()` `{}` |
+| `(` `{` `[` | Auto-close an empty pair. On a selection, these and `"` `'` wrap it |
 | `>` | Auto-close HTML tag e.g. `<div>` -> `<div></div>` (skips void `<br>`, `<img>`) |
 | `Tab` | Accept autocomplete, else insert `\t` (renders 4 spaces) |
 | `Up/Down` in autocomplete | Navigate, `Enter/Tab` accept, `Esc` close |
@@ -109,18 +110,19 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Left` / `Right` | Collapse / Expand dir |
 | Double-click file/dir | Rename (never root, refuses existing target) |
 | Click editor | Move cursor there |
-| Wheel over tree/editor | Scroll one line (tree selection / editor cursor) |
+| Wheel over tree/editor | One row: sidebar selection, or the editor viewport (caret stays) |
 | `n` / `N` (Shift+N) | New file / New folder in selected dir |
 | `r` / `R` | Rename (never root, refuses existing target) |
 | `Del` | Delete file/folder (asks, closes affected tabs) |
 | `+` / `=` / `-` / `_` | Tree width +2 / -2 (18..44) |
 
-Popups (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+P`, prompts): `Up/Down` or `Ctrl+P`/`Ctrl+N` navigate, `Enter` confirm, `Esc` cancel, `Ctrl+U` clear line.
+Popups (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+P`, `Ctrl+K`, search & replace): `Up/Down` or `Ctrl+P`/`Ctrl+N` navigate a list, `Enter` confirm, `Esc` cancel, `Ctrl+U` clear the line, click a row to activate it, click outside to close. Prompts: Left/Right/Home/End move the cursor, Up/Down walk recent answers (not the root-password prompt).
 
 ## 5. Core Workflows
 
 ### Tabs
-- `Ctrl+N` new, `Ctrl+D` close, `Alt+1-9` switch. Modified `*` in topbar. Untitled hidden until edited when folder opened.
+- `Ctrl+N` or `+` on the tab bar opens an empty unsaved tab. `Ctrl+S` asks `Filename:` and writes that path. `Ctrl+D` closes (asks if modified).
+- At most nine tabs are drawn, windowed around the current one. `Alt+1-9` switches inside that window. `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle every open tab. The wheel on the tab bar does the same. Modified `*` in the tab bar. The initial Untitled stays hidden until edited when a folder is opened.
 - Session auto-saves open file paths + cursor + syntax + expanded dirs per project root. Reopens on next `az project/`.
 
 ### Quick Open (`Ctrl+O`)
@@ -137,8 +139,10 @@ Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .ne
 `Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Demo mode, Keyboard shortcuts, Quit`. Type `set php` to force language.
 
 ### Find / Replace
-- Find: case-insensitive default, `%Foo` = case-sensitive. `Enter` finds, selection covers match. `Ctrl+L` finds next (wraps with `(wrapped)` notice).
-- Replace: prompts `Replace:`, `Replace with:`, `Replace all? y/N`. Single replaces current match; all scans whole file (cap 20k ops, undoable as one entry).
+`Ctrl+F` (find field), `Ctrl+R` (replace field), and `Ctrl+Shift+H` (project path) open the same dialog:
+- Path, find, and replace are editable. An empty path, or the path of the current file, means this buffer. A directory searches that folder. Another file rewrites that file.
+- The count under the fields updates as you type (`%Foo` = case-sensitive). `Tab` / `Shift+Tab` move across the fields, Replace, and Cancel. `Enter` replaces every match in the target and leaves the dialog open so the count refreshes. `Esc`, Cancel, or a click outside closes it. `Ctrl+L` finds the next match in the current buffer.
+- Project replace keeps the caps (3000 files, files over 5MB skipped, 10k matches). Open tabs with unsaved edits are skipped. A file that used CRLF is written back with CRLF. Replace in the current buffer is one undo entry.
 
 ### Find in Files (palette or `Ctrl+Shift+O`)
 Separate modal from Quick Open. Type to live-search file contents across the opened folder:
@@ -148,11 +152,7 @@ Separate modal from Quick Open. Type to live-search file contents across the ope
 - Requires a Kitty-protocol terminal for the direct shortcut (`CSI-u`); otherwise use `Ctrl+P` → `Find in files`. (`Ctrl+Shift+O` is used because most terminals reserve `Ctrl+Shift+F` for their own search.)
 
 ### Replace in Files (palette or `Ctrl+Shift+H`)
-Dialog across the opened folder (or a sidebar subfolder via right-click → `Search & Replace here`):
-- Prompts `Replace in files:`, `Replace with:`, then `Replace N in M files (…) ? y/N` with the real counts. `%Foo` = case-sensitive (same `%` rule as `Ctrl+F`).
-- Same file scope as Find in Files: ≤3000 files, skips >5MB and binaries, 10k-match cap (narrow your search if capped). CRLF files are normalized to LF on write.
-- Open unmodified tabs reload from disk (cursor kept, undo cleared); files with unsaved open buffers are skipped and reported.
-- Requires a Kitty-protocol terminal for the direct shortcut; otherwise use `Ctrl+P` → `Replace in files`.
+Same dialog as Find / Replace, opened on the project root (or a sidebar folder via right-click → `Search & Replace here`). The count is the confirmation. There is no extra y/N prompt. Requires a Kitty-protocol terminal for the direct shortcut; otherwise use `Ctrl+P` → `Replace in files`.
 
 ### Go to Line / Start / End
 - `Ctrl+G`, `:20` in quick open, or `az file:20` for a numbered line. Clamps to EOF.
@@ -169,7 +169,7 @@ Context-aware per language + document words. `Tab`/`Enter` accept, `Esc` close. 
 - All other languages: keywords (+types/builtins where relevant) and file symbols (`def`/`class`/`func`/`fn`/…)
 
 ### Syntax Modes
-Auto by extension (`.blade.php` -> Blade, `.php/.phtml` -> PHP, `.html/.htm` -> HTML, `.css` -> CSS, `.js/.mjs/.cjs/.jsx` -> JS, `.ts/.tsx/.mts/.cts` -> TS, `.xml/.svg` -> XML, `.py` -> Python, `.java` -> Java, `.cs` -> C#, `.cpp/.hpp` -> C++, `.c/.h` -> C, `.go` -> Go, `.kt` -> Kotlin, `.swift` -> Swift, `.rb` (+`Gemfile`) -> Ruby, `.dart` -> Dart, `.scala` -> Scala, `.r` -> R, `.lua` -> Lua, `.pl` -> Perl, `.hs` -> Haskell, `.ex` -> Elixir, `.clj` -> Clojure, `.zig` -> Zig, `.jl` -> Julia, `.m/.mm` -> Objective-C, plus Markdown/JSON/TOML/YAML/Bash/Dotenv/INI/Log/Rust/Nginx/Apache/Dockerfile/systemd/SQL, else Plain). Override via palette `Set syntax …` or `Set syntax Auto` to revert. Status shows `PHP manual` when forced.
+Auto by extension (`.blade.php` -> Blade, `.php/.phtml` -> PHP, `.html/.htm` -> HTML, `.css` -> CSS, `.js/.mjs/.cjs/.jsx` -> JS, `.ts/.tsx/.mts/.cts` -> TS, `.xml/.svg` -> XML, `.py` -> Python, `.java` -> Java, `.cs` -> C#, `.cpp/.hpp` -> C++, `.c/.h` -> C, `.go` -> Go, `.kt` -> Kotlin, `.swift` -> Swift, `.rb` (+`Gemfile`) -> Ruby, `.dart` -> Dart, `.scala` -> Scala, `.r` -> R, `.lua` -> Lua, `.pl` -> Perl, `.hs` -> Haskell, `.ex` -> Elixir, `.clj` -> Clojure, `.zig` -> Zig, `.jl` -> Julia, `.m/.mm` -> Objective-C, plus Markdown/JSON/TOML/YAML/Bash/Dotenv/INI/Log/Rust/Nginx/Apache/Dockerfile/systemd/SQL, else Plain). Bash also matches `.bashrc`, `.bash_profile`, `.zshrc`, `.profile`, and the other shell startup names, and a `#!/bin/bash` or `#!/usr/bin/env sh` first line when the filename itself is plain (that is why `~/.bashrc` highlights). A `.py` file keeps Python even if the shebang says bash. Override via palette `Set syntax …` or `Set syntax Auto` to revert. Status shows `PHP manual` when forced. A manual mode wins over the filename and the shebang.
 
 ### Tree File Ops
 Select dir or file, then `n/N/r/Del` or palette equivalents. Create auto-makes parent dirs. Rename updates open tabs (including children if dir renamed). Delete removes tabs pointing inside.
@@ -179,7 +179,8 @@ Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern 
 - Titlebar + tab bar: click a tab to switch (inactive tabs render lighter). Middle-click a tab to close it (asks if modified).
 - Sidebar: click a folder to expand/collapse, click a file to open it. Double-click a file (<500ms, same path) to rename it. The open file's row is highlighted.
 - Editor: click to move the cursor there (gutter click goes to line start; tab/wide chars map correctly). Drag with the button held to select text (selection follows the cursor). Double-click selects the word under the caret, triple-click selects the whole line. Clicking focuses the editor.
-- Wheel: scrolls one line per notch — the sidebar (`tree_index ±1`), the editor (cursor `±1` line), and picker dialogs/menus (moves selection by one). Several reports that arrive together each move one line, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
+- Wheel: one row per notch. The sidebar moves its selection. The editor pans, and the caret and selection stay. The tab bar cycles tabs. A horizontal scrollbar row moves that pane by four columns. Picker dialogs move their selection by one, and a click outside the box closes them. Several reports that arrive together each apply, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
+- Autocomplete: click an item to accept it. A click outside the list closes it and still lands on the editor or the sidebar.
 - Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
   - Tab: `Close tab`, `Copy file path`.
   - Sidebar: `Open`, `Copy file path`, `Rename`, `Delete`, `Search here`, `Search & Replace here` (each opens its dialog; searches scope to that folder).
@@ -198,8 +199,9 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions. 
 ## 7. Copy/Paste
 
 - System copy cascade: `wl-copy` (Wayland) → `xclip`/`xsel` (X11) → `pbcopy` (macOS) → Wayland `ext-data-control` (no extra tool; a helper process holds the selection until the next copy), then best-effort OSC52 `\x1b]52;c;BASE64\a`. Over SSH, OSC52 goes first (only path to the local clipboard). Status shows `Copied` when a tool or the compositor confirmed, `Copied (OSC52)` when only the terminal sequence was sent.
-- `Ctrl+V` reads the OS clipboard first and pastes that text. If nothing outside is available, it pastes the editor's own clipboard.
-- Bracketed paste (`\x1b[200~ … \x1b[201~`) and a raw burst of text insert in one step (up to 5MB), so a long paste is one undo entry.
+- Copy or cut with no selection takes the current line, including its newline, except on the last line (there is no extra newline to take).
+- `Ctrl+V` prefers the system clipboard after a copy that a tool or the compositor confirmed. After `Copied (OSC52)` it pastes the editor text, so an older system clipboard does not replace the copy you just made. If the editor clipboard is empty, it tries the system clipboard.
+- Bracketed paste (`\x1b[200~ … \x1b[201~`) and a raw burst of text insert in one step (up to 5MB), so a long paste is one undo entry. A single typed Enter is still a newline with auto-indent.
 
 ## 8. Troubleshooting
 
@@ -217,15 +219,15 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions. 
 | `sudo az` says command not found | `sudo` does not search `~/.local/bin`. Re-run `./build.sh` and approve the prompt so it can install `/usr/local/bin/az`. |
 | Save says permission denied | The status line blinks red and asks for the root password, then saves with `sudo`. `Esc` cancels. |
 | Mouse clicks/scroll do nothing | Terminal doesn't forward SGR mouse (`1000`/`1002`/`1006`). Try Kitty, WezTerm, Alacritty, or recent GNOME Terminal. Legacy X10 (`ESC[M`) is handled as fallback. Keyboard works everywhere. |
-| Wheel does nothing | Needs content to move (short files / few tree rows won't visibly scroll). Pickers scroll their selection; prompts ignore wheel. |
+| Wheel does nothing | Needs content to move (short files / few tree rows won't visibly scroll). The editor pans; the caret stays. Pickers scroll their selection. |
 
 ## 9. Known Limitations (by design)
 
-- No word wrap (horizontal scroll only), no split panes.
+- No word wrap (horizontal scroll and a scrollbar when the line is wider than the pane), no split panes.
 - No regex search, no multi-cursor.
 - Mouse: click + drag-select + wheel supported in tree/editor; requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`).
-- Undo `revision` is monotonic: undo after save still shows `modified` until next save (content matches but dirty flag stays). Save to clear.
-- Replace-all limit 20k ops, find in files 80 results, quick open 14 shown.
+- Undo `revision` stays monotonic so redo keeps working. `modified` clears when the buffer matches the last save, including an undo back to that text.
+- Replace in the current buffer caps at 20k operations. Find in files shows 80 results. Quick open shows 14. Symbol and project scans stay inside those caps and advance a chunk at a time while the dialog is open.
 - Binary files open via lossy UTF-8; saving rewrites as UTF-8.
 
 ## 10. Tips

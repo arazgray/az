@@ -9,7 +9,7 @@ Files included (42 languages):
 - `xml.rs`: tags/attrs/entities, `<?…?>`, comments
 - `markdown.rs`: headings/bold/code/links, heading symbols
 - `json.rs` / `toml.rs` / `yaml.rs`: keys/values/comments, section symbols (TOML)
-- `bash.rs`: `$VAR`s, keywords/builtins, `fn` symbols, var completion
+- `bash.rs`: `$VAR`s, keywords/builtins, `fn` symbols, var completion. `*.sh`/`*.bash`/`*.zsh` plus extensionless rc names (`.bashrc`, `.zshrc`, `.profile`, …). A `#!` for sh/bash/zsh/ksh/dash/ash/mksh is Bash when the filename would otherwise be plain. A manual syntax mode still wins. `~/.bashrc` used to stay plain because it has no extension.
 - `dotenv.rs` / `ini.rs` / `systemd.rs`: `KEY=`/`key:`/sections, comments
 - `log.rs`: timestamps + ERROR/WARN/INFO/DEBUG (no completion by design)
 - `rust.rs`: keywords/types/macros, `fn/struct/enum` symbols + completion

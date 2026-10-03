@@ -181,6 +181,9 @@ pub(crate) fn from_path(path: Option<&Path>) -> SyntaxMode {
     if name == "gemfile" || name == "rakefile" {
         return SyntaxMode::Ruby;
     }
+    if is_shell_rc_name(&name) {
+        return SyntaxMode::Bash;
+    }
     match path.extension().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase().as_str() {
         "php" | "phtml" => SyntaxMode::Php,
         "html" | "htm" => SyntaxMode::Html,
@@ -227,6 +230,50 @@ pub(crate) fn is_programming_mode(mode: SyntaxMode) -> bool {
     !matches!(mode, SyntaxMode::Plain | SyntaxMode::Log)
 }
 
+/// Extensionless shell startup files (`~/.bashrc` and friends).
+fn is_shell_rc_name(name: &str) -> bool {
+    matches!(
+        name,
+        ".bashrc"
+            | ".bash_profile"
+            | ".bash_login"
+            | ".bash_logout"
+            | ".bash_aliases"
+            | ".profile"
+            | ".zshrc"
+            | ".zprofile"
+            | ".zshenv"
+            | ".zlogin"
+            | ".zlogout"
+            | ".kshrc"
+            | ".mkshrc"
+            | "bashrc"
+            | "bash_profile"
+            | "profile"
+    )
+}
+
+/// `#!/bin/bash`, `#!/usr/bin/env sh`, and the other common shells.
+/// Used when the filename has no extension, which is why `~/.bashrc`
+/// used to stay Plain even though `bash.rs` was already loaded.
+pub(crate) fn syntax_from_shebang(line: &str) -> Option<SyntaxMode> {
+    let rest = line.trim_start().strip_prefix("#!")?;
+    let mut parts = rest.split_whitespace();
+    let token = parts.next().unwrap_or("").to_ascii_lowercase();
+    let base = token.rsplit('/').next().unwrap_or("");
+    if base == "env" {
+        return shell_syntax(parts.next().unwrap_or(""));
+    }
+    shell_syntax(base)
+}
+
+fn shell_syntax(name: &str) -> Option<SyntaxMode> {
+    match name.to_ascii_lowercase().as_str() {
+        "sh" | "bash" | "zsh" | "ksh" | "dash" | "ash" | "mksh" => Some(SyntaxMode::Bash),
+        _ => None,
+    }
+}
+
 pub(crate) fn tree_color(path: &Path, is_dir: bool) -> &'static str {
     if is_dir { return BLUE; }
     let name = path.file_name().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase();
@@ -239,6 +286,9 @@ pub(crate) fn tree_color(path: &Path, is_dir: bool) -> &'static str {
     }
     if name == ".htaccess" || name == "nginx.conf" {
         return PURPLE;
+    }
+    if is_shell_rc_name(&name) {
+        return RED;
     }
     match path.extension().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase().as_str() {
         "php" | "phtml" => PURPLE,

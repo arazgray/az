@@ -31,13 +31,14 @@ az newfile.txt      # new file tab
 ```text
 az  [Open] [Commands] [Shortcuts]  tabs above editor (click switch, middle-click close)
 Ctrl+S  save              Ctrl+O  quick open (file, symbol, file:line, :line)
-Ctrl+P  command palette   Ctrl+K  shortcuts (searchable)   Ctrl+F  find (%term sensitive)
-Ctrl+Shift+O find in files   Ctrl+Shift+H replace in files   Ctrl+R replace   Ctrl+G go to line
+Ctrl+P  command palette   Ctrl+K  shortcuts (searchable)   Ctrl+F  search & replace dialog
+Ctrl+Shift+O find in files   Ctrl+Shift+H replace in files   Ctrl+R replace field   Ctrl+G go to line
 Ctrl+L  find next         Ctrl+E  end of line                +/-   tree width (in tree)
-Ctrl+D  close tab         Ctrl+N  new file                        Ctrl+Q  quit   Alt+1-9  switch tab
+Ctrl+D  close tab         Ctrl+N  new empty tab               Ctrl+Q  quit   Alt+1-9  visible tabs
+Ctrl+Tab  cycle tabs      + on the tab bar  new empty tab
 Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)
 Ctrl+Z / Ctrl+Y  undo / redo      Ctrl+C / X / V / A  copy / cut / paste / select all
-Mouse: click move/open/switch, drag select, dbl-click word, wheel scroll, right-click menu
+Mouse: click move/open/switch, drag select, dbl-click word, wheel pans, click outside a dialog closes it
 ```
 
 Full map: [`USER_MANUAL.md`](USER_MANUAL.md#4-keyboard--complete-map).
@@ -81,7 +82,7 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 - Opens files or folders
 - Project tree sidebar
 - Different tree colors for different file extensions
-- Tabs with `Alt+1` to `Alt+9` (or click a tab; inactive tabs shaded lighter)
+- Tabs with `Alt+1` to `Alt+9` on the visible window, `Ctrl+Tab` to cycle, and `+` for a new empty tab (inactive tabs shaded lighter)
 - Quick open with `Ctrl+O`
 - Open files and jump to a line with `file.php:20`
 - Jump to a line in the current file with `:20`
@@ -92,9 +93,9 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 - Visible line numbers
 - Welcome screen on startup
 - `Ctrl+K` opens the searchable keyboard-shortcuts dialog
-- Find and replace
-- Replace in files with `Ctrl+Shift+H` (separate dialog with counts + confirm, scoped via sidebar right-click)
-- Mouse: click to move cursor / expand folders / open files / switch tabs, double-click file to rename, wheel to scroll
+- Find and replace in one dialog (path, find, replace, live count; `Tab` switches fields, `Enter` replaces, click outside cancels)
+- Replace in files with `Ctrl+Shift+H` (same dialog, scoped via the path or a sidebar right-click)
+- Mouse: click to move cursor / expand folders / open files / switch tabs, double-click file to rename, wheel pans the editor and moves the sidebar one row
 - Mouse right-click menus (sidebar, editor, tab), middle-click tab to close
 - Find in files modal (`Ctrl+Shift+O`, also via `Ctrl+P` → `Find in files`)
 - Case-insensitive search by default
@@ -114,15 +115,26 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 | Area | Details |
 |------|---------|
 | Open | Files, folders, `file:line`, `:line`, non-existent → new tab |
-| Navigate | Tree, quick open (fuzzy file + symbol), find in files, go-to-line/start/end, `Alt+1-9` |
-| Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OS clipboard, OSC52 fallback), select-all, delete-line |
-| Search | Find in file + Find in files modal (`Ctrl+Shift+O`), case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
+| Navigate | Tree, quick open (fuzzy file + symbol), find in files, go-to-line/start/end, `Alt+1-9` on the visible tabs, `Ctrl+Tab` |
+| Edit | Undo/redo (400; dirty flag clears when the text matches the save), auto-indent, `()` `{}` `[]` close, wrap a selection with those or quotes, `<div>` → `</div>`, copy/cut/paste (OS clipboard, OSC52 fallback), select-all, delete-line |
+| Search | Search & replace dialog (`Ctrl+F` / `Ctrl+R` / `Ctrl+Shift+H`) with path, find, replace, and a live count. Find in files modal (`Ctrl+Shift+O`). Case-insensitive default, `%term` sensitive |
 | Highlight | 42 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
 | Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words, keywords + symbols for the 20 new languages |
 | Safety | Atomic saves, root-password save when the file is not writable, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
-| Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll |
+| Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll, horizontal scrollbar when a pane overflows |
 
 > No word wrap by design — long lines scroll horizontally. No splits or regex.
+
+### What is new in 3.0?
+
+- **Wheel pans the editor** one row per report. The caret and the selection stay. The sidebar still moves one row. The wheel on the tab bar cycles tabs.
+- **Tabs past the ninth stay reachable.** At most nine are drawn, windowed around the current one. `Alt+1-9` hits that window. `Ctrl+Tab` cycles every open tab. `+` and `Ctrl+N` open an empty tab; saving it asks for a filename.
+- **Search and replace is one dialog** (`Ctrl+F`, `Ctrl+R`, `Ctrl+Shift+H`): path, find, replace, a live count, Replace, and Cancel. `Tab` moves between the fields. `Enter` replaces. A click outside closes it, and the same is true for quick open, the command palette, find in files, and shortcuts.
+- **Horizontal scroll bars** appear on the last content row when a line or a sidebar name is wider than its pane. The caret stays on screen across tabs.
+- **`~/.bashrc` highlights as Bash,** along with the other shell startup names and a shell `#!` on a file that would otherwise be plain.
+- **The dirty flag follows the text.** Undo back to the saved buffer clears it. CRLF files are written back as CRLF. Copy and cut of a line match. `(` `{` `[` `"` `'` wrap a selection.
+- **Clipboard, sudo save, and fast paste.** A confirmed copy pastes from the OS clipboard; `Copied (OSC52)` pastes the editor text. A permission error asks for the root password and saves with `sudo`. A long paste is one insert. The installer also copies `/usr/local/bin/az` so `sudo az` can find it.
+- **Tests**: 56 total (55 run, 1 ignored Wayland roundtrip).
 
 ### What is new in 2.6?
 
@@ -168,7 +180,7 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 | JSON | `*.json`, `*.jsonc` | strings/numbers/`true`/`false`/`null`, `//` + `/* */` for jsonc |
 | TOML | `*.toml` | `[sections]`, `key =`, strings/numbers/bools, `#` comments, symbols |
 | YAML | `*.yaml`, `*.yml` | `key:`, strings/numbers/bools, `#` comments, `-` lists |
-| Bash | `*.sh`, `*.bash`, `*.zsh` | `#!`, `#` comments, `$VAR`/`${}`, keywords/builtins, `fn` symbols |
+| Bash | `*.sh`, `*.bash`, `*.zsh`, `.bashrc`, `.zshrc`, `.profile`, other shell rc names, `#!` when the name is plain | `#!`, `#` comments, `$VAR`/`${}`, keywords/builtins, `fn` symbols |
 | Dotenv | `.env`, `*.env` | `KEY=`, strings/numbers/bools, `#` comments, `export` |
 | INI | `*.ini`, `*.conf`, `*.cfg` | `[sections]`, `key =/:`, `#`/`;` comments, symbols |
 | Logs | `*.log` | timestamps + `ERROR` red / `WARN` yellow / `INFO` green / `DEBUG` dim |
