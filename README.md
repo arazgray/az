@@ -1,25 +1,31 @@
-# az editor
+# az Text Editor
 
-Meet `az`, a fast, small & sane text editor. It opens fast. Type immediately. Stay keyboard-first. Zero dependencies.
+`az` is a high-performance, lightweight terminal text editor engineered for speed and keyboard-driven workflows. Written entirely in Rust with zero dependencies, it delivers instantaneous startup, robust syntax highlighting for 42 languages, and seamless project navigation without the overhead of configuration files or external plugins.
+
+**Documentation:** [User Manual](https://www.google.com/search?q=USER_MANUAL.md) · [Changelog](CHANGELOG.md) · [AI Agent Guide](AGENTS.md) · [Plugin Development](https://www.google.com/search?q=PLUGIN_GUIDE.md)
 
 ![az](screenshot.png)
 
-Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHANGELOG.md`](CHANGELOG.md) (release notes) · [`AGENTS.md`](AGENTS.md) (AI-agent guide) · [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) (add a language)
-
 ---
-# Install or upgrade (automatic single-command installer, builds on your machine):
+
+## Installation
+
+Run the automatic single-command installer to clone, build, and install `az` directly on your machine.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/arazgray/az/refs/heads/main/install.sh | sh
+
 ```
 
-The same script installs fresh and upgrades in place (re-clones, rebuilds, reinstalls to `~/.local/bin/az` and `/usr/local/bin/az`). On every launch `az` also checks GitHub for a newer release and shows an upgrade notice with this command when one exists (skipped offline; `AZ_NO_UPDATE_CHECK=1` opts out). `sudo` does not search `~/.local/bin`, so `sudo az` uses the `/usr/local/bin/az` copy. If that directory is not writable, the installer asks for your password once.
+This script handles both fresh installations and in-place upgrades (rebuilding and reinstalling to `~/.local/bin/az`). On launch, `az` automatically checks the main repository for updates and provides an upgrade prompt if a newer release is detected.
+*(Note: Update checks are skipped offline. Opt-out by setting `AZ_NO_UPDATE_CHECK=1`).*
 
 ---
 
-## Quick start
+## Command-Line Usage
 
 ```sh
+<<<<<<< HEAD
 ./build.sh          # release build; installs ~/.local/bin/az and /usr/local/bin/az
 az --help
 az file.php         # open file
@@ -39,38 +45,70 @@ Ctrl+Tab  cycle tabs      + on the tab bar  new empty tab
 Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)
 Ctrl+Z / Ctrl+Y  undo / redo      Ctrl+C / X / V / A  copy / cut / paste / select all
 Mouse: click move/open/switch, drag select, dbl-click word, wheel pans, click outside a dialog closes it
-```
+=======
+az                  # Open empty editor
+az file.php         # Open a specific file
+az project/         # Open a directory and populate the project tree
+az file.php:20      # Open a file and jump directly to line 20
+az newfile.txt      # Initialize a new file in a new tab
+az --help           # Display help and usage options
+az --version        # Display current version
 
-Full map: [`USER_MANUAL.md`](USER_MANUAL.md#4-keyboard--complete-map).
+>>>>>>> refs/remotes/origin/main
+```
 
 ---
 
-## What it looks like
+## Interface Overview
+
+`az` is designed with a clean, Tokyo Night-inspired interface that maximizes screen real estate while keeping essential information visible.
 
 ```text
 ┌ az  [Open] [Commands] [Shortcuts] ──────────  02:30 PM  30/09/2026 ─┐
 ├─────────────────────────────────────────────────────────────────────┤
 │                             │ 1:main.blade.php  2:style.css         │
-│ ▾ project/              │  1  @extends('layouts.app')                    │
-│   ▾ resources/          │  2  @section('content')                        │
-│     ▾ views/            │  3  <style>                                    │
-│       main.blade.php    │  4  #header { background: #fff; }  ← ID yellow │
-│       style.css         │  5  </style>         hex #fff orange, not gray │
-│   Enter open/fold       │  6  <div id="app">{{ $user->name }}</div>      │
-│   N file  Shift+N folder│  7  @if($x) … @endif   ← @ purple, $x red     │
+│ ▾ project/                  │  1  @extends('layouts.app')           │
+│   ▾ resources/              │  2  @section('content')               │
+│     ▾ views/                │  3  <style>                           │
+│       main.blade.php        │  4  #header { background: #fff; }     │
+│       style.css             │  5  </style>                          │
+│   Enter open/fold           │  6  <div id="app">{{ $user->name }}</div>│
+│   N file  Shift+N folder    │  7  @if($x) … @endif                  │
 ├─────────────────────────────────────────────────────────────────────┤
 └ main.blade.php  BLADE  tree shown │ Found $user  Ln 6… ───┘
+
 ```
 
-- Titlebar (`az` + mode chips, dialog buttons) + tab bar (`*` = modified, inactive tabs lighter). Press `Esc` to flash `Alt+1-9` hints.
-- Tree: colors by extension (PHP purple, Blade magenta, HTML orange, JS yellow, CSS blue).
-- Editor: line numbers, horizontal scroll, Tokyo Night colors, mixed-language highlighting.
-- Status: path · modified (only when dirty) · language · message (flashes light blue) · `Ln,Col Lines Words` — each item on its own palette chip; mode lives in the titlebar.
+### UI Components
+
+* **Titlebar & Tabs:** Features interactive mode chips and a real-time clock. Active tabs are visually distinct, and modified files are marked with an asterisk (`*`). Press `Esc` to reveal `Alt+1-9` tab-switching hints.
+* **Project Tree:** Automatically color-codes files by extension (e.g., PHP is purple, HTML is orange, JS is yellow) for rapid visual parsing.
+* **Editor:** Supports mixed-language syntax highlighting on a single line, visible line numbers, and horizontal scrolling (no word wrap by design).
+* **Status Bar:** Displays file path, modification state, active language, and document statistics. System messages flash light blue for immediate user feedback.
+
+### Keyboard & Mouse Controls
+
+| Action | Shortcut | Action | Shortcut |
+| --- | --- | --- | --- |
+| **Save File** | `Ctrl+S` | **Command Palette** | `Ctrl+P` |
+| **Quick Open** | `Ctrl+O` | **Shortcuts Menu** | `Ctrl+K` |
+| **Find (Case-sensitive with `%`)** | `Ctrl+F` | **Find in Files** | `Ctrl+Shift+O` |
+| **Replace** | `Ctrl+R` | **Replace in Files** | `Ctrl+Shift+H` |
+| **Find Next** | `Ctrl+L` | **Go to Line** | `Ctrl+G` |
+| **Undo / Redo** | `Ctrl+Z` / `Ctrl+Y` | **End of Line** | `Ctrl+E` |
+| **Copy / Cut / Paste** | `Ctrl+C` / `X` / `V` | **Select All** | `Ctrl+A` |
+| **New File** | `Ctrl+N` | **Close Tab** | `Ctrl+D` |
+| **Switch Tabs** | `Alt+1-9` | **Quit** | `Ctrl+Q` |
+| **Focus Tree** | `Ctrl+T` | **Toggle Tree Visibility** | `Ctrl+H` |
+| **Adjust Tree Width** | `+` / `-` (in tree) |  |  |
+
+* **Mouse Support:** Full SGR mouse integration. Click to move cursor, open files, or switch tabs. Middle-click to close tabs. Drag to select text, double-click for word selection. Scroll wheel supported across editor, sidebar, and pickers. Right-click opens context-aware action menus.
 
 ---
 
-## Why az?
+## Core Capabilities
 
+<<<<<<< HEAD
 For quick edits, small projects, server work, focused writing, and terminal code changes.
 No config drama, no plugins to install. Keyboard-first, mouse supported for click/drag/scroll.
 
@@ -160,13 +198,22 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 - **Tests**: 33 total (new: replace counting, menu geometry, `Ctrl+Shift+H`, word range, `Ctrl+K` + shortcut coverage, OSC52 bytes, legacy mouse).
 
 Older releases: [`CHANGELOG.md`](CHANGELOG.md).
+=======
+* **Navigation:** Browse via the project tree, Quick Open (fuzzy finding for files and symbols), global find-in-files, and line jumping.
+* **Editing:** Includes 400-step undo/redo, auto-indentation, automatic bracket/tag closing, whole-line deletion, and reliable clipboard integration via system tools (`wl-copy`, `xclip`, `pbcopy`) with OSC52 fallback for SSH sessions.
+* **Search & Replace:** Case-insensitive by default, with `%term` support for exact case matching. Features dedicated modals for workspace-wide find and replace operations.
+* **Intelligent Completion:** Press `Tab` for context-aware completions, including language-specific variables, tags, attributes, keywords, and structural symbols.
+* **Data Safety:** Utilizes atomic saves, per-project session restoration, and throttled background recovery (saved to `$XDG_STATE_HOME/az-rust`).
+* **Terminal Native:** Raw-mode `stty` integration, 5MB bracketed paste support, truecolor rendering, wide-character awareness, and clean terminal state restoration on exit.
+>>>>>>> refs/remotes/origin/main
 
 ---
 
-## Supported languages (42 built in)
+## Language Support (42 Built-In)
 
-`src/plugins/` — one file per language, std-only, line-local. Auto-detected by filename/extension; override anytime via `Ctrl+P` → `set …`.
+`az` automatically detects file types by extension and filename, applying targeted syntax highlighting, comment handling, and symbol extraction. Override the active language at any time via `Ctrl+P` → `set [Language]`.
 
+<<<<<<< HEAD
 | Language | Files | What you get |
 |----------|-------|--------------|
 | PHP | `*.php`, `*.phtml` | keywords/functions/`$vars`, `#` `//` (string + CSS aware), symbols |
@@ -211,71 +258,100 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 | Julia | `*.jl` | keywords/types, `#` + `#= =#`, `function`/`struct`/`macro` symbols |
 | Objective-C | `*.m`, `*.mm` | keywords/types, `#import`, `@directives`, `@interface` + `- (…)` method symbols |
 | Plain | `*.txt` + fallback | no highlighting, always available via `set Plain` |
+=======
+| Language | Extensions/Files | Highlighting & Symbol Support |
+| --- | --- | --- |
+| **PHP** | `*.php`, `*.phtml` | Keywords, functions, `$vars`, comments (string+CSS aware), symbols |
+| **Blade** | `*.blade.php` | `@directives`, `{{ }}`, mixed HTML+CSS+JS |
+| **HTML** | `*.html`, `*.htm` | Tags, attributes, entities, void-tag auto-close |
+| **CSS** | `*.css` | Properties, hex codes, `#id`, `@rules`, `!important`, selector symbols |
+| **JavaScript** | `*.js`, `*.mjs`, `*.cjs`, `*.jsx` | Keywords, built-ins, template strings, regex, members, snippets |
+| **TypeScript** | `*.ts`, `*.tsx`, `*.mts`, `*.cts` | JS features + `interface`/`type`/`enum`, symbols |
+| **XML** | `*.xml`, `*.svg` | Tags, attributes, entities, `<?…?>`, `<!-- -->` |
+| **Markdown** | `*.md` | Headings, bold, inline code, links, lists, symbols |
+| **JSON** | `*.json`, `*.jsonc` | Strings, numbers, booleans, `//` and `/* */` (jsonc) |
+| **TOML** | `*.toml` | `[sections]`, keys, values, `#` comments, symbols |
+| **YAML** | `*.yaml`, `*.yml` | Keys, values, `#` comments, lists |
+| **Bash** | `*.sh`, `*.bash`, `*.zsh` | `#!`, `$VAR`, keywords, built-ins, function symbols |
+| **Dotenv** | `.env`, `*.env` | Keys, values, `export`, `#` comments |
+| **INI** | `*.ini`, `*.conf`, `*.cfg` | `[sections]`, keys, `#`/`;` comments, symbols |
+| **Logs** | `*.log` | Timestamps, semantic log levels (ERROR, WARN, INFO, DEBUG) |
+| **Rust** | `*.rs` | Keywords, types, macros, `#[attrs]`, `fn/struct/enum` symbols |
+| **Nginx** | `nginx.conf` | Blocks, directives, `$vars`, `#` comments, symbols |
+| **Apache** | `.htaccess`, `httpd.conf` | Directives, `<Sections>`, `#` comments, symbols |
+| **Dockerfile** | `Dockerfile*` | Instructions, `$vars`, `#` comments |
+| **systemd** | `*.service`, `*.timer` | `[Sections]`, keys, `#`/`;` comments, symbols |
+| **SQL** | `*.sql` | Keywords, strings, numbers, table creation symbols |
+| **Python** | `*.py`, `*.pyw`, `*.pyi` | Keywords, `@decorators`, `def`/`class` symbols |
+| **Java** | `*.java` | Keywords, types, `class`/`interface`/`enum`, method symbols |
+| **C#** | `*.cs`, `*.csx` | Keywords, types, `[attrs]`, `class`/`namespace` symbols |
+| **C++ / C** | `*.cpp`, `*.hpp`, `*.c`, `*.h` | Keywords, types, `#include`, `class`/`namespace`/`struct` symbols |
+| **Go** | `*.go` | Keywords, types, `func`/`type` symbols |
+| **Kotlin** | `*.kt`, `*.kts` | Keywords, types, `fun`/`class`/`object` symbols |
+| **Swift** | `*.swift` | Keywords, `@attrs`, `func`/`struct`/`protocol` symbols |
+| **Ruby** | `*.rb`, `Gemfile`, `Rakefile` | Keywords, `:symbols`, `def`/`class`/`module` symbols |
+| **Dart** | `*.dart` | Keywords, types, `class`/`mixin` symbols |
+| **Scala** | `*.scala`, `*.sc` | Keywords, types, `def`/`class`/`trait` symbols |
+| **R** | `*.r` | Keywords, built-ins, `name <- function()` symbols |
+| **Lua** | `*.lua` | Keywords, built-ins, `function` symbols |
+| **Perl** | `*.pl`, `*.pm`, `*.t` | Keywords, `$@%` sigils, `sub`/`package` symbols |
+| **Haskell** | `*.hs`, `*.lhs` | Keywords, types, definition symbols |
+| **Elixir** | `*.ex`, `*.exs` | Keywords, `@attrs`, `def`/`defmodule` symbols |
+| **Clojure** | `*.clj`, `*.cljs`, `*.edn` | Keywords, `:keywords`, `defn`/`ns` symbols |
+| **Zig** | `*.zig` | Keywords, types, `fn`/`const`/`test` symbols |
+| **Julia** | `*.jl` | Keywords, types, `function`/`struct`/`macro` symbols |
+| **Objective-C** | `*.m`, `*.mm` | Keywords, types, `#import`, `@directives`, method symbols |
+| **Plain Text** | `*.txt` | Fallback mode. No highlighting, always available. |
+>>>>>>> refs/remotes/origin/main
 
-> **Want more? Just ask your AI agent.** `az` ships [`AGENTS.md`](AGENTS.md) — a guide that teaches any AI coding agent the plugin API, architecture, and test rules. Ask it to *"add language support for X"* and it can scaffold `src/plugins/x.rs`, wire `mod.rs` + `SyntaxMode` + palette, and add regression tests, following [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md).
-
-```blade
-{{-- real Blade: all three languages on one screen --}}
-@extends('layouts.app')
-@section('content')
-<style>
-  #header { background: #fff; color: #333; }   /* # = ID/hex, not comment */
-  .container { max-width: 1200px; }
-</style>
-<div id="app" class="container">
-  <a href="#section">jump</a>
-  <a href="https://example.com">link</a>       {{-- // inside string, not comment --}}
-  {{ $user->name }}                            {{-- $var red, {{ }} teal --}}
-  @if($x) … @endif                             {{-- @ purple, not email --}}
-</div>
-@endsection
-```
+**Extending Languages via AI:**
+`az` includes an [AI Agent Guide](AGENTS.md) that teaches LLM coding assistants the plugin API, architecture, and testing requirements. To add a new language, instruct your AI to scaffold the language implementation (`src/plugins/x.rs`), wire the routing, and add regression tests following the [Plugin Guide](https://www.google.com/search?q=PLUGIN_GUIDE.md).
 
 ---
 
-## Build and install
+## Recent Updates
+
+### Version 2.6
+
+* **20 New Language Plugins:** Added Python, Java, C#, C++, C, Go, Kotlin, Swift, Ruby, Dart, Scala, R, Lua, Perl, Haskell, Elixir, Clojure, Zig, Julia, and Objective-C. Includes auto-detection, dynamic keyword/type assignment, symbol extraction, and word completion.
+* **Startup Update Check:** Silently compares the local version against the GitHub `main` branch (with short timeouts to prevent blocking). Alerts users to available upgrades via a modal dialog.
+* **High-Frequency Mouse Scrolling:** Refactored event processing to capture high-burst touchpad scrolling. Kinetic scrolling is now fluid across the editor, sidebar, and pickers.
+* **Robust Clipboard Processing:** Standard input is explicitly closed before awaiting system clipboards (`wl-copy`, `xclip`, etc.), eliminating hang states caused by broken clipboard pipes.
+
+### Version 2.5
+
+* **Global Replace in Files:** (`Ctrl+Shift+H`). Complete workflow for searching, reviewing match counts, and replacing terms across the entire project footprint (supports up to 3,000 files, skipping binaries and limits hits to 10k).
+* **Right-Click Context Menus:** Native mouse integration for tab management, sidebar file operations (rename, delete, search here), and editor actions (cut/copy/paste, find/replace).
+* **Enhanced Mouse Selection:** Drag-to-select functionality, double-click for word selection, triple-click for whole lines.
+* **Blinking UI Alerts:** Status messages and prompts flash light blue to immediately draw attention.
+* **Searchable Shortcuts Dialog:** (`Ctrl+K`). Browse and filter all available keyboard shortcuts within the editor.
+
+---
+
+## Building from Source
+
+To compile the editor locally without relying on the remote script:
 
 ```sh
 ./build.sh
-# → target/release/az → ./az → ~/.local/bin/az
-# adds ~/.local/bin to PATH via ~/.profile if needed
-. ~/.profile   # first time only, or restart terminal
-az
+
 ```
 
-Custom dir:
+*This compiles `az` to `target/release/az` and installs it to `~/.local/bin/az`. It will automatically update your `~/.profile` to include `~/.local/bin` in your PATH if necessary (requires a terminal restart or sourcing `~/.profile`).*
+
+To specify a custom binary directory:
 
 ```sh
 AZ_BIN_DIR="$HOME/bin" ./build.sh
+
 ```
 
-Requirements: `cargo` (recommended) or `rustc`. No crates. See [`AGENTS.md`](AGENTS.md#6-testing) for `cargo check/test/build`.
-
----
-
-## Basic usage
-
-```sh
-az file.php
-az project/
-az file.php:20
-az newfile.txt
-az --help
-az --version
-```
-
-State lives in `$XDG_STATE_HOME/az-rust` (or `~/.local/state/az-rust`): `session-<hash>.txt`, `recovery/*.rec`.
-
-Troubleshooting (Backspace vs `Ctrl+H`, Alt numbers, colors, slow quick-open): [`USER_MANUAL.md`](USER_MANUAL.md#8-troubleshooting).
+*Requires `cargo` (recommended) or `rustc`.*
 
 ---
 
 ## License
 
-`az` is released under the [WTFPL](https://www.wtfpl.net/) — the Do What The Fuck You Want To Public License.
+`az` is licensed under the [WTFPL](https://www.wtfpl.net/) (Do What The Fuck You Want To Public License).
 
-In short: you may copy, distribute, modify, and use this software (including for commercial purposes) with no restrictions and no warranty. The full license text lives at <https://www.wtfpl.net/>.
-
-- ✅ Use it for anything — personal, commercial, closed-source.
-- ✅ Modify it, redistribute it, relicense your own changes however you like.
-- ⚠️ No warranty: the software is provided "as is"; the authors are not liable for anything it does.
+You are free to copy, distribute, modify, and utilize this software for any purpose, including commercial applications, without restrictions. The software is provided "as is" without warranty of any kind.
