@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Vertical scroll bars.** The editor and the sidebar each draw a bar on their right edge when that pane is taller than its viewport. Click or drag the bar to pan. The caret stays put. A click, the wheel, or the arrow keys in the sidebar follow the selection again.
+
 ## 3.0
 
 - **Wheel pans the editor.** Each report moves the viewport one row. The caret and the selection stay put. The sidebar selection still moves one row. The wheel on the tab bar cycles tabs. A burst of reports still applies every report before the next paint.

@@ -52,7 +52,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.).
 - Gutter: line numbers, min width 4.
 - Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the tree chip, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
-- No word wrap. Long lines scroll horizontally, and the caret stays on screen (a tab is four columns). When the editor or the sidebar is wider than its pane, the last content row is a horizontal scrollbar for both. Wheel on that row moves four columns. Drag the thumb to jump.
+- No word wrap. Long lines scroll horizontally, and the caret stays on screen (a tab is four columns). When the editor or the sidebar is wider than its pane, the last content row is a horizontal scrollbar for both. Wheel on that row moves four columns. Drag the thumb to jump. When a pane is taller than the viewport, it draws a vertical bar on its right edge (`┃` thumb, `│` track). Click or drag that bar to pan. The editor caret stays where it is. A click, the wheel, or the arrow keys in the sidebar follow the selection again.
 
 ## 4. Keyboard — Complete Map
 
@@ -179,7 +179,7 @@ Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern 
 - Titlebar + tab bar: click a tab to switch (inactive tabs render lighter). Middle-click a tab to close it (asks if modified).
 - Sidebar: click a folder to expand/collapse, click a file to open it. Double-click a file (<500ms, same path) to rename it. The open file's row is highlighted.
 - Editor: click to move the cursor there (gutter click goes to line start; tab/wide chars map correctly). Drag with the button held to select text (selection follows the cursor). Double-click selects the word under the caret, triple-click selects the whole line. Clicking focuses the editor.
-- Wheel: one row per notch. The sidebar moves its selection. The editor pans, and the caret and selection stay. The tab bar cycles tabs. A horizontal scrollbar row moves that pane by four columns. Picker dialogs move their selection by one, and a click outside the box closes them. Several reports that arrive together each apply, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
+- Wheel: one row per notch. The sidebar moves its selection. The editor pans, and the caret and selection stay. The tab bar cycles tabs. A horizontal scrollbar row moves that pane by four columns. A vertical bar, drawn only when that pane is taller than the viewport, pans on click or drag and leaves the caret where it is. A right-click on the bar does not open a menu. Picker dialogs move their selection by one, and a click outside the box closes them. Several reports that arrive together each apply, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
 - Autocomplete: click an item to accept it. A click outside the list closes it and still lands on the editor or the sidebar.
 - Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
   - Tab: `Close tab`, `Copy file path`.
@@ -223,7 +223,7 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions. 
 
 ## 9. Known Limitations (by design)
 
-- No word wrap (horizontal scroll and a scrollbar when the line is wider than the pane), no split panes.
+- No word wrap. Long lines scroll horizontally. A scrollbar appears when a pane is wider or taller than the viewport. No split panes.
 - No regex search, no multi-cursor.
 - Mouse: click + drag-select + wheel supported in tree/editor; requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`).
 - Undo `revision` stays monotonic so redo keeps working. `modified` clears when the buffer matches the last save, including an undo back to that text.

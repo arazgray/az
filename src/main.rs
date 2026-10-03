@@ -302,6 +302,13 @@ struct Editor {
     prompt_history: Vec<String>,
     /// `Some(true)` drags the editor bar, `Some(false)` the sidebar bar.
     hscroll_drag: Option<bool>,
+    /// `Some(true)` drags the editor vertical bar, `Some(false)` the sidebar bar.
+    vscroll_drag: Option<bool>,
+    show_editor_vscroll: bool,
+    show_tree_vscroll: bool,
+    /// When false, a sidebar scrollbar pan keeps `tree_scroll` and
+    /// `ensure_tree_visible` does not pull the list back to the selection.
+    follow_tree: bool,
 }
 
 fn main() {
@@ -475,6 +482,10 @@ impl Editor {
             line_width_cache: None,
             prompt_history: Vec::new(),
             hscroll_drag: None,
+            vscroll_drag: None,
+            show_editor_vscroll: false,
+            show_tree_vscroll: false,
+            follow_tree: true,
         }
     }
 
@@ -840,6 +851,7 @@ impl Editor {
         if ev.is_release {
             self.mouse_drag_start = None;
             self.hscroll_drag = None;
+            self.vscroll_drag = None;
             return;
         }
         if ev.is_scroll() {
@@ -847,10 +859,12 @@ impl Editor {
             return;
         }
         // Button-drag motion (1002 tracking): extend an editor drag selection
-        // or drag a horizontal scrollbar.
+        // or drag a scrollbar. A vertical drag keeps the pane that was grabbed.
         if ev.button & 32 != 0 {
             if ev.button & 3 == 0 {
-                if self.hscroll_drag.is_some() {
+                if self.vscroll_drag.is_some() {
+                    self.handle_vscroll_click(ev.x, ev.y);
+                } else if self.hscroll_drag.is_some() {
                     self.handle_hscroll_click(ev.x, ev.y);
                 } else {
                     self.handle_mouse_drag(ev.x, ev.y);
@@ -860,10 +874,16 @@ impl Editor {
         }
         match ev.button & 3 {
             1 => {
+                if self.vscroll_hit(ev.x, ev.y) {
+                    return;
+                }
                 self.handle_mouse_middle(ev);
                 return;
             }
             2 => {
+                if self.vscroll_hit(ev.x, ev.y) {
+                    return;
+                }
                 self.handle_mouse_right(ev);
                 return;
             }
@@ -894,6 +914,10 @@ impl Editor {
             self.handle_hscroll_click(ev.x, ev.y);
             return;
         }
+        if self.vscroll_hit(ev.x, ev.y) {
+            self.handle_vscroll_click(ev.x, ev.y);
+            return;
+        }
         if self.autocomplete_click(ev.x, ev.y) {
             return;
         }
@@ -918,6 +942,7 @@ impl Editor {
             return;
         }
         if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+            self.follow_tree = true;
             let line = self.tree_index as isize + if down { 1 } else { -1 };
             self.tree_index = line.clamp(0, self.tree_rows.len().saturating_sub(1) as isize) as usize;
             return;
@@ -997,6 +1022,7 @@ impl Editor {
     }
 
     fn handle_mouse_tree(&mut self, row: usize) {
+        self.follow_tree = true;
         self.refresh_tree();
         let idx = self.tree_scroll + row.saturating_sub(4);
         let Some(entry) = self.tree_rows.get(idx).cloned() else { return; };
@@ -1164,6 +1190,7 @@ impl Editor {
     }
 
     fn handle_tree_right_click(&mut self, x: usize, y: usize) {
+        self.follow_tree = true;
         self.refresh_tree();
         let idx = self.tree_scroll + y.saturating_sub(4);
         let Some(entry) = self.tree_rows.get(idx).cloned() else { return; };
@@ -1356,6 +1383,7 @@ impl Editor {
     }
 
     fn handle_tree_key(&mut self, key: &str) {
+        self.follow_tree = true;
         self.refresh_tree();
         match key {
             "n" => self.new_tree_file_prompt(),
@@ -1372,8 +1400,8 @@ impl Editor {
             "\x1b[3~" => self.delete_tree_path_prompt(false),
             "\x1b[A" => self.tree_index = self.tree_index.saturating_sub(1),
             "\x1b[B" => self.tree_index = min(self.tree_rows.len().saturating_sub(1), self.tree_index + 1),
-            "\x1b[5~" => self.tree_index = self.tree_index.saturating_sub(max(1, self.content_height)),
-            "\x1b[6~" => self.tree_index = min(self.tree_rows.len().saturating_sub(1), self.tree_index + max(1, self.content_height)),
+            "\x1b[5~" => self.tree_index = self.tree_index.saturating_sub(self.editor_view_rows().max(1)),
+            "\x1b[6~" => self.tree_index = min(self.tree_rows.len().saturating_sub(1), self.tree_index + self.editor_view_rows().max(1)),
             "\r" | "\n" => {
                 if let Some(row) = self.tree_rows.get(self.tree_index).cloned() {
                     if row.is_dir {
@@ -1630,7 +1658,8 @@ impl Editor {
             out.push_str(&format!("\x1b[{row_no};1H"));
             if self.show_hscroll && screen_line + 1 == self.content_height {
                 if !self.sidebar_hidden {
-                    out.push_str(&self.render_hscroll_bar(1, row_no, self.tree_width.max(1), self.tree_width.max(1), self.tree_max_visual, self.tree_h_offset));
+                    let tree_track = self.tree_width.max(1);
+                    out.push_str(&self.render_hscroll_bar(1, row_no, tree_track, self.tree_text_width(), self.tree_max_visual, self.tree_h_offset));
                 }
                 let x = self.editor_start_col();
                 let track = self.cols.saturating_sub(x.saturating_sub(1)).max(1);
@@ -1652,6 +1681,7 @@ impl Editor {
                 out.push_str(&format!("{}{}{}", ansi_style(Some(FG), Some(BG), false, false, false), fit_plain("", self.cols.saturating_sub(editor_start).saturating_add(1)), reset_fg_bg()));
             }
         }
+        out.push_str(&self.render_vscroll_bars());
         out
     }
 
@@ -1678,11 +1708,17 @@ impl Editor {
 
     fn editor_text_width(&self) -> usize {
         let start = self.editor_start_col();
-        self.cols.saturating_sub(start + self.line_number_gutter_width()).saturating_add(1).max(1)
+        let reserve = usize::from(self.show_editor_vscroll);
+        self.cols.saturating_sub(start + self.line_number_gutter_width() + reserve).saturating_add(1).max(1)
+    }
+
+    fn tree_text_width(&self) -> usize {
+        let width = self.tree_width.max(1);
+        if self.show_tree_vscroll { width.saturating_sub(1).max(1) } else { width }
     }
 
     fn render_tree_line(&self, screen_line: usize) -> String {
-        let width = self.tree_width.max(1);
+        let width = self.tree_text_width();
         let row_idx = self.tree_scroll + screen_line;
         let mut text = String::new();
         if let Some(row) = self.tree_rows.get(row_idx) {
@@ -2006,11 +2042,16 @@ impl Editor {
     }
 
     fn ensure_tree_visible(&mut self) {
-        if self.tree_index < self.tree_scroll {
-            self.tree_scroll = self.tree_index;
-        } else if self.tree_index >= self.tree_scroll + self.content_height {
-            self.tree_scroll = self.tree_index.saturating_sub(self.content_height.saturating_sub(1));
+        let height = self.editor_view_rows().max(1);
+        let max_scroll = self.tree_rows.len().saturating_sub(height);
+        if self.follow_tree {
+            if self.tree_index < self.tree_scroll {
+                self.tree_scroll = self.tree_index;
+            } else if self.tree_index >= self.tree_scroll + height {
+                self.tree_scroll = self.tree_index.saturating_sub(height.saturating_sub(1));
+            }
         }
+        self.tree_scroll = min(self.tree_scroll, max_scroll);
     }
 
     fn ensure_editor_visible(&mut self) {
@@ -2974,6 +3015,25 @@ impl Editor {
     }
 
     fn refresh_hscroll(&mut self) {
+        // A vertical bar steals one column, which can turn the horizontal bar
+        // on, which steals one row, which can turn the vertical bar on.
+        // Two passes settle. Exact fit (`==`) draws no bar.
+        self.show_editor_vscroll = false;
+        self.show_tree_vscroll = false;
+        self.recompute_hscroll();
+        self.recompute_vscroll();
+        self.recompute_hscroll();
+        self.recompute_vscroll();
+        self.recompute_hscroll();
+    }
+
+    fn recompute_vscroll(&mut self) {
+        let view = self.editor_view_rows();
+        self.show_editor_vscroll = self.tab().lines.len() > view;
+        self.show_tree_vscroll = !self.sidebar_hidden && self.tree_rows.len() > view;
+    }
+
+    fn recompute_hscroll(&mut self) {
         let rev = self.tab().revision;
         let max_v = match self.line_width_cache {
             Some((idx, cached_rev, w)) if idx == self.tab_index && cached_rev == rev => w,
@@ -2990,13 +3050,14 @@ impl Editor {
             self.tree_rows.iter().map(|row| row.depth * 2 + 2 + visual_width(&row.name)).max().unwrap_or(0)
         };
         self.tree_max_visual = tree_max;
+        let tree_view = self.tree_text_width().max(1);
         let editor_need = max_v > self.editor_text_width();
-        let tree_need = !self.sidebar_hidden && tree_max > self.tree_width.max(1);
+        let tree_need = !self.sidebar_hidden && tree_max > tree_view;
         self.show_hscroll = editor_need || tree_need;
         if !tree_need {
             self.tree_h_offset = 0;
         }
-        self.tree_h_offset = min(self.tree_h_offset, tree_max.saturating_sub(self.tree_width.max(1)));
+        self.tree_h_offset = min(self.tree_h_offset, tree_max.saturating_sub(tree_view));
     }
 
     fn render_hscroll_bar(&self, x: usize, y: usize, track: usize, view: usize, content: usize, offset: usize) -> String {
@@ -3013,6 +3074,74 @@ impl Editor {
         format!("\x1b[{y};{x}H{style}{cells}\x1b[0m")
     }
 
+    /// Text rows only. The horizontal bar keeps the corner cell.
+    fn vscroll_track(&self) -> usize {
+        let track = self.editor_view_rows();
+        if self.show_hscroll && self.content_height <= track {
+            self.content_height.saturating_sub(1)
+        } else {
+            track
+        }
+    }
+
+    fn vscroll_hit(&self, x: usize, y: usize) -> bool {
+        let track = self.vscroll_track();
+        if track == 0 || y < 4 || y >= 4 + track {
+            return false;
+        }
+        if self.show_tree_vscroll && !self.sidebar_hidden && x == self.tree_width.max(1) {
+            return true;
+        }
+        self.show_editor_vscroll && x == self.cols.max(1)
+    }
+
+    fn render_vscroll_bars(&self) -> String {
+        let track = self.vscroll_track();
+        if track == 0 {
+            return String::new();
+        }
+        let mut out = String::new();
+        if self.show_tree_vscroll {
+            out.push_str(&self.render_vscroll_bar(self.tree_width.max(1), 4, track, self.tree_rows.len(), self.tree_scroll));
+        }
+        if self.show_editor_vscroll {
+            let tab = self.tab();
+            out.push_str(&self.render_vscroll_bar(self.cols.max(1), 4, track, tab.lines.len(), tab.row_offset));
+        }
+        out
+    }
+
+    fn render_vscroll_bar(&self, x: usize, y0: usize, track: usize, content: usize, offset: usize) -> String {
+        let (start, thumb) = scrollbar_thumb(track, track, content, offset);
+        let style = ansi_style(Some(ACCENT), Some(BG_DARK), false, false, false);
+        let mut out = String::new();
+        for i in 0..track {
+            let glyph = if i >= start && i < start + thumb { '┃' } else { '│' };
+            out.push_str(&format!("\x1b[{};{x}H{style}{glyph}\x1b[0m", y0 + i));
+        }
+        out
+    }
+
+    fn handle_vscroll_click(&mut self, x: usize, y: usize) {
+        let track = self.vscroll_track().max(1);
+        let local = y.saturating_sub(4).min(track.saturating_sub(1));
+        let editor = if let Some(which) = self.vscroll_drag {
+            which
+        } else {
+            let on_tree = self.show_tree_vscroll && !self.sidebar_hidden && x == self.tree_width.max(1);
+            !on_tree
+        };
+        self.vscroll_drag = Some(editor);
+        if editor {
+            self.follow_cursor = false;
+            let content = self.tab().lines.len();
+            self.tab_mut().row_offset = scrollbar_offset(track, track, content, local);
+        } else {
+            self.follow_tree = false;
+            self.tree_scroll = scrollbar_offset(track, track, self.tree_rows.len(), local);
+        }
+    }
+
     fn handle_hscroll_click(&mut self, x: usize, _y: usize) {
         self.follow_cursor = false;
         let editor = self.sidebar_hidden || x > self.tree_width.max(1);
@@ -3025,8 +3154,9 @@ impl Editor {
             self.tab_mut().col_offset = scrollbar_offset(track, view, self.editor_max_visual, local);
         } else {
             let track = self.tree_width.max(1);
+            let view = self.tree_text_width().max(1);
             let local = x.saturating_sub(1);
-            self.tree_h_offset = scrollbar_offset(track, track, self.tree_max_visual, local);
+            self.tree_h_offset = scrollbar_offset(track, view, self.tree_max_visual, local);
         }
     }
 
@@ -3045,7 +3175,7 @@ impl Editor {
         } else if delta < 0 {
             self.tree_h_offset = self.tree_h_offset.saturating_sub((-delta) as usize);
         } else {
-            let max_off = self.tree_max_visual.saturating_sub(self.tree_width.max(1));
+            let max_off = self.tree_max_visual.saturating_sub(self.tree_text_width().max(1));
             self.tree_h_offset = min(max_off, self.tree_h_offset + delta as usize);
         }
     }
@@ -4099,6 +4229,7 @@ impl Editor {
         self.needs_tree_refresh = true;
         self.refresh_tree();
         if let Some(idx) = self.tree_rows.iter().position(|r| r.path == path) {
+            self.follow_tree = true;
             self.tree_index = idx;
             self.ensure_tree_visible();
         }
@@ -6398,6 +6529,102 @@ mod tests {
         assert!(visual_at_byte(line, 3) < start + 10);
         assert_eq!(line_as_clipboard(&["a".into(), "b".into()], 0), "a\n");
         assert_eq!(line_as_clipboard(&["a".into(), "b".into()], 1), "b");
+    }
+
+    #[test]
+    fn vertical_scrollbar_only_when_pane_overflows() {
+        let dir = std::env::temp_dir().join(format!("az-vscroll-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("v.txt");
+        std::fs::write(&file, "one\ntwo\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.rows = 24;
+        ed.cols = 80;
+        ed.content_height = 19;
+        ed.tree_width = 28;
+        ed.sidebar_hidden = false;
+        ed.needs_tree_refresh = false;
+        ed.tree_rows = (0..5)
+            .map(|i| TreeRow {
+                path: dir.join(format!("f{i}")),
+                is_dir: false,
+                depth: 1,
+                name: format!("f{i}"),
+            })
+            .collect();
+        ed.refresh_hscroll();
+        assert!(!ed.show_editor_vscroll, "short buffer");
+        assert!(!ed.show_tree_vscroll, "short tree");
+        assert!(!ed.render_content().contains('┃'));
+
+        let view = ed.editor_view_rows();
+        ed.tab_mut().lines = vec!["fit".into(); view];
+        ed.refresh_hscroll();
+        assert!(!ed.show_editor_vscroll, "exact fit");
+
+        ed.tab_mut().lines = (0..80).map(|i| format!("line {i}")).collect();
+        ed.tab_mut().cursor = Pos { line: 0, col: 0 };
+        ed.tab_mut().row_offset = 0;
+        ed.tree_rows = (0..60)
+            .map(|i| TreeRow {
+                path: dir.join(format!("f{i}")),
+                is_dir: false,
+                depth: 1,
+                name: format!("f{i}"),
+            })
+            .collect();
+        ed.tree_index = 0;
+        ed.tree_scroll = 0;
+        ed.follow_cursor = true;
+        ed.follow_tree = true;
+        ed.refresh_hscroll();
+        assert!(ed.show_editor_vscroll);
+        assert!(ed.show_tree_vscroll);
+        let painted = ed.render_content();
+        assert!(painted.contains('┃'));
+        assert!(painted.contains('│'));
+
+        let y = 3 + ed.vscroll_track();
+        ed.handle_key(format!("\x1b[<0;{};{y}M", ed.cols));
+        assert_eq!(ed.tab().cursor.line, 0);
+        assert!(ed.tab().row_offset > 0);
+        assert!(!ed.follow_cursor);
+        let jumped = ed.tab().row_offset;
+        ed.ensure_editor_visible();
+        assert_eq!(ed.tab().row_offset, jumped);
+
+        ed.handle_key(format!("\x1b[<32;{};4M", ed.cols));
+        assert!(ed.tab().row_offset < jumped);
+        assert_eq!(ed.tab().cursor.line, 0);
+        ed.handle_key(format!("\x1b[<0;{};4m", ed.cols));
+        assert!(ed.vscroll_drag.is_none());
+
+        ed.handle_key(format!("\x1b[<0;{};{y}M", ed.tree_width));
+        assert_eq!(ed.tree_index, 0);
+        assert!(ed.tree_scroll > 0);
+        assert!(!ed.follow_tree);
+        let tree_at = ed.tree_scroll;
+        ed.ensure_tree_visible();
+        assert_eq!(ed.tree_scroll, tree_at);
+
+        ed.handle_key(format!("\x1b[<2;{};{y}M", ed.tree_width));
+        assert_eq!(ed.tree_index, 0);
+        assert_eq!(ed.tree_scroll, tree_at);
+
+        ed.sidebar_hidden = true;
+        ed.refresh_hscroll();
+        assert!(!ed.show_tree_vscroll);
+        assert!(ed.show_editor_vscroll);
+
+        ed.tab_mut().lines = vec!["only".into()];
+        ed.tab_mut().row_offset = 5;
+        ed.refresh_hscroll();
+        ed.ensure_editor_visible();
+        assert!(!ed.show_editor_vscroll);
+        assert_eq!(ed.tab().row_offset, 0);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

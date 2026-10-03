@@ -6,7 +6,7 @@
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
 - Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (42 files: 41 languages + `example.rs` skeleton).
-- Build: `cargo check` (fast), `cargo test` (56 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
+- Build: `cargo check` (fast), `cargo test` (57 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -28,8 +28,8 @@ src/main.rs
   enum Focus { Editor, Tree }
   struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write,
                 last_tree_click_time/path, pending_input, pending_update,
-                clipboard_verified, follow_cursor, tree_h_offset, show_hscroll,
-                prompt_history, hscroll_drag }
+                clipboard_verified, follow_cursor, follow_tree, tree_h_offset, show_hscroll,
+                show_editor_vscroll, show_tree_vscroll, prompt_history, hscroll_drag, vscroll_drag }
   impl Editor {
     new(args) / run() / enable_raw_mode() / cleanup()
     read_key(), read_escape(), handle_key(), handle_global_shortcut(),
@@ -62,7 +62,7 @@ Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock).
 
 Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters. Mouse: SGR `1000`+`1002`+`1006` enabled in `enable_raw_mode()`, disabled in `cleanup()`; `read_key()` breaks on `M/m` for `ESC[<…` (or 6-byte `ESC[M` legacy); `handle_key()` routes both via `parse_sgr_mouse()` / `parse_legacy_mouse()` → `handle_mouse()`. Picker loops (quick open, palette, find-in-files, shortcuts) and `context_menu()` scroll selection on wheel.
 
-Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()` (plain prefix is ` az   {mode} `, 7 + mode length; the hit starts on the label). Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) is ±1 per report: tab bar (`y==3`) cycles tabs, sidebar moves `tree_index`, editor sets `follow_cursor = false` and pans `row_offset` (caret and selection stay). Do not put the ±3 step back, and do not move the caret from the wheel. Right-click (`Cb&3==2`) opens `context_menu()`; middle-click (`==1`) on a tab closes via `close_tab_at()` (the `+` button is not a tab). Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start`. Picker dialogs and the search/replace dialog close on a click outside `picker_frame`. Autocomplete: click inside accepts, click outside closes and the click still lands. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status. When `show_hscroll`, the last content row is the shared horizontal bar and `editor_view_rows` is one shorter.
+Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()` (plain prefix is ` az   {mode} `, 7 + mode length; the hit starts on the label). Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) is ±1 per report: tab bar (`y==3`) cycles tabs, sidebar moves `tree_index` and sets `follow_tree = true`, editor sets `follow_cursor = false` and pans `row_offset` (caret and selection stay). Do not put the ±3 step back, and do not move the caret from the wheel. Right-click (`Cb&3==2`) opens `context_menu()`; middle-click (`==1`) on a tab closes via `close_tab_at()` (the `+` button is not a tab). A click on a vertical bar pans that pane and does not open a menu or move the caret. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start`, unless `vscroll_drag` or `hscroll_drag` is set. Picker dialogs and the search/replace dialog close on a click outside `picker_frame`. Autocomplete: click inside accepts, click outside closes and the click still lands. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status. When `show_hscroll`, the last content row is the shared horizontal bar and `editor_view_rows` is one shorter. Vertical bars (`show_editor_vscroll`, `show_tree_vscroll`) occupy the pane's right column on text rows only (`┃` / `│`); the corner stays on the horizontal bar. `refresh_hscroll` recomputes horizontal then vertical twice so a stolen column or row settles. `>` not `>=`. `ensure_tree_visible` uses `editor_view_rows` and honors `follow_tree`.
 
 ## 3. Critical Invariants (do not break)
 
@@ -110,7 +110,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 56 tests (55 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, wrap, dirty-hash, CRLF
+cargo test    # 57 tests (56 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -125,6 +125,9 @@ cargo build --release
 ```
 
 ## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5 + 2.6 + 3.0) — Don't Regress
+
+Unreleased (vertical scrollbars):
+- `show_editor_vscroll` / `show_tree_vscroll` when `lines` or `tree_rows` exceed `editor_view_rows`. Hidden sidebar draws no tree bar. The text column shrinks by one while the bar is up (`editor_text_width`, `tree_text_width`). Drag sets `follow_cursor` or `follow_tree` false. Tree keys, wheel, tree clicks, and `reveal_path_in_tree` set `follow_tree` true. Right-click and middle-click on a bar return before the menu. Do not draw the vertical bar on the horizontal-bar row.
 
 3.0 (viewport, dialogs, tabs, bash rc files, dirty flag, CRLF, scrollbars, clipboard, sudo save, paste):
 - Wheel is one row per report. Editor pans `row_offset` with `follow_cursor = false` (caret and selection stay). Tree moves `tree_index` ±1. Tab-bar wheel calls `cycle_tab`. Do not put the ±3 step back and do not move the caret from the wheel.
@@ -182,7 +185,7 @@ cargo build --release
 ## 8. Known Issues / TODO for Agents
 
 - `revision` stays monotonic. `modified` is `buffer_hash != saved_hash`. Do not “fix” a stale dirty flag by decrementing revision (breaks redo).
-- No word wrap. Horizontal scroll plus a scrollbar row is the current behavior. Real wrap needs `render_editor_line()` + `cursor_screen_position()` + `ensure_editor_visible()` rework (screen-row vs file-line mapping).
+- No word wrap. Horizontal scroll plus a scrollbar row, and a vertical bar when the pane is taller than the viewport, is the current behavior. Real wrap needs `render_editor_line()` + `cursor_screen_position()` + `ensure_editor_visible()` rework (screen-row vs file-line mapping).
 - Quick-open symbols and find-in-files scan a chunk per input wake. The file list is still collected up front (caps unchanged) and can stall once. A background index is future work. Do not add a crate or a thread for it.
 - Recovery separator `---TEXT---\n` collides if filename ends with that string (filenames can't contain `\n`, so risk tiny). Proper fix: length-prefixed body or NUL separator with migration.
 - No splits, no regex — out of scope unless requested. Drag-select already exists (left-drag, double-click word, triple-click line).

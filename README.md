@@ -81,7 +81,7 @@ az --version        # Display current version
 
 * **Titlebar & Tabs:** Features interactive mode chips and a real-time clock. Active tabs are visually distinct, and modified files are marked with an asterisk (`*`). Press `Esc` to reveal `Alt+1-9` tab-switching hints.
 * **Project Tree:** Automatically color-codes files by extension (e.g., PHP is purple, HTML is orange, JS is yellow) for rapid visual parsing.
-* **Editor:** Supports mixed-language syntax highlighting on a single line, visible line numbers, and horizontal scrolling (no word wrap by design).
+* **Editor:** Supports mixed-language syntax highlighting on a single line, visible line numbers, and horizontal and vertical scrolling (no word wrap by design). A bar is drawn only when that pane does not fit.
 * **Status Bar:** Displays file path, modification state, active language, and document statistics. System messages flash light blue for immediate user feedback.
 
 ### Keyboard & Mouse Controls
@@ -135,7 +135,7 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 - Find in files modal (`Ctrl+Shift+O`, also via `Ctrl+P` → `Find in files`)
 - Case-insensitive search by default
 - Case-sensitive search with `%term` (works in both Find and Find in files)
-- Horizontal scroll (no word wrap by design)
+- Horizontal and vertical scroll bars when a pane does not fit (no word wrap by design)
 - UTF-8 input support
 - Tokyo Night inspired interface colors
 - Syntax highlighting through plugins
@@ -156,7 +156,7 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 | Highlight | 42 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
 | Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words, keywords + symbols for the 20 new languages |
 | Safety | Atomic saves, root-password save when the file is not writable, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
-| Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll, horizontal scrollbar when a pane overflows |
+| Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll, horizontal and vertical scrollbars when a pane overflows |
 
 > No word wrap by design — long lines scroll horizontally. No splits or regex.
 
