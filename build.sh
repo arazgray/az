@@ -93,6 +93,46 @@ else
   exit 1
 fi
 
+# sudo searches a fixed secure_path (`/usr/local/bin` is on it, `~/.local/bin`
+# is not). Without this copy, `sudo az` is "command not found".
+install_system_wide() {
+  dest="/usr/local/bin/az"
+  printf '[az build] Installing %s so `sudo az` can find it...\n' "$dest"
+  if [ "$(id -u)" -eq 0 ]; then
+    if cp ./az "$dest" && chmod 755 "$dest"; then
+      printf '[az build] Installed %s\n' "$dest"
+    else
+      echo "[az build] Warning: could not install $dest." >&2
+    fi
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+      home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+      if [ -n "$home" ]; then
+        mkdir -p "$home/.local/bin"
+        cp ./az "$home/.local/bin/az"
+        chmod 755 "$home/.local/bin/az"
+        chown "$SUDO_USER" "$home/.local/bin/az" || true
+        printf '[az build] Also installed %s/.local/bin/az for %s\n' "$home" "$SUDO_USER"
+      fi
+    fi
+    return 0
+  fi
+  if [ -w /usr/local/bin ]; then
+    if cp ./az "$dest" && chmod 755 "$dest"; then
+      printf '[az build] Installed %s\n' "$dest"
+    else
+      echo "[az build] Warning: could not install $dest." >&2
+    fi
+    return 0
+  fi
+  echo "[az build] /usr/local/bin is not writable; sudo is needed once."
+  if sudo cp ./az "$dest" && sudo chmod 755 "$dest"; then
+    printf '[az build] Installed %s\n' "$dest"
+  else
+    echo "[az build] Warning: skipped $dest. \`sudo az\` will not find the command until this copy succeeds." >&2
+    echo "[az build] Re-run ./build.sh and approve the prompt, or: sudo cp ./az /usr/local/bin/az && sudo chmod 755 /usr/local/bin/az" >&2
+  fi
+}
+
 printf '[az build] Step 3/4: Installing binary...\n'
 
 chmod +x ./az
@@ -101,9 +141,12 @@ mkdir -p "$BIN_DIR"
 printf '[az build] Copying ./az to %s...\n' "$TARGET"
 cp ./az "$TARGET"
 chmod +x "$TARGET"
+# A failure to install system-wide must not undo the user install above.
+install_system_wide || echo "[az build] Warning: system-wide install failed." >&2
 printf '[az build] Step 4/4: Ensuring %s is on PATH...\n' "$BIN_DIR"
 add_bin_dir_to_path
 
 printf '[az build] Done.\n'
 printf '[az build] Installed %s\n' "$TARGET"
 printf '[az build] Run it with: az\n'
+printf '[az build] Run it as root with: sudo az\n'

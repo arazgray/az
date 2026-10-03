@@ -51,7 +51,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 - Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), clock — full-width separator below. Tab bar under the separator, above the editor: tabs `1:name`, `*` = modified, inactive tabs shaded lighter; click to switch, middle-click to close.
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, etc.).
 - Gutter: line numbers, min width 4.
-- Status: one chip per item — path, state (`modified`, orange, only when dirty), syntax (purple), tree (cyan) | message (flashes light blue on change) | stats (yellow). Every prompt blinks light blue until answered.
+- Status: one chip per item — path, state (`modified`, orange, only when dirty), syntax (purple), tree (cyan) | message (flashes light blue on change, red on a permission error) | stats (yellow). Prompts blink light blue until answered. The root-password prompt blinks red.
 - No word wrap: long lines scroll horizontally. Cursor stays visible.
 
 ## 4. Keyboard — Complete Map
@@ -73,7 +73,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Ctrl+D` | Close tab (asks if modified) |
 | `Ctrl+Q` | Quit (asks if any tab modified) |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | Undo / Redo |
-| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all (system copy via `wl-copy`/`xclip`/`xsel`/`pbcopy`, else OSC52) |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+A` | Copy / Cut / Paste / Select all (OS clipboard; OSC52 fallback). Paste reads the OS clipboard first |
 | `Ctrl+W` / `Ctrl+Backspace` | Delete current line |
 | `Ctrl+K` | Keyboard shortcuts (searchable dialog, `Enter`/`Esc` closes) |
 | `Ctrl+Shift+O` | Find in files (separate modal, `%term` = case-sensitive) |
@@ -109,7 +109,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Left` / `Right` | Collapse / Expand dir |
 | Double-click file/dir | Rename (never root, refuses existing target) |
 | Click editor | Move cursor there |
-| Wheel over tree/editor | Scroll tree (moves selection) / scroll editor (moves cursor) |
+| Wheel over tree/editor | Scroll one line (tree selection / editor cursor) |
 | `n` / `N` (Shift+N) | New file / New folder in selected dir |
 | `r` / `R` | Rename (never root, refuses existing target) |
 | `Del` | Delete file/folder (asks, closes affected tabs) |
@@ -179,7 +179,7 @@ Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern 
 - Titlebar + tab bar: click a tab to switch (inactive tabs render lighter). Middle-click a tab to close it (asks if modified).
 - Sidebar: click a folder to expand/collapse, click a file to open it. Double-click a file (<500ms, same path) to rename it. The open file's row is highlighted.
 - Editor: click to move the cursor there (gutter click goes to line start; tab/wide chars map correctly). Drag with the button held to select text (selection follows the cursor). Double-click selects the word under the caret, triple-click selects the whole line. Clicking focuses the editor.
-- Wheel: scrolls the sidebar (`tree_index ±3`), the editor (cursor `±3` lines), and picker dialogs/menus (moves selection). Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
+- Wheel: scrolls one line per notch — the sidebar (`tree_index ±1`), the editor (cursor `±1` line), and picker dialogs/menus (moves selection by one). Several reports that arrive together each move one line, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
 - Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
   - Tab: `Close tab`, `Copy file path`.
   - Sidebar: `Open`, `Copy file path`, `Rename`, `Delete`, `Search here`, `Search & Replace here` (each opens its dialog; searches scope to that folder).
@@ -193,13 +193,13 @@ State dir: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust`.
 - `recovery/<hash>.rec`: unsaved buffers, throttled to 1 write/250ms per tab. Deleted on save/close.
 - On launch, `Recover unsaved changes for NAME? y/N` per file. `y` restores as modified tab, `N` deletes recovery.
 
-Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions.
+Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions. If that fails with permission denied, the status line blinks red and asks `Permission denied. Root password:` (characters show as `*`). `Enter` writes the buffer as root via `sudo -S` (the password is sent on stdin, never on the command line). `Esc` or an empty entry cancels. A wrong password blinks the sudo error in red. This does not run when `az` is already root.
 
 ## 7. Copy/Paste
 
-- System copy cascade: `wl-copy` (Wayland) → `xclip`/`xsel` (X11) → `pbcopy` (macOS), then best-effort OSC52 `\x1b]52;c;BASE64\a`. Over SSH, OSC52 goes first (only path to the local clipboard). Status shows `Copied` when a tool confirmed, `Copied (OSC52)` when only the terminal sequence was sent.
-- Internal clipboard always works (`Ctrl+V` pastes even when the terminal ignored OSC52).
-- Bracketed paste (`\x1b[200~ … \x1b[201~`) inserts verbatim (up to 5MB). `Ctrl+V` pastes internal clipboard.
+- System copy cascade: `wl-copy` (Wayland) → `xclip`/`xsel` (X11) → `pbcopy` (macOS) → Wayland `ext-data-control` (no extra tool; a helper process holds the selection until the next copy), then best-effort OSC52 `\x1b]52;c;BASE64\a`. Over SSH, OSC52 goes first (only path to the local clipboard). Status shows `Copied` when a tool or the compositor confirmed, `Copied (OSC52)` when only the terminal sequence was sent.
+- `Ctrl+V` reads the OS clipboard first and pastes that text. If nothing outside is available, it pastes the editor's own clipboard.
+- Bracketed paste (`\x1b[200~ … \x1b[201~`) and a raw burst of text insert in one step (up to 5MB), so a long paste is one undo entry.
 
 ## 8. Troubleshooting
 
@@ -213,7 +213,9 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions.
 | Recovery prompt loop | `~/.local/state/az-rust/recovery/*.rec` — delete stale files if you always answer `N`. |
 | `az file:20` opens file named `file:20` | Fixed in 2.0.1+: colon splits line. Quote paths with spaces. |
 | Narrow terminal (<40 cols) | Picker clamps to `cols-2`, tree min 18. Hide tree (`Ctrl+H` in tree) for more width. |
-| Copy says `Copied` but outside paste is empty | Check the message: plain `Copied` = a clipboard tool confirmed. `Copied (OSC52)` = terminal ignored it (common in Guake/VTE). Install `wl-copy` (Wayland) or `xclip`/`xsel` (X11); in tmux set `set -g set-clipboard on`. |
+| Copy says `Copied` but outside paste is empty | Plain `Copied` means a clipboard tool or the Wayland compositor accepted the text. `Copied (OSC52)` means only the terminal sequence was sent (common miss in Guake/VTE). On Wayland, `az` speaks `ext-data-control` itself when `wl-copy` is not installed. In tmux set `set -g set-clipboard on`. |
+| `sudo az` says command not found | `sudo` does not search `~/.local/bin`. Re-run `./build.sh` and approve the prompt so it can install `/usr/local/bin/az`. |
+| Save says permission denied | The status line blinks red and asks for the root password, then saves with `sudo`. `Esc` cancels. |
 | Mouse clicks/scroll do nothing | Terminal doesn't forward SGR mouse (`1000`/`1002`/`1006`). Try Kitty, WezTerm, Alacritty, or recent GNOME Terminal. Legacy X10 (`ESC[M`) is handled as fallback. Keyboard works everywhere. |
 | Wheel does nothing | Needs content to move (short files / few tree rows won't visibly scroll). Pickers scroll their selection; prompts ignore wheel. |
 

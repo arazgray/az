@@ -1,5 +1,5 @@
 use std::cmp::{max, min};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
@@ -16,6 +16,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 mod plugins;
+mod wayland_clip;
 
 const BG: &str = "#1a1b26";
 const BG_DARK: &str = "#16161e";
@@ -254,12 +255,18 @@ struct Editor {
     mouse_drag_start: Option<(usize, Pos)>,
     last_editor_click: Option<(Instant, Pos, u8)>,
     last_rendered_message: String,
+    message_is_error: bool,
+    rendered_message_is_error: bool,
     status_flash_until: Option<Instant>,
+    pending_input: VecDeque<u8>,
     pending_update: Option<String>,
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    if args.iter().any(|a| a == "--clipboard-hold") {
+        wayland_clip::hold_and_serve();
+    }
     if args.iter().any(|a| a == "--help" || a == "-h") {
         print_help();
         return;
@@ -411,7 +418,10 @@ impl Editor {
             mouse_drag_start: None,
             last_editor_click: None,
             last_rendered_message: String::new(),
+            message_is_error: false,
+            rendered_message_is_error: false,
             status_flash_until: None,
+            pending_input: VecDeque::new(),
             pending_update: None,
         }
     }
@@ -521,78 +531,143 @@ impl Editor {
         }
     }
 
-    fn read_key(&mut self) -> io::Result<Option<String>> {
-        let mut first = [0u8; 1];
-        let n = io::stdin().read(&mut first)?;
+    /// Fill `pending_input` from whatever stdin already has (or one VTIME wait).
+    fn pull_stdin(&mut self) -> io::Result<bool> {
+        let mut buf = [0u8; 8192];
+        let n = io::stdin().read(&mut buf)?;
         if n == 0 {
-            return Ok(None);
+            return Ok(false);
         }
-        let mut bytes = vec![first[0]];
-        if first[0] == 0x1b {
-            let start = Instant::now();
-            loop {
-                let mut buf = [0u8; 64];
-                match io::stdin().read(&mut buf) {
-                    Ok(0) => {
-                        if start.elapsed() > Duration::from_millis(25) { break; }
-                        thread::sleep(Duration::from_millis(1));
-                    }
-                    Ok(n) => {
-                        bytes.extend_from_slice(&buf[..n]);
-                        // Legacy X10 mouse is exactly 6 bytes: ESC [ M Cb Cx Cy.
-                        if bytes.starts_with(b"\x1b[M") && bytes.len() >= 6 {
-                            break;
-                        }
-                        if bytes.ends_with(b"~") || bytes.ends_with(b"u") || bytes.ends_with(b"A") || bytes.ends_with(b"B") || bytes.ends_with(b"C") || bytes.ends_with(b"D") || bytes.ends_with(b"H") || bytes.ends_with(b"F") || bytes.ends_with(b"M") || bytes.ends_with(b"m") {
-                            break;
-                        }
-                        // SGR mouse: ESC [ < Cb ; Cx ; Cy M/m
-                        if (bytes.ends_with(b"M") || bytes.ends_with(b"m")) && bytes.starts_with(b"\x1b[<") {
-                            break;
-                        }
-                        if start.elapsed() > Duration::from_millis(60) { break; }
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
-            if bytes == b"\x1b[200~" {
-                let paste = self.read_bracketed_paste()?;
-                return Ok(Some(format!("\0AZPASTE:{paste}")));
-            }
-            return Ok(Some(String::from_utf8_lossy(&bytes).into_owned()));
-        }
-        if first[0] >= 0xC0 {
-            let want = utf8_sequence_len(first[0]);
-            while bytes.len() < want {
-                let mut b = [0u8; 1];
-                let n = io::stdin().read(&mut b)?;
-                if n == 0 { break; }
-                bytes.push(b[0]);
-            }
-        }
-        Ok(Some(String::from_utf8_lossy(&bytes).into_owned()))
+        self.pending_input.extend(&buf[..n]);
+        Ok(true)
     }
 
-    fn read_bracketed_paste(&mut self) -> io::Result<String> {
-        let mut bytes = Vec::new();
-        let end = b"\x1b[201~";
-        loop {
-            let mut buf = [0u8; 4096];
-            let n = io::stdin().read(&mut buf)?;
-            if n == 0 {
-                thread::sleep(Duration::from_millis(1));
-                continue;
+    fn next_byte(&mut self) -> io::Result<Option<u8>> {
+        if self.pending_input.is_empty() && !self.pull_stdin()? {
+            return Ok(None);
+        }
+        Ok(self.pending_input.pop_front())
+    }
+
+    fn prepend_pending(&mut self, bytes: &[u8]) {
+        for byte in bytes.iter().rev() {
+            self.pending_input.push_front(*byte);
+        }
+    }
+
+    fn read_key(&mut self) -> io::Result<Option<String>> {
+        let Some(first) = self.next_byte()? else {
+            return Ok(None);
+        };
+        if first == 0x1b {
+            return self.read_escape();
+        }
+        let mut bytes = vec![first];
+        if first >= 0xC0 {
+            let want = utf8_sequence_len(first);
+            while bytes.len() < want {
+                match self.next_byte()? {
+                    Some(b) => bytes.push(b),
+                    None => break,
+                }
             }
-            bytes.extend_from_slice(&buf[..n]);
-            if let Some(pos) = find_bytes(&bytes, end) {
-                bytes.truncate(pos);
+        }
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+        if is_fast_paste_byte(first) {
+            self.coalesce_burst(text)
+        } else {
+            Ok(Some(text))
+        }
+    }
+
+    /// A long paste that the terminal did not wrap in bracketed-paste markers
+    /// arrives as a burst of ordinary bytes. Inserting each one redraws the
+    /// screen, which looks like the editor is typing the paste. Once a burst
+    /// is clearly a paste (a newline, or 16+ bytes already waiting), take the
+    /// whole run in one insert.
+    fn coalesce_burst(&mut self, first: String) -> io::Result<Option<String>> {
+        if stdin_pending() {
+            let _ = self.pull_stdin()?;
+        }
+        if !pending_is_paste_burst(&self.pending_input) {
+            return Ok(Some(first));
+        }
+        let mut raw = Vec::new();
+        loop {
+            while self.pending_input.front().copied().is_some_and(is_fast_paste_byte) {
+                raw.push(self.pending_input.pop_front().unwrap());
+            }
+            if self.pending_input.front().is_some() || !stdin_pending() {
                 break;
             }
-            if bytes.len() > 5 * 1024 * 1024 {
+            if !self.pull_stdin()? {
                 break;
             }
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        if raw.is_empty() {
+            return Ok(Some(first));
+        }
+        let mut text = first;
+        text.push_str(&String::from_utf8_lossy(&raw));
+        Ok(Some(format!("\0AZPASTE:{text}")))
+    }
+
+    fn read_escape(&mut self) -> io::Result<Option<String>> {
+        let mut bytes = vec![0x1b];
+        let start = Instant::now();
+        let mut paste_stalls = 0u8;
+        loop {
+            if let Some((body, rest)) = take_bracketed_paste(&bytes) {
+                self.prepend_pending(&rest);
+                let text = String::from_utf8_lossy(&body).into_owned();
+                return Ok(Some(format!("\0AZPASTE:{text}")));
+            }
+            // `\x1b[200~` is a prefix of a bracketed paste even when the body
+            // arrived in the same read. Keep going until the end marker;
+            // the old 60ms escape timeout used to drop the head of a long
+            // paste and then insert the tail one byte at a time.
+            let in_paste = bytes.starts_with(PASTE_START) || PASTE_START.starts_with(&bytes);
+            if bytes.starts_with(PASTE_START) && bytes.len() > 5 * 1024 * 1024 {
+                let text = String::from_utf8_lossy(&bytes[PASTE_START.len()..]).into_owned();
+                return Ok(Some(format!("\0AZPASTE:{text}")));
+            }
+            if !in_paste && escape_sequence_done(&bytes) {
+                return Ok(Some(String::from_utf8_lossy(&bytes).into_owned()));
+            }
+            if !in_paste && bytes.len() > 1 && start.elapsed() > Duration::from_millis(60) {
+                return Ok(Some(String::from_utf8_lossy(&bytes).into_owned()));
+            }
+            if bytes.len() == 1
+                && start.elapsed() > Duration::from_millis(25)
+                && self.pending_input.is_empty()
+                && !stdin_pending()
+            {
+                return Ok(Some("\x1b".to_string()));
+            }
+            if self.pending_input.is_empty() {
+                if !self.pull_stdin()? {
+                    if bytes.starts_with(PASTE_START) {
+                        // `stty time 1` already waited ~100ms. A few quiet
+                        // reads means the terminal never sent the end marker.
+                        paste_stalls += 1;
+                        if paste_stalls >= 3 {
+                            let text = String::from_utf8_lossy(&bytes[PASTE_START.len()..]).into_owned();
+                            return Ok(Some(format!("\0AZPASTE:{text}")));
+                        }
+                        continue;
+                    }
+                    if start.elapsed() > Duration::from_millis(25) {
+                        return Ok(Some(String::from_utf8_lossy(&bytes).into_owned()));
+                    }
+                    thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+            }
+            if let Some(byte) = self.pending_input.pop_front() {
+                paste_stalls = 0;
+                bytes.push(byte);
+            }
+        }
     }
 
     fn handle_key(&mut self, key: String) {
@@ -747,12 +822,12 @@ impl Editor {
         }
         let down = !ev.scroll_up();
         if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
-            let line = self.tree_index as isize + if down { 3 } else { -3 };
+            let line = self.tree_index as isize + if down { 1 } else { -1 };
             self.tree_index = line.clamp(0, self.tree_rows.len().saturating_sub(1) as isize) as usize;
             return;
         }
         self.close_autocomplete();
-        self.move_cursor(if down { 3 } else { -3 }, 0, false);
+        self.move_cursor(if down { 1 } else { -1 }, 0, false);
     }
 
     fn titlebar_button_action(&mut self, col: usize) -> Option<&'static str> {
@@ -1251,6 +1326,8 @@ impl Editor {
         if self.message != self.last_rendered_message {
             self.last_rendered_message = self.message.clone();
             self.status_flash_until = Some(Instant::now() + Duration::from_millis(750));
+            self.rendered_message_is_error = self.message_is_error;
+            self.message_is_error = false;
         }
 
         let mut out = String::new();
@@ -1537,7 +1614,7 @@ impl Editor {
         let stats_text = format!(" {stats} ");
         let stats_w = visual_width(&stats_text);
         let stats_rendered = format!("{}{stats_text}\x1b[0m", ansi_style(Some(BG_DARK), Some(YELLOW), true, false, false));
-        // Fresh messages blink orange (750ms window, ~250ms phases).
+        // Fresh messages blink for 750ms (~250ms phases): red on errors, light blue otherwise.
         let blink_on = match self.status_flash_until {
             Some(t) => {
                 let remaining = t.saturating_duration_since(Instant::now()).as_millis().min(750);
@@ -1545,8 +1622,9 @@ impl Editor {
             }
             None => false,
         };
+        let alert = if self.rendered_message_is_error { RED } else { CYAN };
         let msg_style = if blink_on {
-            ansi_style(Some(BG_DARK), Some(CYAN), true, false, false)
+            ansi_style(Some(BG_DARK), Some(alert), true, false, false)
         } else {
             base.clone()
         };
@@ -1798,17 +1876,7 @@ impl Editor {
         }
         let path = self.tab().path.clone().unwrap();
         let text = self.tab().text();
-        if atomic_write_file(&path, text.as_bytes()).is_ok() {
-            let rev = self.tab().revision;
-            let tab = self.tab_mut();
-            tab.saved_revision = rev;
-            tab.modified = false;
-            self.delete_recovery_for_tab(self.tab());
-            self.needs_tree_refresh = true;
-            self.message = format!("Saved {}", relative_path(&self.root, &path));
-        } else {
-            self.message = "Save failed".to_string();
-        }
+        self.write_tab_file(&path, &text, false);
     }
 
     fn save_current_tab_as(&mut self) {
@@ -1819,27 +1887,70 @@ impl Editor {
         let text = self.tab().text();
         // Write first; only switch tab path on success so a failed save
         // never orphans the original path.
-        if atomic_write_file(&path, text.as_bytes()).is_ok() {
-            let old_path = self.tab().path.clone();
-            let rev = self.tab().revision;
-            {
-                let tab = self.tab_mut();
-                tab.path = Some(path.clone());
+        self.write_tab_file(&path, &text, true);
+    }
+
+    fn write_tab_file(&mut self, path: &Path, text: &str, save_as: bool) {
+        match atomic_write_file(path, text.as_bytes()) {
+            Ok(()) => {
+                self.finish_save(path, save_as);
+                self.message = format!("Saved {}", relative_path(&self.root, path));
+            }
+            Err(err) if err.kind() == io::ErrorKind::PermissionDenied && !current_user_is_root() => {
+                self.save_using_root_password(path, text, save_as);
+            }
+            Err(_) => {
+                self.message = if save_as { "Save as failed".to_string() } else { "Save failed".to_string() };
+            }
+        }
+    }
+
+    fn finish_save(&mut self, path: &Path, save_as: bool) {
+        let old_path = if save_as { self.tab().path.clone() } else { None };
+        let rev = self.tab().revision;
+        {
+            let tab = self.tab_mut();
+            if save_as {
+                tab.path = Some(path.to_path_buf());
                 tab.name = path.file_name().and_then(OsStr::to_str).unwrap_or("Untitled").to_string();
-                tab.saved_revision = rev;
-                tab.modified = false;
             }
-            self.delete_recovery_for_tab(self.tab());
-            if let Some(old) = old_path {
-                if old != path {
-                    self.delete_recovery_file(&old);
-                }
+            tab.saved_revision = rev;
+            tab.modified = false;
+        }
+        self.delete_recovery_for_tab(self.tab());
+        if let Some(old) = old_path {
+            if old.as_path() != path {
+                self.delete_recovery_file(&old);
             }
-            self.needs_tree_refresh = true;
-            self.reveal_path_in_tree(&path);
-            self.message = format!("Saved {}", relative_path(&self.root, &path));
-        } else {
-            self.message = "Save as failed".to_string();
+        }
+        if save_as {
+            self.reveal_path_in_tree(path);
+        }
+        self.needs_tree_refresh = true;
+    }
+
+    /// Permission denied: blink the status line red, ask for the root
+    /// password, and write the buffer with `sudo` once it is accepted.
+    fn save_using_root_password(&mut self, path: &Path, text: &str, save_as: bool) {
+        self.message = "Permission denied".to_string();
+        self.message_is_error = true;
+        let mut password = self.prompt_secret("Permission denied. Root password: ");
+        if password.is_empty() {
+            self.message = "Save cancelled".to_string();
+            self.message_is_error = true;
+            return;
+        }
+        let result = write_file_with_sudo(path, text.as_bytes(), &password);
+        password.clear();
+        match result {
+            Ok(()) => {
+                self.finish_save(path, save_as);
+                self.message = format!("Saved {} as root", relative_path(&self.root, path));
+            }
+            Err(err) => {
+                self.message = format!("Save failed: {err}");
+                self.message_is_error = true;
+            }
         }
     }
 
@@ -2005,18 +2116,23 @@ impl Editor {
             tab.lines[line].insert_str(col, parts[0]);
             return Pos { line, col: col + parts[0].len() };
         }
+        // One allocation. Inserting each line with Vec::insert is quadratic
+        // and made a multi-thousand-line paste feel stuck.
         let original = tab.lines[line].clone();
-        let before = original[..col].to_string();
-        let after = original[col..].to_string();
-        tab.lines[line] = format!("{}{}", before, parts[0]);
-        let mut insert_at = line + 1;
+        let before = &original[..col];
+        let after = &original[col..];
+        let mut new_lines = Vec::with_capacity(tab.lines.len() + parts.len());
+        new_lines.extend(tab.lines[..line].iter().cloned());
+        new_lines.push(format!("{before}{}", parts[0]));
         for mid in &parts[1..parts.len() - 1] {
-            tab.lines.insert(insert_at, (*mid).to_string());
-            insert_at += 1;
+            new_lines.push((*mid).to_string());
         }
-        let last = format!("{}{}", parts.last().unwrap(), after);
-        tab.lines.insert(insert_at, last);
-        Pos { line: insert_at, col: parts.last().unwrap().len() }
+        let last_col = parts.last().unwrap().len();
+        new_lines.push(format!("{}{after}", parts.last().unwrap()));
+        let end_line = line + parts.len() - 1;
+        new_lines.extend(tab.lines[line + 1..].iter().cloned());
+        tab.lines = new_lines;
+        Pos { line: end_line, col: last_col }
     }
 
     fn apply_delete_range(&mut self, mut start: Pos, mut end: Pos) -> String {
@@ -2134,6 +2250,16 @@ impl Editor {
     }
 
     fn paste_clipboard(&mut self) {
+        // Prefer the OS clipboard so a copy made in another app pastes here.
+        // Fall back to the editor buffer when nothing outside is available.
+        if let Some(text) = read_system_clipboard() {
+            if !text.is_empty() {
+                self.clipboard = text.clone();
+                self.insert_text(&text);
+                self.message = "Pasted".to_string();
+                return;
+            }
+        }
         if self.clipboard.is_empty() { self.message = "Clipboard empty".to_string(); return; }
         let text = self.clipboard.clone();
         self.insert_text(&text);
@@ -2152,13 +2278,21 @@ impl Editor {
     /// tool accepted it (verified); otherwise best-effort OSC52 was emitted.
     fn copy_to_system_clipboard(&self, text: &str) -> bool {
         // Over SSH only OSC52 reaches the local machine; try it first there.
+        // A true result means a clipboard tool (or the Wayland protocol)
+        // accepted the text. OSC52 alone is a best-effort fallback.
         let ssh = env::var("SSH_CONNECTION").is_ok() || env::var("SSH_TTY").is_ok();
-        if !ssh && try_clipboard_tool(text) {
+        if ssh {
+            print!("{}", osc52_sequence(text));
+            let _ = io::stdout().flush();
+        }
+        if try_clipboard_tool(text) || wayland_clip::copy(text) {
             return true;
         }
-        print!("{}", osc52_sequence(text));
-        let _ = io::stdout().flush();
-        !ssh || try_clipboard_tool(text)
+        if !ssh {
+            print!("{}", osc52_sequence(text));
+            let _ = io::stdout().flush();
+        }
+        false
     }
 
     fn move_cursor(&mut self, line_delta: isize, col_delta: isize, select: bool) {
@@ -2459,10 +2593,18 @@ impl Editor {
     }
 
     fn prompt(&mut self, label: &str, default: &str) -> String {
+        self.prompt_line(label, default, false, CYAN)
+    }
+
+    fn prompt_secret(&mut self, label: &str) -> String {
+        self.prompt_line(label, "", true, RED)
+    }
+
+    fn prompt_line(&mut self, label: &str, default: &str, secret: bool, alert_color: &str) -> String {
         let mut value = default.to_string();
         // Prompts block awaiting input, so the prompt line blinks until answered.
         let normal = ansi_style(Some(FG), Some(BG_HIGHLIGHT), true, false, false);
-        let alert = ansi_style(Some(BG_DARK), Some(CYAN), true, false, false);
+        let alert = ansi_style(Some(BG_DARK), Some(alert_color), true, false, false);
         let mut phase = false;
         let mut last_toggle = Instant::now();
         let mut drawn_phase = true;
@@ -2478,9 +2620,10 @@ impl Editor {
                 drawn_phase = phase;
                 let _ = self.render();
                 let style = if phase { &alert } else { &normal };
-                let text = format!(" az> {label}{value}");
+                let shown = if secret { "*".repeat(value.chars().count()) } else { value.clone() };
+                let text = format!(" az> {label}{shown}");
                 print!("\x1b[{};1H{}{}\x1b[0m", self.status_line, style, fit_plain(&text, self.cols));
-                let cursor_col = min(self.cols, 6 + label.len() + value.len());
+                let cursor_col = min(self.cols, 6 + label.len() + shown.len());
                 print!("\x1b[{};{}H\x1b[?25h", self.status_line, max(1, cursor_col));
                 let _ = io::stdout().flush();
             }
@@ -3643,7 +3786,88 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let tmp = path.with_file_name(format!(".{}.aztmp.{}", path.file_name().and_then(OsStr::to_str).unwrap_or("file"), std::process::id()));
     fs::write(&tmp, bytes)?;
     if let Ok(meta) = fs::metadata(path) { let _ = fs::set_permissions(&tmp, meta.permissions()); }
-    fs::rename(tmp, path)
+    if let Err(err) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(err);
+    }
+    Ok(())
+}
+
+fn current_user_is_root() -> bool {
+    #[cfg(unix)]
+    {
+        unsafe extern "C" {
+            fn geteuid() -> u32;
+        }
+        unsafe { geteuid() == 0 }
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
+}
+
+/// Write `bytes` to `path` as root. The password is sent on sudo's stdin
+/// (`-S`) and is never placed in argv. Content is staged in a temp file so
+/// a wrong password cannot swallow the document as a second password attempt.
+fn write_file_with_sudo(path: &Path, bytes: &[u8], password: &str) -> Result<(), String> {
+    let tmp = env::temp_dir().join(format!("az-save-{}.tmp", std::process::id()));
+    if let Err(err) = fs::write(&tmp, bytes) {
+        return Err(format!("could not stage save ({err})"));
+    }
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    let spawn = Command::new("sudo")
+        .args([
+            "-k",
+            "-S",
+            "-p",
+            "",
+            "--",
+            "sh",
+            "-c",
+            "mkdir -p -- \"$1\" && cp -f -- \"$2\" \"$3\"",
+            "az-save",
+        ])
+        .arg(parent)
+        .arg(&tmp)
+        .arg(path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn();
+    let mut child = match spawn {
+        Ok(child) => child,
+        Err(err) => {
+            let _ = fs::remove_file(&tmp);
+            return Err(format!("sudo: {err}"));
+        }
+    };
+    let wrote = child.stdin.as_mut().map(|stdin| {
+        stdin.write_all(password.as_bytes()).is_ok() && stdin.write_all(b"\n").is_ok()
+    }).unwrap_or(false);
+    drop(child.stdin.take());
+    let output = child.wait_with_output();
+    let _ = fs::remove_file(&tmp);
+    if !wrote {
+        return Err("could not send password to sudo".to_string());
+    }
+    match output {
+        Ok(out) if out.status.success() => Ok(()),
+        Ok(out) => Err(sudo_failure_message(&out.stderr)),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
+fn sudo_failure_message(stderr: &[u8]) -> String {
+    let text = String::from_utf8_lossy(stderr);
+    let line = text.lines().map(str::trim).find(|line| {
+        let low = line.to_ascii_lowercase();
+        !line.is_empty() && !low.contains("password")
+    });
+    match line {
+        Some(line) => line.chars().take(80).collect(),
+        None => "wrong password".to_string(),
+    }
 }
 
 fn ansi_fg(hex: &str) -> String { let (r, g, b) = rgb(hex); format!("\x1b[38;2;{r};{g};{b}m") }
@@ -4062,7 +4286,64 @@ fn context_menu_geometry(item_count: usize, max_item_w: usize, col: usize, row: 
     (start_col, start_row, width, height)
 }
 
-fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> { haystack.windows(needle.len()).position(|w| w == needle) }
+const PASTE_START: &[u8] = b"\x1b[200~";
+const PASTE_END: &[u8] = b"\x1b[201~";
+
+/// Split a buffer that begins with a bracketed-paste start marker.
+/// `None` when the end marker is not in the buffer yet.
+fn take_bracketed_paste(bytes: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
+    if !bytes.starts_with(PASTE_START) {
+        return None;
+    }
+    let body_and_end = &bytes[PASTE_START.len()..];
+    let pos = find_bytes(body_and_end, PASTE_END)?;
+    let body = body_and_end[..pos].to_vec();
+    let rest = body_and_end[pos + PASTE_END.len()..].to_vec();
+    Some((body, rest))
+}
+
+fn is_fast_paste_byte(byte: u8) -> bool {
+    byte == b'\t' || byte == b'\n' || byte == b'\r' || (byte >= 0x20 && byte != 0x7f)
+}
+
+fn pending_is_paste_burst(pending: &VecDeque<u8>) -> bool {
+    pending.len() >= 16 || pending.iter().any(|byte| *byte == b'\n' || *byte == b'\r')
+}
+
+fn escape_sequence_done(bytes: &[u8]) -> bool {
+    if bytes.starts_with(b"\x1b[M") && bytes.len() >= 6 {
+        return true;
+    }
+    if bytes.len() < 2 {
+        return false;
+    }
+    matches!(bytes[bytes.len() - 1], b'~' | b'u' | b'A' | b'B' | b'C' | b'D' | b'H' | b'F' | b'M' | b'm')
+}
+
+#[cfg(unix)]
+fn stdin_pending() -> bool {
+    #[repr(C)]
+    struct PollFd {
+        fd: c_int,
+        events: i16,
+        revents: i16,
+    }
+    unsafe extern "C" {
+        fn poll(fds: *mut PollFd, nfds: c_ulong, timeout: c_int) -> c_int;
+    }
+    let mut fd = PollFd { fd: io::stdin().as_raw_fd(), events: 1, revents: 0 };
+    unsafe { poll(&mut fd, 1, 0) > 0 }
+}
+
+#[cfg(not(unix))]
+fn stdin_pending() -> bool { false }
+
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|window| window == needle)
+}
 fn remove_last_char(s: &mut String) { if let Some((idx, _)) = s.char_indices().last() { s.truncate(idx); } }
 
 fn pos_gt(a: Pos, b: Pos) -> bool { a.line > b.line || (a.line == b.line && a.col > b.col) }
@@ -4387,6 +4668,42 @@ fn try_clipboard_tool(text: &str) -> bool {
         }
     }
     pipe_to_clipboard_tool("pbcopy", &[], text)
+}
+
+/// Read the OS clipboard. `Some("")` means a tool answered and it was empty.
+/// `None` means no tool could be used; the caller tries the Wayland protocol.
+fn read_clipboard_command(prog: &str, args: &[&str]) -> Option<String> {
+    let out = Command::new(prog)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+fn read_system_clipboard() -> Option<String> {
+    if env::var("WAYLAND_DISPLAY").is_ok() {
+        if let Some(text) = read_clipboard_command("wl-paste", &["-n"]) {
+            return Some(text);
+        }
+    }
+    if env::var("DISPLAY").is_ok() {
+        if let Some(text) = read_clipboard_command("xclip", &["-selection", "clipboard", "-o"]) {
+            return Some(text);
+        }
+        if let Some(text) = read_clipboard_command("xsel", &["--clipboard", "--output"]) {
+            return Some(text);
+        }
+    }
+    if let Some(text) = read_clipboard_command("pbpaste", &[]) {
+        return Some(text);
+    }
+    wayland_clip::paste()
 }
 
 fn simple_hash(data: &[u8]) -> String {
@@ -4957,19 +5274,19 @@ mod tests {
         ed.cols = 80;
         ed.content_height = 19;
         ed.refresh_tree();
-        // Single wheel-down over the editor moves the cursor 3 lines...
+        // One wheel notch moves one line.
         ed.handle_key("\x1b[<65;60;10M".to_string());
-        assert_eq!(ed.tab().cursor.line, 3);
-        // ...and a burst of 3 applies all three steps (previously dropped).
+        assert_eq!(ed.tab().cursor.line, 1);
+        // A burst still applies every event (previously the whole burst was dropped).
         ed.handle_key("\x1b[<65;60;10M\x1b[<65;60;10M\x1b[<65;60;10M".to_string());
-        assert_eq!(ed.tab().cursor.line, 12);
-        // Wheel-up scrolls back.
+        assert_eq!(ed.tab().cursor.line, 4);
+        // Wheel-up scrolls back one line.
         ed.handle_key("\x1b[<64;60;10M".to_string());
-        assert_eq!(ed.tab().cursor.line, 9);
-        // Wheel over the sidebar moves the tree selection.
+        assert_eq!(ed.tab().cursor.line, 3);
+        // Wheel over the sidebar moves the tree selection by one row.
         ed.tree_index = 0;
         ed.handle_key("\x1b[<65;5;10M".to_string());
-        assert_eq!(ed.tree_index, 3);
+        assert_eq!(ed.tree_index, 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -4980,5 +5297,67 @@ mod tests {
         // stdin to end the same way).
         assert!(pipe_to_clipboard_tool("cat", &[], "hello"));
         assert!(!pipe_to_clipboard_tool("az-definitely-missing-tool", &[], "hello"));
+    }
+
+    #[test]
+    fn bracketed_paste_keeps_body_and_trailing_input() {
+        let buf = b"\x1b[200~line1\nline2\x1b[201~\x1b[A";
+        let (body, rest) = take_bracketed_paste(buf).unwrap();
+        assert_eq!(body, b"line1\nline2");
+        assert_eq!(rest, b"\x1b[A");
+        assert!(take_bracketed_paste(b"\x1b[200~partial").is_none());
+        assert!(take_bracketed_paste(b"\x1b[A").is_none());
+    }
+
+    #[test]
+    fn fast_paste_burst_stops_at_escape() {
+        let pending: VecDeque<u8> = b"hello\nworld\x1b[A".iter().copied().collect();
+        assert!(pending_is_paste_burst(&pending));
+        let mut raw = Vec::new();
+        let mut rest = pending;
+        while rest.front().copied().is_some_and(is_fast_paste_byte) {
+            raw.push(rest.pop_front().unwrap());
+        }
+        assert_eq!(raw, b"hello\nworld");
+        assert_eq!(rest.into_iter().collect::<Vec<_>>(), b"\x1b[A");
+    }
+
+    #[test]
+    fn bulk_paste_is_one_undo_step() {
+        let dir = std::env::temp_dir().join("az-paste-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("p.txt");
+        std::fs::write(&file, "").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().to_string()]);
+        ed.handle_key("\0AZPASTE:line1\nline2\nline3".into());
+        assert_eq!(ed.tab().lines, vec!["line1", "line2", "line3"]);
+        assert_eq!(ed.tab().undo.len(), 1);
+        ed.undo();
+        assert_eq!(ed.tab().lines, vec![""]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sudo_failure_hides_password_prompt() {
+        assert_eq!(sudo_failure_message(b"[sudo] password for araz: \n"), "wrong password");
+        assert_eq!(sudo_failure_message(b"sorry, try again\n"), "sorry, try again");
+    }
+
+    #[test]
+    fn readonly_file_is_permission_denied() {
+        let path = std::env::temp_dir().join(format!("az-perm-{}", std::process::id()));
+        std::fs::write(&path, b"x").unwrap();
+        let mut perms = std::fs::metadata(&path).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&path, perms).unwrap();
+        let err = std::fs::write(&path, b"y").unwrap_err();
+        let _ = std::fs::set_permissions(&path, {
+            let mut p = std::fs::metadata(&path).unwrap().permissions();
+            p.set_readonly(false);
+            p
+        });
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
     }
 }

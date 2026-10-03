@@ -1,5 +1,13 @@
 # az — Changelog
 
+## Unreleased
+
+- **Wheel scrolls one line at a time.** Each wheel report moves the editor cursor or the sidebar selection by one row. A burst of reports still applies every report before the next paint.
+- **System clipboard both ways.** `Ctrl+C` / `Ctrl+X` copy to the OS clipboard (`wl-copy`, `xclip`/`xsel`, `pbcopy`, or Wayland `ext-data-control` when those tools are missing). `Ctrl+V` pastes the OS clipboard, and falls back to the editor's own clipboard when nothing outside is available. Status shows `Copied` when a tool or the compositor confirmed, and `Copied (OSC52)` when only the terminal sequence was sent.
+- **`sudo az`.** The installer also copies the binary to `/usr/local/bin/az`. `sudo`'s `secure_path` includes that directory and does not include `~/.local/bin`, which is why `sudo az` was "command not found".
+- **Save when the file is not writable.** A permission error blinks the status message red, asks for the root password (shown as `*`), and writes the buffer with `sudo -S`. The password is sent on stdin and is not put on the command line. Cancel with `Esc`.
+- **Long pastes insert in one step.** Bracketed paste and a raw burst of text are one insert and one undo step, instead of a character-by-character redraw.
+
 ## 2.6
 
 - **20 new language plugins** (42 built in): Python, Java, C#, C++, C, Go, Kotlin, Swift, Ruby, Dart, Scala, R, Lua, Perl, Haskell, Elixir, Clojure, Zig, Julia, Objective-C. Auto-detected by extension/filename (`Gemfile` → Ruby, `.h` → C), switchable via `Ctrl+P` → `set …`. Each brings keywords/types/comments/numbers, call highlighting, symbol extraction + word completion.

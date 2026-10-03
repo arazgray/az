@@ -6,7 +6,7 @@
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
 - Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (42 files: 41 languages + `example.rs` skeleton).
-- Build: `cargo check` (fast), `cargo test` (38 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az`).
+- Build: `cargo check` (fast), `cargo test` (45 unit tests), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -25,10 +25,10 @@ src/main.rs
   struct TreeRow, PickerItem, CompletionItem
   enum Focus { Editor, Tree }
   struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write,
-                last_tree_click_time/path, pending_update }
+                last_tree_click_time/path, pending_input, pending_update }
   impl Editor {
     new(args) / run() / enable_raw_mode() / cleanup()
-    read_key(), read_bracketed_paste(), handle_key(), handle_global_shortcut(),
+    read_key(), read_escape(), handle_key(), handle_global_shortcut(),
     handle_tree_key(), handle_editor_key(), handle_mouse*()
     render(), render_titlebar(), render_topbar_separator(), render_tabbar(), titlebar_button_regions(), render_content(), render_status_separator(), render_status_line(),
     render_popup_box(), render_simple_picker(), render_autocomplete_dropdown()
@@ -51,13 +51,14 @@ src/main.rs
 src/plugins/mod.rs   // facade: from_word/from_path, tree_color, highlight_segments,
                      // completion_context/items, extract_symbols, string utils
   php.rs | html.rs | css.rs | javascript.rs | blade.rs | example.rs
+src/wayland_clip.rs  // ext-data-control clipboard; `az --clipboard-hold` serves a copy
 ```
 
 Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock). `read_terminal_size()` via ioctl then `stty size` then env.
 
 Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters. Mouse: SGR `1000`+`1002`+`1006` enabled in `enable_raw_mode()`, disabled in `cleanup()`; `read_key()` breaks on `M/m` for `ESC[<…` (or 6-byte `ESC[M` legacy); `handle_key()` routes both via `parse_sgr_mouse()` / `parse_legacy_mouse()` → `handle_mouse()`. Picker loops (quick open, palette, find-in-files, shortcuts) and `context_menu()` scroll selection on wheel.
 
-Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()`. Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) scrolls tree by moving `tree_index ±3` or editor by moving cursor `±3` (keeps `ensure_*_visible()` invariants; scroll never changes focus, click sets it). Right-click (`Cb&3==2`) opens `context_menu()` (tab/sidebar/editor items, `context_menu_geometry()` clamps to screen minus status line); middle-click (`==1`) on tab bar closes via `close_tab_at()`. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start` (tab-index guarded); double-click selects `word_range_at()`, triple-click the line. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status.
+Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()`. Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) scrolls tree by moving `tree_index ±1` or editor by moving cursor `±1` (keeps `ensure_*_visible()` invariants; scroll never changes focus, click sets it). Right-click (`Cb&3==2`) opens `context_menu()` (tab/sidebar/editor items, `context_menu_geometry()` clamps to screen minus status line); middle-click (`==1`) on tab bar closes via `close_tab_at()`. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start` (tab-index guarded); double-click selects `word_range_at()`, triple-click the line. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status.
 
 ## 3. Critical Invariants (do not break)
 
@@ -105,7 +106,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 33 tests: cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse
+cargo test    # 45 tests: cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel ±1, paste, sudo message, wayland socketpair
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -127,6 +128,14 @@ cargo build --release
 - Wheel bursts: `read_key()` glues multi-report stdin reads; `handle_key()` now dispatches `parse_mouse_events()` (splits concatenated SGR/legacy reports, ignores trailing partials) instead of parsing the chunk as one event. Never route menu keys through global shortcuts (unchanged).
 - Clipboard deadlock: `pipe_to_clipboard_tool()` drops stdin before `wait()` — tools read stdin to EOF, so waiting first hung the editor. Tests: `cat`-based EOF test (hangs pre-fix, passes post-fix).
 - Tests: 38 total (new: mouse-burst splitting, end-to-end wheel scrolling, clipboard-pipe EOF, remote-version parsing + comparison).
+
+Unreleased (wheel step, OS clipboard, sudo save, fast paste):
+- Wheel is one row per report (`handle_mouse_wheel` ±1). Do not put the ±3 step back.
+- Clipboard write order: SSH prints OSC52 first; then `try_clipboard_tool()`, then `wayland_clip::copy()`. Local tries tools, then Wayland, then OSC52. True means a tool or Wayland confirmed. `wayland_clip` speaks `ext-data-control-v1` with no crates. `copy` re-execs `az --clipboard-hold` (handled in `main` before the editor) so the selection stays alive. `Ctrl+V` uses `read_system_clipboard()` first.
+- `./build.sh` `install_system_wide` copies `/usr/local/bin/az` (directly when root or the dir is writable, otherwise `sudo cp`). Failure must not fail the `~/.local/bin` install. `sudo` `secure_path` does not include `~/.local/bin`.
+- Permission-denied save (`ErrorKind::PermissionDenied`, and not already root): status blinks red (`message_is_error`), `prompt_secret` (RED, `*` masking), then `write_file_with_sudo` (`sudo -k -S -p ''`, password + newline on stdin only, payload staged in a temp file). Other status flashes stay cyan.
+- Paste: `read_escape` treats `\x1b[200~` as a paste prefix and reads through `\x1b[201~` (5MB cap, stall gives up after a few quiet reads). `coalesce_burst` turns an already-buffered run (newline/CR, or 16+ bytes) into one `\0AZPASTE:` insert. `apply_insert_at` rebuilds the line vec once for multi-line text.
+- Tests: 45, plus an ignored Wayland roundtrip (`wayland_clipboard_roundtrip`) that restores the previous clipboard.
 
 2.5 (replace-all + context menus + chrome):
 - Replace in Files is `Ctrl+Shift+H` only (`is_ctrl_shift_h`); caps: 3000 files, 5MB, 10k matches. Open modified tabs are skipped (never clobber unsaved buffers); reloaded tabs get `undo/redo` cleared (positions refer to old content).

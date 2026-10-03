@@ -13,14 +13,14 @@ Docs: [`USER_MANUAL.md`](USER_MANUAL.md) (full usage + troubleshooting) · [`CHA
 curl -fsSL https://raw.githubusercontent.com/arazgray/az/refs/heads/main/install.sh | sh
 ```
 
-The same script installs fresh and upgrades in place (re-clones, rebuilds, reinstalls to `~/.local/bin/az`). On every launch `az` also checks GitHub for a newer release and shows an upgrade notice with this command when one exists (skipped offline; `AZ_NO_UPDATE_CHECK=1` opts out).
+The same script installs fresh and upgrades in place (re-clones, rebuilds, reinstalls to `~/.local/bin/az` and `/usr/local/bin/az`). On every launch `az` also checks GitHub for a newer release and shows an upgrade notice with this command when one exists (skipped offline; `AZ_NO_UPDATE_CHECK=1` opts out). `sudo` does not search `~/.local/bin`, so `sudo az` uses the `/usr/local/bin/az` copy. If that directory is not writable, the installer asks for your password once.
 
 ---
 
 ## Quick start
 
 ```sh
-./build.sh          # builds release + installs to ~/.local/bin/az
+./build.sh          # release build; installs ~/.local/bin/az and /usr/local/bin/az
 az --help
 az file.php         # open file
 az project/         # open folder
@@ -115,11 +115,11 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 |------|---------|
 | Open | Files, folders, `file:line`, `:line`, non-existent → new tab |
 | Navigate | Tree, quick open (fuzzy file + symbol), find in files, go-to-line/start/end, `Alt+1-9` |
-| Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OSC52), select-all, delete-line |
+| Edit | Undo/redo (400), auto-indent, `()` `{}` close, `<div>` → `</div>`, copy/cut/paste (OS clipboard, OSC52 fallback), select-all, delete-line |
 | Search | Find in file + Find in files modal (`Ctrl+Shift+O`), case-insensitive default, `%term` sensitive, wrap notice, replace one/all (undoable) |
 | Highlight | 42 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
 | Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words, keywords + symbols for the 20 new languages |
-| Safety | Atomic saves, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
+| Safety | Atomic saves, root-password save when the file is not writable, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
 | Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll |
 
 > No word wrap by design — long lines scroll horizontally. No splits or regex.
