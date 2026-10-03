@@ -39,6 +39,7 @@ const ORANGE: &str = "#ff9e64";
 const YELLOW: &str = "#e0af68";
 const RED: &str = "#f7768e";
 const ACCENT: &str = BLUE;
+const QUIT_LABEL: &str = " X Quit ";
 const HISTORY_LIMIT: usize = 400;
 const QUICK_OPEN_LIMIT: usize = 2500;
 const PROJECT_SEARCH_LIMIT: usize = 80;
@@ -895,6 +896,7 @@ impl Editor {
                 match action {
                     "quick-open" => self.quick_open(),
                     "commands" => self.command_palette(),
+                    "quit" => self.confirm_quit(),
                     _ => self.shortcuts_dialog(),
                 }
             }
@@ -1544,7 +1546,9 @@ impl Editor {
 
     fn titlebar_button_regions(&mut self) -> Vec<(&'static str, &'static str, usize, usize)> {
         let defs = [(" Open ", "quick-open"), (" Commands ", "commands"), (" Shortcuts ", "shortcuts")];
-        let right_w = visual_width(&format!(" {} ", self.clock_text()));
+        let clock_w = visual_width(&format!(" {} ", self.clock_text()));
+        let quit_w = visual_width(QUIT_LABEL);
+        let right_w = clock_w + quit_w;
         let mut out = Vec::new();
         let mut x = 4 + 1 + self.focus_label().len() + 2 + 1;
         for (label, action) in defs {
@@ -1554,6 +1558,10 @@ impl Editor {
             out.push((label, action, x + 1, x + label.len()));
             x += 1 + label.len();
         }
+        if self.cols > right_w {
+            let start = self.cols.saturating_sub(right_w) + 1;
+            out.push((QUIT_LABEL, "quit", start, start + quit_w - 1));
+        }
         out
     }
 
@@ -1562,17 +1570,21 @@ impl Editor {
         let chip = ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false);
         let mode_chip = ansi_style(Some(ACCENT), Some(BG_HIGHLIGHT), true, false, false);
         let button = ansi_style(Some(ACCENT), Some(BG_FLOAT), false, false, false);
+        let quit_style = ansi_style(Some(BG_DARK), Some(ORANGE), true, false, false);
         let right = format!(" {} ", self.clock_text());
-        let right_w = visual_width(&right);
+        let right_w = visual_width(&right) + visual_width(QUIT_LABEL);
         let mode = self.focus_label();
         let mut out = format!("\x1b[1;1H{chip} az {style} {mode_chip} {mode} ");
         let mut used = 4 + 1 + mode.len() + 2;
-        for (label, _, _, _) in self.titlebar_button_regions() {
+        for (label, action, _, _) in self.titlebar_button_regions() {
+            if action == "quit" {
+                continue;
+            }
             out.push_str(&format!("{style} {button}{label}"));
             used += 1 + label.len();
         }
         let mid = " ".repeat(self.cols.saturating_sub(used + right_w));
-        out.push_str(&format!("{style}{mid}{right}\x1b[0m"));
+        out.push_str(&format!("{style}{mid}{quit_style}{QUIT_LABEL}\x1b[0m{style}{right}\x1b[0m"));
         out
     }
 
@@ -3778,7 +3790,7 @@ impl Editor {
             ("Toggle sidebar", "Ctrl+H", "toggle-tree"),
             ("Focus tree/editor", "Ctrl+T", "focus-tree"),
             ("Close tab", "Ctrl+D", "close-tab"),
-            ("Demo mode", "show welcome, command palette, quick open", "demo-mode"),
+            ("UI showcase for screenshots", "random palette / search-replace / shortcuts", "screenshot-showcase"),
             ("Keyboard shortcuts", "searchable list (Ctrl+K)", "help"),
             ("Quit", "Ctrl+Q", "quit"),
         ];
@@ -3860,7 +3872,7 @@ impl Editor {
             "toggle-tree" => self.toggle_sidebar(),
             "focus-tree" => self.toggle_tree_focus(),
             "close-tab" => self.close_current_tab(),
-            "demo-mode" => self.show_demo_mode(),
+            "screenshot-showcase" => self.show_screenshot_showcase(),
             "help" => self.shortcuts_dialog(),
             "quit" => self.confirm_quit(),
             _ => self.message = "Unknown command".to_string(),
@@ -4269,36 +4281,63 @@ impl Editor {
         self.close_autocomplete();
     }
 
-    fn show_demo_mode(&mut self) {
-        let _ = self.render();
-        let width = max(28, self.cols / 3);
-        let height = max(8, self.rows / 2);
-        let quick = vec!["main.rs".to_string(), "src/editor.rs".to_string(), "README.md".to_string(), "app.php  #function run".to_string()];
-        let cmd = vec!["Save                   Ctrl+S".to_string(), "Set syntax PHP         force current tab".to_string(), "Project search         find text in files".to_string(), "Shortcuts              Ctrl+K".to_string()];
-        let welcome = vec!["   __ _ ____".to_string(), "  / _` |_  /".to_string(), " | (_| |/ / ".to_string(), r"  \__,_/___|".to_string(), "Ctrl+O Quick open".to_string(), "Ctrl+P Command palette".to_string(), "Ctrl+T Tree/editor".to_string()];
-        self.render_demo_tile(2, 2, width, height, "Welcome", &welcome, None, &[0,1,2,3]);
-        self.render_demo_tile(2, 4 + width, width, height, "Quick Open", &quick, Some(0), &[]);
-        self.render_demo_tile(2, 6 + width * 2, self.cols.saturating_sub(7 + width * 2), height, "Command Palette", &cmd, Some(0), &[]);
-        let _ = self.read_key_blocking();
-        self.message = "Demo closed".to_string();
+    /// Random-placed previews of the real dialogs so screenshots look alive.
+    /// Any key reshuffles the layout, Esc closes.
+    fn show_screenshot_showcase(&mut self) {
+        let mut rng = screenshot_seed();
+        loop {
+            let _ = self.render();
+            let palette: Vec<String> = self.command_items().iter().take(6)
+                .map(|i| format!("{}  {}", i.label, i.detail))
+                .collect();
+            let search = vec![
+                " Path     .".to_string(),
+                " Find     foo".to_string(),
+                " Replace  bar".to_string(),
+                " 3 matches".to_string(),
+                " Replace    Cancel".to_string(),
+            ];
+            let shortcuts: Vec<String> = shortcut_defs().iter().take(6)
+                .map(|(k, d)| format!("{k}  {d}"))
+                .collect();
+            let mut out = String::new();
+            out.push_str(&self.render_showcase_box(&mut rng, " Command Palette ", &palette, Some(0)));
+            out.push_str(&self.render_showcase_box(&mut rng, " Search & Replace ", &search, None));
+            out.push_str(&self.render_showcase_box(&mut rng, " Keyboard Shortcuts ", &shortcuts, Some(1)));
+            print!("{out}");
+            let _ = io::stdout().flush();
+            self.message = "Showcase: any key reshuffles, Esc closes".to_string();
+            match self.read_key_blocking() {
+                Ok(k) if k == "\x1b" => {
+                    self.message = "Showcase closed".to_string();
+                    return;
+                }
+                Err(_) => {
+                    self.message = "Showcase closed".to_string();
+                    return;
+                }
+                _ => {}
+            }
+        }
     }
 
-    fn render_demo_tile(&self, row: usize, col: usize, width: usize, height: usize, title: &str, lines: &[String], selected: Option<usize>, logo_lines: &[usize]) {
-        if width < 8 || height < 4 || col > self.cols { return; }
+    fn render_showcase_box(&self, rng: &mut u64, title: &str, lines: &[String], selected: Option<usize>) -> String {
+        let width = min(46, self.cols.saturating_sub(2)).max(20);
+        let height = min(lines.len() + 3, self.rows.saturating_sub(4)).max(5);
+        let body = &lines[..min(lines.len(), height.saturating_sub(3))];
+        let (col, row) = showcase_box_pos(screenshot_next(rng), self.cols, self.rows, width, height);
         let inner = width.saturating_sub(2);
         let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
         let mut out = String::new();
         out.push_str(&format!("\x1b[{row};{col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         out.push_str(&format!("\x1b[{};{col}H{border}║\x1b[0m{}{}\x1b[0m{border}║\x1b[0m", row + 1, ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false), fit_plain(title, inner)));
-        for i in 0..height.saturating_sub(3) {
+        for (i, text) in body.iter().enumerate() {
             let r = row + 2 + i;
-            let text = lines.get(i).map(String::as_str).unwrap_or("");
-            let style = if selected == Some(i) { ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false) } else if logo_lines.contains(&i) { ansi_style(Some(ORANGE), Some(BG_FLOAT), true, false, false) } else { ansi_style(Some(FG), Some(BG_FLOAT), false, false, false) };
+            let style = if selected == Some(i) { ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false) } else { ansi_style(Some(FG), Some(BG_FLOAT), false, false, false) };
             out.push_str(&format!("\x1b[{r};{col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(text, inner)));
         }
         out.push_str(&format!("\x1b[{};{col}H{border}╚{}╝\x1b[0m", row + height - 1, "═".repeat(inner)));
-        print!("{out}");
-        let _ = io::stdout().flush();
+        out
     }
 
     fn handle_autocomplete_key(&mut self, key: &str) -> bool {
@@ -4711,19 +4750,19 @@ fn sudo_failure_message(stderr: &[u8]) -> String {
 fn ansi_fg(hex: &str) -> String { let (r, g, b) = rgb(hex); format!("\x1b[38;2;{r};{g};{b}m") }
 fn ansi_bg(hex: &str) -> String { let (r, g, b) = rgb(hex); format!("\x1b[48;2;{r};{g};{b}m") }
 
-/// Welcome logo: `az` block letters with the ttfx `highlight` final gradient
-/// (Tokyo Night stops). Generated offline with ttfx — do not hand-edit.
+/// Welcome logo: block `az` mark (user-supplied art).
 /// Each row is (styled text, plain visual width); rows are ragged, pad per row.
-const TTFX_LOGO_WIDTH: usize = 15;
+const TTFX_LOGO_WIDTH: usize = 23;
 
 fn ttfx_logo() -> Vec<(String, usize)> {
     vec![
-        ("\x1b[38;2;255;255;255m  ████   ██████".to_string(), 15),
-        ("\x1b[38;2;221;243;255m █    █       █".to_string(), 15),
-        ("\x1b[38;2;173;225;255m ██████      █".to_string(), 14),
-        ("\x1b[38;2;125;207;255m      █     █".to_string(), 13),
-        ("\x1b[38;2;122;187;252m █    █    █".to_string(), 12),
-        ("\x1b[38;2;122;172;249m  ████   ██████".to_string(), 15),
+        ("\x1b[38;2;255;255;255m▄▀▀▀▀▀▀▀▄  █▀▀▀▀▀▀▀▀▄".to_string(), 21),
+        ("\x1b[38;2;225;245;255m█   ▄▄▄   █ █▄▄▄▄▄▄   █".to_string(), 23),
+        ("\x1b[38;2;185;228;255m█  █   █  █    ▄▄▄▄▀  ▄".to_string(), 23),
+        ("\x1b[38;2;145;210;255m▀  ▀▄▄▄█  ▄  ▄▀     ▄▀".to_string(), 22),
+        ("\x1b[38;2;125;195;252m█         █ ▀  ▄▀▀▀▀".to_string(), 20),
+        ("\x1b[38;2;122;175;250m█  █▀▀▀█  █ █   ▀▀▀▀▀▀█".to_string(), 23),
+        ("\x1b[38;2;122;160;247m█▄▄█   █▄▄█  ▀▄▄▄▄▄▄▄▄█".to_string(), 23),
     ]
 }
 fn ansi_style(fg: Option<&str>, bg: Option<&str>, bold: bool, dim: bool, underline: bool) -> String {
@@ -5360,6 +5399,30 @@ fn picker_frame(cols: usize, rows: usize) -> PickerFrame {
     let start_col = max(1, (cols.saturating_sub(width)) / 2 + 1);
     let start_row = max(2, (rows.saturating_sub(height)) / 2 + 1);
     PickerFrame { start_col, start_row, width, height, list_rows }
+}
+
+/// Std-only PRNG for the screenshot showcase (no crates).
+fn screenshot_seed() -> u64 {
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.subsec_nanos() as u64).unwrap_or(0x9e37);
+    nanos ^ ((std::process::id() as u64).wrapping_mul(0x9e3779b97f4a7c15))
+}
+
+fn screenshot_next(state: &mut u64) -> u64 {
+    *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    (*state >> 33) ^ *state
+}
+
+/// Random 1-based box origin clamped inside the viewport.
+/// Keeps rows 1-3 (titlebar/tabs) and the status line clear.
+fn showcase_box_pos(rand_val: u64, cols: usize, rows: usize, width: usize, height: usize) -> (usize, usize) {
+    let w = width.min(cols.saturating_sub(2).max(1)).max(1);
+    let h = height.min(rows.saturating_sub(4).max(1)).max(1);
+    let max_col = cols.saturating_sub(w).max(1);
+    let top = 4usize;
+    let max_row = rows.saturating_sub(1).saturating_sub(h).max(top);
+    let col = (rand_val as usize % max_col.max(1)) + 1;
+    let row = top + ((rand_val >> 16) as usize % (max_row.saturating_sub(top) + 1).max(1));
+    (col.min(max_col).max(1), row.min(max_row).max(top))
 }
 
 enum PickerMouse {
@@ -6636,6 +6699,42 @@ mod tests {
         assert_eq!(x, prefix.len() + 1);
         let label = " Open ";
         assert_eq!((x + 1)..=(x + label.len()), (prefix.len() + 2)..=(prefix.len() + 1 + label.len()));
+    }
+
+    #[test]
+    fn titlebar_quit_button_sits_left_of_clock() {
+        let dir = std::env::temp_dir().join(format!("az-quitbtn-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("q.txt");
+        std::fs::write(&file, "x").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 80;
+        ed.rows = 24;
+        let regions = ed.titlebar_button_regions();
+        let quit = regions.iter().find(|(_, a, _, _)| *a == "quit").expect("quit region");
+        assert_eq!(quit.0, QUIT_LABEL);
+        let clock_w = visual_width(&format!(" {} ", ed.clock_text()));
+        assert_eq!(quit.2, 80 - (clock_w + visual_width(QUIT_LABEL)) + 1);
+        assert_eq!(quit.3, 80 - clock_w);
+        assert_eq!(ed.titlebar_button_action(quit.2), Some("quit"));
+        assert_eq!(ed.titlebar_button_action(80), None);
+        let bar = ed.render_titlebar();
+        assert!(bar.contains(QUIT_LABEL));
+        assert!(bar.contains("48;2;255;158;100"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn showcase_box_stays_in_viewport() {
+        for seed in [0u64, 1, 42, 0xdeadbeef, u64::MAX] {
+            let (col, row) = showcase_box_pos(seed, 80, 24, 46, 9);
+            assert!(col >= 1 && col + 46 - 1 <= 80, "col {col}");
+            assert!(row >= 4 && row + 9 - 1 <= 23, "row {row}");
+        }
+        let (col, row) = showcase_box_pos(7, 30, 12, 46, 20);
+        assert!(col >= 1 && col <= 30);
+        assert!(row >= 4 && row <= 11);
     }
 
     #[test]

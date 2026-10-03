@@ -48,7 +48,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
   └ popups: welcome, shortcuts (Ctrl+K), quick open (Ctrl+O), palette (Ctrl+P) ┘
 ```
 
-- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
+- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), orange `X Quit` button left of the clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.).
 - Gutter: line numbers, min width 4.
 - Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the tree chip, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
@@ -136,7 +136,7 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Demo mode, Keyboard shortcuts, Quit`. Type `set php` to force language.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, UI showcase for screenshots, Keyboard shortcuts, Quit`. Type `set php` to force language.
 
 ### Find / Replace
 `Ctrl+F` (find field), `Ctrl+R` (replace field), and `Ctrl+Shift+H` (project path) open the same dialog:
