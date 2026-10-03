@@ -54,7 +54,6 @@ az newfile.txt      # Initialize a new file in a new tab
 az --help           # Display help and usage options
 az --version        # Display current version
 
->>>>>>> refs/remotes/origin/main
 ```
 
 ---
@@ -108,7 +107,6 @@ az --version        # Display current version
 
 ## Core Capabilities
 
-<<<<<<< HEAD
 For quick edits, small projects, server work, focused writing, and terminal code changes.
 No config drama, no plugins to install. Keyboard-first, mouse supported for click/drag/scroll.
 
@@ -205,7 +203,6 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 * **Intelligent Completion:** Press `Tab` for context-aware completions, including language-specific variables, tags, attributes, keywords, and structural symbols.
 * **Data Safety:** Utilizes atomic saves, per-project session restoration, and throttled background recovery (saved to `$XDG_STATE_HOME/az-rust`).
 * **Terminal Native:** Raw-mode `stty` integration, 5MB bracketed paste support, truecolor rendering, wide-character awareness, and clean terminal state restoration on exit.
->>>>>>> refs/remotes/origin/main
 
 ---
 
@@ -302,7 +299,6 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 | **Julia** | `*.jl` | Keywords, types, `function`/`struct`/`macro` symbols |
 | **Objective-C** | `*.m`, `*.mm` | Keywords, types, `#import`, `@directives`, method symbols |
 | **Plain Text** | `*.txt` | Fallback mode. No highlighting, always available. |
->>>>>>> refs/remotes/origin/main
 
 **Extending Languages via AI:**
 `az` includes an [AI Agent Guide](AGENTS.md) that teaches LLM coding assistants the plugin API, architecture, and testing requirements. To add a new language, instruct your AI to scaffold the language implementation (`src/plugins/x.rs`), wire the routing, and add regression tests following the [Plugin Guide](https://www.google.com/search?q=PLUGIN_GUIDE.md).
