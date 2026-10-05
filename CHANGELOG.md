@@ -1,5 +1,12 @@
 # az — Changelog
 
+## 4.0
+
+- **Word wrap (`Alt+Z`).** Soft-folds long lines onto the next screen row (palette `Toggle word wrap`, editor right-click, status `wrap` chip). While on, the horizontal scrollbar hides and `col_offset` stays at 0. Continuation rows show a blank gutter. Click, caret, vertical scrollbar, and viewport follow the folds; `Up/Down` still move by file line.
+- **RTL mode switch (`Alt+R`).** Palette `Enable/Disable RTL Mode`, editor right-click, status `rtl` chip. RTL right-aligns editor text inside an RTL isolate (`RLI…PDI`) and mirrors the caret/click mapping; the context menu is right-aligned too. Tree, gutter, dialogs, and row framing stay LTR. All dialog/menu rows are `LRI`-isolated so bidi terminals cannot merge them with RTL text.
+- **Prebuilt packages.** `install.sh` now installs the ready package for your OS (`.deb` on Debian/Ubuntu, `.exe` on Windows) with `logo.png` icons; the old build-from-source flow moved to `compile-and-install.sh`. Release tarballs live under `dist/`.
+- **Tests**: 70 total (66 run, 1 ignored Wayland roundtrip + new wrap/RTL/binding tests).
+
 ## 3.2
 
 General stability and performance improvements and bug fixes.

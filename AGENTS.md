@@ -1,4 +1,4 @@
-# AGENTS.md — AI Agent Guide for `az` 3.2
+# AGENTS.md — AI Agent Guide for `az` 4.0
 
 > Read this before editing. `az` is a single-binary Rust TUI editor (zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
@@ -6,7 +6,7 @@
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
 - Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (43 files: 41 languages + `plain.rs` + `example.rs` skeleton). Plain (`.txt` and the fallback) colors ASCII punctuation and stripes rows with `BG` / `BG_FLOAT`. Other modes stay on `BG`.
-- Build: `cargo check` (fast), `cargo test` (63 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
+- Build: `cargo check` (fast), `cargo test` (67 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -29,7 +29,8 @@ src/main.rs
   struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write,
                 last_tree_click_time/path, pending_input, pending_update,
                 clipboard_verified, follow_cursor, follow_tree, tree_h_offset, show_hscroll,
-                show_editor_vscroll, show_tree_vscroll, prompt_history, hscroll_drag, vscroll_drag }
+                show_editor_vscroll, show_tree_vscroll, prompt_history, hscroll_drag, vscroll_drag,
+                word_wrap, rtl }
   impl Editor {
     new(args) / run() / enable_raw_mode() / cleanup()
     read_key(), read_escape(), handle_key(), handle_global_shortcut(),
@@ -50,6 +51,8 @@ src/main.rs
            quick_score(), base64_encode(), escape/unescape_state(), ...
            MouseEvent, parse_sgr_mouse() // SGR `ESC[<Cb;Cx;CyM/m`, 1-indexed
            editor_click_col(), tab_hit_index(), context_menu_geometry()
+           wrap_segments(), wrap_segment_index(), wrapped_row_count(),
+           is_alt_z(), is_alt_r()
            REPLACE_MATCH_LIMIT=10_000, BG_TAB (#3a405c, inactive tabs)
 
 src/plugins/mod.rs   // facade: from_word/from_path, tree_color, highlight_segments,
@@ -58,7 +61,7 @@ src/plugins/mod.rs   // facade: from_word/from_path, tree_color, highlight_segme
 src/wayland_clip.rs  // ext-data-control clipboard; `az --clipboard-hold` serves a copy
 ```
 
-Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock). `read_terminal_size()` via ioctl then `stty size` then env. Each content row starts with LRM, and the tree, gutter, and editor text are bidi isolates. An RTL line on a row with no tree filename must not mirror into the sidebar.
+Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock). `read_terminal_size()` via ioctl then `stty size` then env. Each content row starts with LRM, and the tree, gutter, and editor text are bidi isolates. An RTL line on a row with no tree filename must not mirror into the sidebar. Word wrap (`word_wrap`) folds via `wrap_segments()` into `render_content_wrapped()`; RTL (`rtl`) right-aligns in `RLI...PDI` with mirrored caret/click.
 
 Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters. Mouse: SGR `1000`+`1002`+`1006` enabled in `enable_raw_mode()`, disabled in `cleanup()`; `read_key()` breaks on `M/m` for `ESC[<…` (or 6-byte `ESC[M` legacy); `handle_key()` routes both via `parse_sgr_mouse()` / `parse_legacy_mouse()` → `handle_mouse()`. Picker loops (quick open, palette, find-in-files, shortcuts) and `context_menu()` scroll selection on wheel.
 
@@ -110,7 +113,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 63 tests (62 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF, welcome logo, dialog chrome, plain stripes, rtl tree isolate
+cargo test    # 67 tests (66 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF, welcome logo, dialog chrome, plain stripes, rtl tree isolate, wrap/rtl toggles + rendering
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -124,7 +127,12 @@ Manual smoke (no PTY in CI):
 cargo build --release
 ```
 
-## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5 + 2.6 + 3.0) — Don't Regress
+## 7. Bugs Fixed (2.0.1 + 2.1 + 2.2 + 2.5 + 2.6 + 3.0 + 4.0) — Don't Regress
+
+4.0 (word wrap + RTL):
+- `word_wrap` / `rtl` are global `Editor` bools (`Alt+Z` / `Alt+R`, palette `toggle-wrap` / `toggle-rtl`, editor context menu, status `wrap`/`rtl` chips). Wrap uses `wrap_segments()` + `render_content_wrapped()`; `col_offset` forced to 0 and `editor_need=false` while on. RTL uses `BIDI_RLI` + right-align in `render_editor_slice()` with mirrored caret/click. Row `LRM` prefix and tree/gutter `LRI` stay LTR.
+- `cursor_screen_position()` / `click_to_pos()` / `ensure_editor_visible()` / vscroll / wheel all branch on `word_wrap` + `rtl`. `row_offset` stays a file line. Do not regress non-wrap LTR paths.
+- Overlay rows (context menu, popup/picker/search/replace/find dialogs, autocomplete) wrap content in `BIDI_FSI...BIDI_PDI`. Unisolated overlay chrome over RTL editor text gets bidi-merged by the terminal (garbled menu). Borders stay outside the isolate.
 
 Unreleased (vertical scrollbars):
 - `show_editor_vscroll` / `show_tree_vscroll` when `lines` or `tree_rows` exceed `editor_view_rows`. Hidden sidebar draws no tree bar. The text column shrinks by one while the bar is up (`editor_text_width`, `tree_text_width`). Drag sets `follow_cursor` or `follow_tree` false. Tree keys, wheel, tree clicks, and `reveal_path_in_tree` set `follow_tree` true. Right-click and middle-click on a bar return before the menu. Do not draw the vertical bar on the horizontal-bar row.
@@ -185,7 +193,8 @@ Unreleased (vertical scrollbars):
 ## 8. Known Issues / TODO for Agents
 
 - `revision` stays monotonic. `modified` is `buffer_hash != saved_hash`. Do not “fix” a stale dirty flag by decrementing revision (breaks redo).
-- No word wrap. Horizontal scroll plus a scrollbar row, and a vertical bar when the pane is taller than the viewport, is the current behavior. Real wrap needs `render_editor_line()` + `cursor_screen_position()` + `ensure_editor_visible()` rework (screen-row vs file-line mapping).
+- Word wrap is soft-fold by visual width (`wrap_segments()`); `Up/Down` move by file line, not display row. `row_offset` stays a file line. Do not change it to a display row without reworking wheel/vscroll/click/cursor together.
+- RTL is right-align + `RLI...PDI` + mirrored caret/click (v1). Tree/gutter/dialogs stay LTR. Do not switch the row `LRM` prefix to RTL.
 - Quick-open symbols and find-in-files scan a chunk per input wake. The file list is still collected up front (caps unchanged) and can stall once. A background index is future work. Do not add a crate or a thread for it.
 - Recovery separator `---TEXT---\n` collides if filename ends with that string (filenames can't contain `\n`, so risk tiny). Proper fix: length-prefixed body or NUL separator with migration.
 - No splits, no regex — out of scope unless requested. Drag-select already exists (left-drag, double-click word, triple-click line).

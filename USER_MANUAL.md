@@ -1,17 +1,17 @@
-# az 3.2 — User Manual
+# az 4.0 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./build.sh
-# installs to ~/.local/bin/az
+./install.sh              # prebuilt v4.0.0 package for your OS (.deb / .exe, icons from logo.png)
+./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements: `cargo` (recommended) or `rustc`. No external Rust crates.
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.0.0_amd64.deb`, `az-4.0.0-linux-amd64`, `az-4.0.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -51,8 +51,9 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 - Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.). The selected row is a highlight. The blinking caret is only in the editor.
 - Gutter: line numbers, min width 4.
-- Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the tree chip, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
-- No word wrap. Long lines scroll horizontally, and the caret stays on screen (a tab is four columns). When the editor or the sidebar is wider than its pane, the last content row is a horizontal scrollbar for both. Wheel on that row moves four columns. Drag the thumb to jump. When a pane is taller than the viewport, it draws a vertical bar on its right edge (`┃` thumb, `│` track). Click or drag that bar to pan. The editor caret stays where it is. A click, the wheel, or the arrow keys in the sidebar follow the selection again.
+- Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan), `wrap` (green, only when word wrap is on), `rtl` (yellow, only when RTL is on) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the `rtl`/`wrap`/tree chips, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
+- Word wrap (`Alt+Z`, palette `Toggle word wrap`, editor right-click): soft-folds long lines onto the next screen row instead of scrolling horizontally. Continuation rows show a blank gutter. The horizontal scrollbar hides while wrap is on and `col_offset` stays at 0. `Up/Down` still move by file line. Status shows a `wrap` chip.
+- Direction (`Alt+R`, palette `Enable RTL Mode` / `Disable RTL Mode`, editor right-click): switches the editor between LTR and RTL. RTL right-aligns each line (each wrapped segment) inside an RTL isolate (`RLI…PDI`) and mirrors the caret and click mapping so logical start sits on the right. The context menu text is right-aligned too. The tree, gutter, dialogs, and row framing stay LTR. Status shows an `rtl` chip.
 
 ## 4. Keyboard — Complete Map
 
@@ -79,6 +80,8 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Ctrl+Shift+O` | Find in files (separate modal, `%term` = case-sensitive) |
 | `Ctrl+Shift+H` | Search & replace dialog for the project (`%term` = case-sensitive) |
 | `Alt+1`..`Alt+9` (`Esc` then `1..9`) | Switch a tab in the visible window |
+| `Alt+Z` | Toggle word wrap (soft-fold long lines) |
+| `Alt+R` | Enable/disable RTL mode (right-aligns editor text) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous open tab |
 | Click tab | Switch tab (inactive tabs shaded lighter) |
 | Middle-click tab | Close tab (asks if modified) |
@@ -136,7 +139,7 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
 
 ### Find
 `Ctrl+F` opens the Find dialog for the current file:
@@ -188,7 +191,7 @@ Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern 
 - Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
   - Tab: `Close tab`, `Copy file path`.
   - Sidebar: `Open`, `Copy file path`, `Rename`, `Delete`, `Search here`, `Search & Replace here` (each opens its dialog; searches scope to that folder).
-  - Editor: `Cut`, `Copy`, `Paste`, `Select All`, `Find in File`, `Replace in File`, `Find in Files`, `Replace in Files`, `Go to Line` (right-click keeps an active selection so Copy/Cut work on it).
+  - Editor: `Cut`, `Copy`, `Paste`, `Select All`, `Find in File`, `Replace in File`, `Find in Files`, `Replace in Files`, `Go to Line`, `Toggle word wrap`, `Enable/Disable RTL Mode` (right-click keeps an active selection so Copy/Cut work on it).
 
 ## 6. Recovery & Sessions
 
@@ -227,7 +230,8 @@ Atomic saves: write temp `.NAME.aztmp.PID` then rename, preserving permissions. 
 
 ## 9. Known Limitations (by design)
 
-- No word wrap. Long lines scroll horizontally. A scrollbar appears when a pane is wider or taller than the viewport. No split panes.
+- Word wrap is soft-fold by visual width (no word-boundary or regex-aware folding). `Up/Down` move by file line, not display row. No split panes.
+- RTL is a right-aligned RTL isolate with a mirrored caret/click map (v1). The tree, gutter, and dialogs stay LTR. Shaping relies on the terminal bidi algorithm.
 - No regex search, no multi-cursor.
 - Mouse: click + drag-select + wheel supported in tree/editor; requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`).
 - Undo `revision` stays monotonic so redo keeps working. `modified` clears when the buffer matches the last save, including an undo back to that text.

@@ -36,6 +36,18 @@ done
 
 printf '[az uninstall] Uninstalling az (BIN_DIR=%s)...\n' "$BIN_DIR"
 
+# Prebuilt .deb installs (see install.sh) are owned by dpkg/apt.
+if command -v dpkg >/dev/null 2>&1 && dpkg -s az >/dev/null 2>&1; then
+  printf '[az uninstall] Found dpkg package "az"; removing...\n'
+  if [ "$(id -u)" -eq 0 ]; then
+    dpkg -r az && printf '[az uninstall] Removed dpkg package az.\n' || true
+  elif command -v sudo >/dev/null 2>&1 && sudo dpkg -r az; then
+    printf '[az uninstall] Removed dpkg package az.\n'
+  else
+    printf '[az uninstall] Could not remove dpkg package (try: sudo dpkg -r az).\n'
+  fi
+fi
+
 if [ -f "$TARGET" ] || [ -L "$TARGET" ]; then
   rm -f "$TARGET"
   printf '[az uninstall] Removed %s.\n' "$TARGET"

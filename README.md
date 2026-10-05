@@ -10,14 +10,14 @@
 
 ## Installation
 
-Run the automatic single-command installer to clone, build, and install `az` directly on your machine.
+Run the automatic single-command installer to install the prebuilt `az` package for your OS directly on your machine.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/arazgray/az/refs/heads/main/install.sh | sh
 
 ```
 
-This script handles both fresh installations and in-place upgrades (rebuilding and reinstalling to `~/.local/bin/az`). On launch, `az` automatically checks the main repository for updates and provides an upgrade prompt if a newer release is detected.
+This script detects your OS and installs the ready package (`dist/*.deb` on Debian/Ubuntu via `dpkg`/`apt`, `dist/*.exe` on Windows) with `logo.png` icons — no compilation needed. To build from source instead, run `./compile-and-install.sh` (formerly `install.sh`'s build flow; also installs to `~/.local/bin/az`). On launch, `az` automatically checks the main repository for updates and provides an upgrade prompt if a newer release is detected.
 *(Note: Update checks are skipped offline. Opt-out by setting `AZ_NO_UPDATE_CHECK=1`).*
 
 ---
@@ -43,6 +43,7 @@ Ctrl+D  close tab         Ctrl+N  new empty tab               Ctrl+Q  quit   Alt
 Ctrl+Tab  cycle tabs      + on the tab bar  new empty tab
 Ctrl+T  tree focus        Ctrl+H  hide/show tree (in tree)
 Ctrl+Z / Ctrl+Y  undo / redo      Ctrl+C / X / V / A  copy / cut / paste / select all
+Alt+Z word wrap         Alt+R enable/disable RTL mode
 Mouse: click move/open/switch, drag select, dbl-click word, wheel pans, click outside a dialog closes it
 =======
 az                  # Open empty editor
@@ -81,7 +82,7 @@ az --version        # Display current version
 
 * **Titlebar & Tabs:** Features interactive mode chips and a real-time clock. Active tabs are visually distinct, and modified files are marked with an asterisk (`*`). Press `Esc` to reveal `Alt+1-9` tab-switching hints.
 * **Project Tree:** Automatically color-codes files by extension (e.g., PHP is purple, HTML is orange, JS is yellow) for rapid visual parsing.
-* **Editor:** Supports mixed-language syntax highlighting on a single line, visible line numbers, and horizontal and vertical scrolling (no word wrap by design). A bar is drawn only when that pane does not fit.
+* **Editor:** Supports mixed-language syntax highlighting on a single line, visible line numbers, horizontal and vertical scrolling, plus toggleable word wrap (`Alt+Z`) and RTL mode (`Alt+R`). A bar is drawn only when that pane does not fit.
 * **Status Bar:** Displays file path, modification state, active language, and document statistics. System messages flash light blue for immediate user feedback.
 
 ### Keyboard & Mouse Controls
@@ -135,7 +136,7 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 - Find in files modal (`Ctrl+Shift+O`, also via `Ctrl+P` → `Find in files`)
 - Case-insensitive search by default
 - Case-sensitive search with `%term` (works in both Find and Find in files)
-- Horizontal and vertical scroll bars when a pane does not fit (no word wrap by design)
+- Horizontal and vertical scroll bars when a pane does not fit (word wrap via `Alt+Z` hides the horizontal bar)
 - UTF-8 input support
 - Tokyo Night inspired interface colors
 - Syntax highlighting through plugins
@@ -158,7 +159,13 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 | Safety | Atomic saves, root-password save when the file is not writable, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
 | Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll, horizontal and vertical scrollbars when a pane overflows |
 
-> No word wrap by design — long lines scroll horizontally. No splits or regex.
+> Word wrap (`Alt+Z`) soft-folds long lines; RTL mode (`Alt+R`) right-aligns with an RTL isolate. No splits or regex.
+
+### What is new in 4.0
+
+- **Word wrap (`Alt+Z`).** Palette `Toggle word wrap`, editor right-click, status `wrap` chip. Folds by visual width; the horizontal bar hides while on.
+- **RTL mode (`Alt+R`).** Palette `Enable/Disable RTL Mode`, editor right-click, status `rtl` chip. Right-aligned `RLI…PDI` text with a mirrored caret and click map; the context menu is right-aligned too.
+- **Prebuilt packages.** `install.sh` installs the OS package from `dist/` (`.deb` / `.exe` with `logo.png`); `./compile-and-install.sh` still builds from source.
 
 ### What is new in 3.2
 
@@ -305,19 +312,21 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Building from Source
 
+Prebuilt packages live in `dist/` (`az_4.0.0_amd64.deb` with `logo.png` icons, `az-4.0.0-linux-amd64`, `az-4.0.0-windows-amd64.exe` + `az-icon.ico`). `./install.sh` picks the right one for your OS.
+
 To compile the editor locally without relying on the remote script:
 
 ```sh
-./build.sh
+./compile-and-install.sh
 
 ```
 
-*This compiles `az` to `target/release/az` and installs it to `~/.local/bin/az`. It will automatically update your `~/.profile` to include `~/.local/bin` in your PATH if necessary (requires a terminal restart or sourcing `~/.profile`).*
+*This clones (or uses the local tree), compiles `az` to `target/release/az`, and installs it to `~/.local/bin/az`. `./build.sh` is the lower-level build step used inside it (also handles `~/.profile` PATH and `/usr/local/bin/az` for `sudo`).*
 
 To specify a custom binary directory:
 
 ```sh
-AZ_BIN_DIR="$HOME/bin" ./build.sh
+AZ_BIN_DIR="$HOME/bin" ./compile-and-install.sh
 
 ```
 

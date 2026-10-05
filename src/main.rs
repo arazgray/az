@@ -18,7 +18,15 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 mod plugins;
+#[cfg(unix)]
 mod wayland_clip;
+/// Windows has no Wayland compositor: clipboard falls back to tools + OSC52.
+#[cfg(not(unix))]
+mod wayland_clip {
+    pub(crate) fn copy(_: &str) -> bool { false }
+    pub(crate) fn paste() -> Option<String> { None }
+    pub(crate) fn hold_and_serve() -> ! { std::process::exit(1) }
+}
 
 const BG: &str = "#1a1b26";
 const BG_DARK: &str = "#16161e";
@@ -46,6 +54,7 @@ const QUIT_LABEL: &str = " Quit ";
 // that run. All four are zero-width.
 const BIDI_LRM: &str = "\u{200E}";
 const BIDI_LRI: &str = "\u{2066}";
+const BIDI_RLI: &str = "\u{2067}";
 const BIDI_FSI: &str = "\u{2068}";
 const BIDI_PDI: &str = "\u{2069}";
 const HISTORY_LIMIT: usize = 400;
@@ -318,6 +327,12 @@ struct Editor {
     /// When false, a sidebar scrollbar pan keeps `tree_scroll` and
     /// `ensure_tree_visible` does not pull the list back to the selection.
     follow_tree: bool,
+    /// Soft word wrap: long lines fold onto the next screen row instead of
+    /// scrolling horizontally. `col_offset` is forced to 0 while on.
+    word_wrap: bool,
+    /// Right-to-left editor direction. Text is right-aligned inside an RTL
+    /// isolate (`RLI...PDI`) and the caret/click mapping is mirrored.
+    rtl: bool,
 }
 
 fn main() {
@@ -362,7 +377,8 @@ fn print_help() {
     println!("  Ctrl+Shift+O find in files (%Foo = case-sensitive), Ctrl+R search & replace, Ctrl+G go to line,");
     println!("  Ctrl+Shift+H replace in files, Ctrl+E end of line, Ctrl+Home/End or Alt+Up/Down top/bottom,");
     println!("  Ctrl+T tree focus, Ctrl+H tree hide (tree), Ctrl+D close tab, Ctrl+N new empty tab,");
-    println!("  Ctrl+Q quit, Ctrl+K shortcuts, Alt+1-9 visible tabs, Ctrl+Tab cycle tabs");
+    println!("  Ctrl+Q quit, Ctrl+K shortcuts, Alt+1-9 visible tabs, Ctrl+Tab cycle tabs,");
+    println!("  Alt+Z word wrap, Alt+R enable/disable RTL mode");
     println!("MOUSE:");
     println!("  Click sidebar: expand dir / open file, double-click file: rename, wheel: scroll one row;");
     println!("  Click editor: move cursor, drag: select, double-click: word, triple-click: line;");
@@ -495,6 +511,8 @@ impl Editor {
             show_editor_vscroll: false,
             show_tree_vscroll: false,
             follow_tree: true,
+            word_wrap: false,
+            rtl: false,
         }
     }
 
@@ -846,6 +864,8 @@ impl Editor {
                 if is_ctrl_shift_h(key) { self.replace_in_files_prompt(); return true; }
                 if is_ctrl_shift_z(key) { self.redo(); return true; }
                 if is_ctrl_backspace(key) { self.delete_current_line(); return true; }
+                if is_alt_z(key) { self.toggle_word_wrap(); return true; }
+                if is_alt_r(key) { self.toggle_rtl(); return true; }
                 if let Some(n) = tab_number(key) { self.switch_to_tab_number(n); return true; }
                 if is_ctrl_tab(key) { self.cycle_tab(1); return true; }
                 if is_ctrl_shift_tab(key) { self.cycle_tab(-1); return true; }
@@ -959,7 +979,11 @@ impl Editor {
         self.close_autocomplete();
         self.follow_cursor = false;
         let view = self.editor_view_rows().max(1);
-        let max_off = self.tab().lines.len().saturating_sub(view);
+        let max_off = if self.word_wrap {
+            self.tab().lines.len().saturating_sub(1)
+        } else {
+            self.tab().lines.len().saturating_sub(view)
+        };
         let tab = self.tab_mut();
         if down {
             tab.row_offset = min(max_off, tab.row_offset + 1);
@@ -1071,18 +1095,56 @@ impl Editor {
 
     /// Map a 1-based content click to a buffer position (None past EOF).
     fn click_to_pos(&self, col: usize, row: usize) -> Option<Pos> {
+        let text_first = self.editor_start_col() + self.line_number_gutter_width();
+        let width = self.editor_text_width().max(1);
+        if self.word_wrap {
+            // Map the screen row back through wrapped segments.
+            let start = min(self.tab().row_offset, self.tab().lines.len().saturating_sub(1));
+            let rel = row.saturating_sub(4);
+            let mut disp = 0usize;
+            for line_no in start..self.tab().lines.len() {
+                let line = &self.tab().lines[line_no];
+                let segs = wrap_segments(line, width);
+                for (s, e) in &segs {
+                    if disp == rel {
+                        let byte = if col < text_first {
+                            *s
+                        } else {
+                            let click_off = col - text_first;
+                            if self.rtl {
+                                let target = width.saturating_sub(1).saturating_sub(click_off.min(width.saturating_sub(1)));
+                                min(*e, editor_click_col(line, *s, target))
+                            } else {
+                                min(*e, editor_click_col(line, *s, click_off))
+                            }
+                        };
+                        return Some(Pos { line: line_no, col: byte });
+                    }
+                    disp += 1;
+                }
+                if disp > rel {
+                    break;
+                }
+            }
+            return None;
+        }
         let line_no = self.tab().row_offset + row.saturating_sub(4);
         if line_no >= self.tab().lines.len() {
             return None;
         }
-        let text_first = self.editor_start_col() + self.line_number_gutter_width();
         // Gutter clicks go to line start.
         let byte = if col < text_first {
             0
         } else {
             let line = &self.tab().lines[line_no];
             let start = byte_at_visual(line, self.tab().col_offset);
-            editor_click_col(line, start, col - text_first)
+            let click_off = col - text_first;
+            if self.rtl {
+                let target = width.saturating_sub(1).saturating_sub(click_off.min(width.saturating_sub(1)));
+                editor_click_col(line, start, target)
+            } else {
+                editor_click_col(line, start, click_off)
+            }
         };
         Some(Pos { line: line_no, col: byte })
     }
@@ -1246,6 +1308,7 @@ impl Editor {
         } else {
             self.focus = Focus::Editor;
         }
+        let rtl_label = if self.rtl { "Disable RTL Mode" } else { "Enable RTL Mode" };
         let items = vec![
             "Cut".to_string(),
             "Copy".to_string(),
@@ -1256,6 +1319,8 @@ impl Editor {
             "Find in Files".to_string(),
             "Replace in Files".to_string(),
             "Go to Line".to_string(),
+            "Toggle word wrap".to_string(),
+            rtl_label.to_string(),
         ];
         let Some(choice) = self.context_menu(" Edit ", &items, x, y) else { return; };
         match choice {
@@ -1267,7 +1332,9 @@ impl Editor {
             5 => self.replace_prompt(),
             6 => self.project_search_prompt(),
             7 => self.replace_in_files_prompt(),
-            _ => self.go_to_line_prompt(),
+            8 => self.go_to_line_prompt(),
+            9 => self.toggle_word_wrap(),
+            _ => self.toggle_rtl(),
         }
     }
 
@@ -1374,13 +1441,16 @@ impl Editor {
         let title_style = dialog_title();
         let body = dialog_body();
         let active = dialog_selected();
+        // Overlay rows are painted over editor text. Without an isolate,
+        // row-level bidi merges this LTR chrome with surrounding RTL runs
+        // and the menu comes out garbled (split borders, interleaved words).
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         out.push_str(&format!(
-            "\x1b[{};{start_col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{};{start_col}H{border}║\x1b[0m{BIDI_LRI}{title_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             start_row + 1,
-            fit_plain(title, inner)
+            if self.rtl { fit_plain_right(title, inner) } else { fit_plain(title, inner) }
         ));
         out.push_str(&format!("\x1b[{};{start_col}H{border}╠{}╣\x1b[0m", start_row + 2, "═".repeat(inner)));
         let vis = height.saturating_sub(4);
@@ -1389,11 +1459,13 @@ impl Editor {
             let cell = if let Some(label) = items.get(offset + i) {
                 let plain = format!(" {} {}", offset + i + 1, label);
                 let style = if offset + i == selected { &active } else { &body };
-                format!("{style}{}\x1b[0m", fit_plain(&plain, inner))
+                // RTL mode right-aligns menu text (padding on the left).
+                let fitted = if self.rtl { fit_plain_right(&plain, inner) } else { fit_plain(&plain, inner) };
+                format!("{style}{fitted}\x1b[0m")
             } else {
                 format!("{body}{}\x1b[0m", fit_plain("", inner))
             };
-            out.push_str(&format!("\x1b[{r};{start_col}H{border}║\x1b[0m{cell}{border}║\x1b[0m"));
+            out.push_str(&format!("\x1b[{r};{start_col}H{border}║\x1b[0m{BIDI_LRI}{cell}{BIDI_PDI}{border}║\x1b[0m"));
         }
         out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + height - 1, "═".repeat(inner)));
         out
@@ -1698,6 +1770,9 @@ impl Editor {
         let text_width = self.editor_text_width();
         let syntax = tab.syntax();
 
+        if self.word_wrap {
+            return self.render_content_wrapped(editor_start, gutter, text_width, syntax);
+        }
         let visible = self.visible_line_range();
         let text_rows = self.editor_view_rows();
         for screen_line in 0..self.content_height {
@@ -1751,6 +1826,75 @@ impl Editor {
         let start = min(tab.row_offset, tab.lines.len().saturating_sub(1));
         let end = min(tab.lines.len(), start + self.editor_view_rows());
         (start, end)
+    }
+
+    /// Soft-wrapped content: each file line folds into `ceil(visual/width)`
+    /// screen rows. The first segment shows the line number; continuations
+    /// show a blank gutter. `row_offset` is still a file line.
+    fn render_content_wrapped(&self, editor_start: usize, gutter: usize, text_width: usize, syntax: SyntaxMode) -> String {
+        let mut out = String::new();
+        let tab = self.tab();
+        let text_rows = self.editor_view_rows();
+        // Collect (file_line, seg_index, seg_start, seg_end) for the viewport.
+        let mut rows: Vec<(usize, usize, usize, usize)> = Vec::new();
+        let mut file_line = min(tab.row_offset, tab.lines.len().saturating_sub(1));
+        while rows.len() < text_rows && file_line < tab.lines.len() {
+            for (seg_idx, (s, e)) in wrap_segments(&tab.lines[file_line], text_width.max(1)).iter().enumerate() {
+                if rows.len() >= text_rows {
+                    break;
+                }
+                rows.push((file_line, seg_idx, *s, *e));
+            }
+            file_line += 1;
+        }
+        for screen_line in 0..self.content_height {
+            let row_no = screen_line + 4;
+            out.push_str(&format!("\x1b[{row_no};1H{BIDI_LRM}"));
+            if self.show_hscroll && screen_line + 1 == self.content_height {
+                if !self.sidebar_hidden {
+                    let tree_track = self.tree_width.max(1);
+                    out.push_str(&self.render_hscroll_bar(1, row_no, tree_track, self.tree_text_width(), self.tree_max_visual, self.tree_h_offset));
+                }
+                let x = self.editor_start_col();
+                let track = self.cols.saturating_sub(x.saturating_sub(1)).max(1);
+                out.push_str(&self.render_hscroll_bar(x, row_no, track, self.editor_text_width(), self.editor_max_visual, tab.col_offset));
+                continue;
+            }
+            if !self.sidebar_hidden {
+                out.push_str(&self.render_tree_line(screen_line));
+            }
+            if screen_line < text_rows {
+                if let Some((line_no, seg_idx, s, e)) = rows.get(screen_line) {
+                    let row_bg = editor_row_bg(syntax, *line_no);
+                    let gutter_text = if *seg_idx == 0 {
+                        format!("{:>width$} ", line_no + 1, width = gutter.saturating_sub(1))
+                    } else {
+                        " ".repeat(gutter)
+                    };
+                    out.push_str(&format!(
+                        "\x1b[{row_no};{editor_start}H{BIDI_LRI}{}{}\x1b[0m{BIDI_PDI}",
+                        ansi_style(Some(GUTTER), Some(row_bg), false, true, false),
+                        fit_plain(&gutter_text, gutter)
+                    ));
+                    let line = &tab.lines[*line_no];
+                    out.push_str(&self.render_editor_slice(line, *line_no, syntax, text_width, *s, *e));
+                    continue;
+                }
+            }
+            let line_no = tab.lines.len();
+            let row_bg = editor_row_bg(syntax, line_no);
+            let reserve = usize::from(self.show_editor_vscroll);
+            let fill = self.cols.saturating_sub(reserve).saturating_sub(editor_start);
+            out.push_str(&format!(
+                "\x1b[{row_no};{editor_start}H{BIDI_LRI}{}~{}{}{BIDI_PDI}",
+                ansi_style(Some(GUTTER), Some(row_bg), false, true, false),
+                ansi_style(Some(FG), Some(row_bg), false, false, false),
+                " ".repeat(fill)
+            ));
+            out.push_str(reset_fg_bg());
+        }
+        out.push_str(&self.render_vscroll_bars());
+        out
     }
 
     fn editor_view_rows(&self) -> usize {
@@ -1826,35 +1970,47 @@ impl Editor {
 
     fn render_editor_line(&self, line: &str, line_no: usize, syntax: SyntaxMode, width: usize) -> String {
         let tab = self.tab();
-        let start = byte_at_visual(line, tab.col_offset);
+        let start = if self.word_wrap { 0 } else { byte_at_visual(line, tab.col_offset) };
+        self.render_editor_slice(line, line_no, syntax, width, start, line.len())
+    }
+
+    fn render_editor_slice(&self, line: &str, line_no: usize, syntax: SyntaxMode, width: usize, rs: usize, re: usize) -> String {
+        let rs = clamp_char_boundary(line, min(rs, line.len()));
+        let re = clamp_char_boundary(line, min(re.max(rs), line.len()));
         let mut out = String::new();
-        out.push_str(BIDI_FSI);
+        out.push_str(if self.rtl { BIDI_RLI } else { BIDI_FSI });
         let segs = highlight_segments(line, syntax);
         let sel = self.selection_range();
         let row_bg = editor_row_bg(syntax, line_no);
-        let mut byte_i = start;
+        // Collect cells first so RTL can right-align (pad on the left).
+        let mut cells: Vec<(String, &str, bool)> = Vec::new();
+        let mut byte_i = rs;
         let mut used = 0usize;
-
-        while byte_i < line.len() {
+        while byte_i < re {
             let ch = next_char(line, byte_i);
             let next_i = byte_i + ch.len();
             let rendered = display_cell(ch);
             let cell_w = visual_width(&rendered);
             if used + cell_w > width { break; }
-
             let selected = sel.map(|(a, b)| range_overlaps_selection(line_no, byte_i, next_i, a, b)).unwrap_or(false);
             let fg = color_at(&segs, byte_i).unwrap_or(FG);
-            if selected {
+            cells.push((rendered, fg, selected));
+            used += cell_w;
+            byte_i = next_i;
+        }
+        if self.rtl && used < width {
+            out.push_str(&ansi_style(Some(FG), Some(row_bg), false, false, false));
+            out.push_str(&" ".repeat(width - used));
+        }
+        for (rendered, fg, selected) in &cells {
+            if *selected {
                 out.push_str(&ansi_style(Some(BG_DARK), Some(ACCENT), false, false, false));
             } else {
                 out.push_str(&ansi_style(Some(fg), Some(row_bg), false, false, false));
             }
-            out.push_str(&rendered);
-            used += cell_w;
-            byte_i = next_i;
+            out.push_str(rendered);
         }
-
-        if used < width {
+        if !self.rtl && used < width {
             out.push_str(&ansi_style(Some(FG), Some(row_bg), false, false, false));
             out.push_str(&" ".repeat(width - used));
         }
@@ -1881,6 +2037,12 @@ impl Editor {
         }
         chips.push((format!(" {syntax_label} "), BG_DARK, PURPLE, true));
         chips.push((format!(" {tree_label} "), BG_DARK, CYAN, false));
+        if self.word_wrap {
+            chips.push((" wrap ".to_string(), BG_DARK, GREEN, true));
+        }
+        if self.rtl {
+            chips.push((" rtl ".to_string(), BG_DARK, YELLOW, true));
+        }
         let base = ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false);
         // Keep a slice of the bar for the message. Drop the tree chip, then the
         // syntax chip, when a narrow terminal would otherwise hide "Saved" / "Copied".
@@ -1949,18 +2111,65 @@ impl Editor {
             return None;
         }
         let tab = self.tab();
+        let width = self.editor_text_width().max(1);
+        let text_first = self.editor_start_col() + self.line_number_gutter_width();
+        if self.word_wrap {
+            let view = self.editor_view_rows();
+            // Display row of the cursor measured from `row_offset`.
+            let start = min(tab.row_offset, tab.lines.len().saturating_sub(1));
+            if tab.cursor.line < start {
+                return None;
+            }
+            let mut disp: usize = 0;
+            for ln in start..tab.cursor.line {
+                disp = disp.saturating_add(wrap_segments(&tab.lines[ln], width).len());
+                if disp >= view {
+                    return None;
+                }
+            }
+            let line = tab.lines.get(tab.cursor.line).map(String::as_str).unwrap_or("");
+            let segs = wrap_segments(line, width);
+            let seg_idx = wrap_segment_index(&segs, min(tab.cursor.col, line.len()));
+            let row = 4 + disp + seg_idx;
+            if disp + seg_idx >= view {
+                return None;
+            }
+            let (s, _) = segs[seg_idx];
+            let seg_vis_start = visual_at_byte(line, s);
+            let cur_vis = visual_at_byte(line, min(tab.cursor.col, line.len()));
+            let off = cur_vis.saturating_sub(seg_vis_start);
+            let seg_vis_len = visual_at_byte(line, segs[seg_idx].1).saturating_sub(seg_vis_start);
+            if off > seg_vis_len || off >= width {
+                return None;
+            }
+            let col = if self.rtl {
+                text_first + width.saturating_sub(1).saturating_sub(off.min(width.saturating_sub(1)))
+            } else {
+                text_first + off
+            };
+            return Some((max(1, min(self.rows, row)), max(1, min(self.cols, col))));
+        }
         let view = self.editor_view_rows();
         if tab.cursor.line < tab.row_offset || tab.cursor.line >= tab.row_offset + view {
             return None;
         }
         let row = 4 + tab.cursor.line - tab.row_offset;
         let line = tab.lines.get(tab.cursor.line).map(String::as_str).unwrap_or("");
-        let visual = visual_at_byte(line, tab.cursor.col).saturating_sub(tab.col_offset);
-        let width = self.editor_text_width().max(1);
-        if visual >= width {
+        let cur_vis = visual_at_byte(line, tab.cursor.col);
+        let base_vis = visual_at_byte(line, byte_at_visual(line, tab.col_offset));
+        if cur_vis < base_vis || cur_vis.saturating_sub(base_vis) >= width {
+            // At or past the right edge: hidden until the viewport follows.
+            if cur_vis.saturating_sub(base_vis) >= width {
+                return None;
+            }
             return None;
         }
-        let col = self.editor_start_col() + self.line_number_gutter_width() + visual;
+        let visual = cur_vis - base_vis;
+        let col = if self.rtl {
+            text_first + width.saturating_sub(1).saturating_sub(visual.min(width.saturating_sub(1)))
+        } else {
+            text_first + visual
+        };
         Some((max(1, min(self.rows, row)), max(1, min(self.cols, col))))
     }
 
@@ -2031,7 +2240,7 @@ impl Editor {
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         out.push_str(&format!(
-            "\x1b[{};{start_col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{};{start_col}H{border}║\x1b[0m{BIDI_LRI}{title_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             start_row + 1,
             fit_plain(title, inner)
         ));
@@ -2048,7 +2257,7 @@ impl Editor {
             let left = inner.saturating_sub(*w) / 2;
             let right = inner.saturating_sub(left + *w);
             out.push_str(&format!(
-                "\x1b[{row};{start_col}H{border}║\x1b[0m{body}{}{styled}{body}{}\x1b[0m{border}║\x1b[0m",
+                "\x1b[{row};{start_col}H{border}║\x1b[0m{BIDI_LRI}{body}{}{styled}{body}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
                 " ".repeat(left),
                 " ".repeat(right)
             ));
@@ -2058,7 +2267,7 @@ impl Editor {
             let row = start_row + 1 + slot;
             let raw = lines.get(line_i).map(String::as_str).unwrap_or("");
             let style = if line_i < lines.len() && highlight_lines.contains(&line_i) { &selected } else { &body };
-            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(raw, inner)));
+            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{BIDI_LRI}{style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m", fit_plain(raw, inner)));
             slot += 1;
             line_i += 1;
         }
@@ -2152,27 +2361,78 @@ impl Editor {
         let width = max(1, self.editor_text_width());
         let follow = self.follow_cursor;
         let max_visual = self.editor_max_visual;
-        let tab = self.tab_mut();
-        tab.cursor.line = min(tab.cursor.line, tab.lines.len().saturating_sub(1));
-        tab.cursor.col = clamp_char_boundary(&tab.lines[tab.cursor.line], min(tab.cursor.col, tab.lines[tab.cursor.line].len()));
-        let max_row = tab.lines.len().saturating_sub(height);
+        let wrap = self.word_wrap;
+        // Clamp cursor first so display math below cannot go out of bounds.
+        {
+            let tab = self.tab_mut();
+            tab.cursor.line = min(tab.cursor.line, tab.lines.len().saturating_sub(1));
+            tab.cursor.col = clamp_char_boundary(&tab.lines[tab.cursor.line], min(tab.cursor.col, tab.lines[tab.cursor.line].len()));
+        }
+        if wrap {
+            // `col_offset` stays 0: wrapping never scrolls horizontally.
+            self.tab_mut().col_offset = 0;
+            if follow {
+                // Advance `row_offset` until the cursor's display row fits.
+                loop {
+                    let start = min(self.tab().row_offset, self.tab().lines.len().saturating_sub(1));
+                    let cursor_line = self.tab().cursor.line;
+                    if cursor_line < start {
+                        self.tab_mut().row_offset = cursor_line;
+                        continue;
+                    }
+                    let mut disp: usize = 0;
+                    for ln in start..cursor_line {
+                        disp = disp.saturating_add(wrap_segments(&self.tab().lines[ln], width).len());
+                    }
+                    let cursor_segs = wrap_segments(&self.tab().lines[cursor_line], width).len();
+                    let seg_idx = wrap_segment_index(
+                        &wrap_segments(&self.tab().lines[cursor_line], width),
+                        min(self.tab().cursor.col, self.tab().lines[cursor_line].len()),
+                    );
+                    if disp + seg_idx < height {
+                        // Whole cursor line may still overflow a short viewport;
+                        // keep its start visible rather than hiding the caret.
+                        if disp + cursor_segs > height && start < cursor_line {
+                            self.tab_mut().row_offset = min(cursor_line, start + 1);
+                            continue;
+                        }
+                        break;
+                    }
+                    if start >= cursor_line {
+                        break;
+                    }
+                    self.tab_mut().row_offset = min(cursor_line, start + 1);
+                }
+            } else {
+                let max_row = self.tab().lines.len().saturating_sub(1);
+                let ro = min(self.tab().row_offset, max_row);
+                self.tab_mut().row_offset = ro;
+            }
+            return;
+        }
+        let max_row = self.tab().lines.len().saturating_sub(height);
         if follow {
-            if tab.cursor.line < tab.row_offset {
-                tab.row_offset = tab.cursor.line;
-            } else if tab.cursor.line >= tab.row_offset + height {
-                tab.row_offset = tab.cursor.line.saturating_sub(height - 1);
+            if self.tab().cursor.line < self.tab().row_offset {
+                let cl = self.tab().cursor.line;
+                self.tab_mut().row_offset = cl;
+            } else if self.tab().cursor.line >= self.tab().row_offset + height {
+                let cl = self.tab().cursor.line;
+                self.tab_mut().row_offset = cl.saturating_sub(height - 1);
             }
         } else {
-            tab.row_offset = min(tab.row_offset, max_row);
+            let ro = min(self.tab().row_offset, max_row);
+            self.tab_mut().row_offset = ro;
         }
         // `col_offset` is a visual column. One subtraction in bytes used to
         // leave the caret off-screen on tab-heavy lines (1 byte = 4 columns).
-        let line = tab.lines[tab.cursor.line].clone();
+        let line = self.tab().lines[self.tab().cursor.line].clone();
         if follow {
-            tab.col_offset = fit_visual_offset(&line, tab.cursor.col, width);
+            let cb = self.tab().cursor.col;
+            self.tab_mut().col_offset = fit_visual_offset(&line, cb, width);
         }
         let max_off = max_visual.saturating_sub(width);
-        tab.col_offset = min(tab.col_offset, max_off);
+        let co = min(self.tab().col_offset, max_off);
+        self.tab_mut().col_offset = co;
     }
 
     fn open_file(&mut self, path: PathBuf, announce: bool) {
@@ -3069,7 +3329,7 @@ impl Editor {
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{row};{col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         out.push_str(&format!(
-            "\x1b[{};{col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{};{col}H{border}║\x1b[0m{BIDI_LRI}{title_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             row + 1,
             fit_plain(" Search & Replace ", inner)
         ));
@@ -3080,7 +3340,7 @@ impl Editor {
             let room = inner.saturating_sub(10);
             let (shown, _) = field_window(fields[i], cursors[i], room);
             let text = format!(" {:<7} {}", names[i], shown);
-            out.push_str(&format!("\x1b[{y};{col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(&text, inner)));
+            out.push_str(&format!("\x1b[{y};{col}H{border}║\x1b[0m{BIDI_LRI}{style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m", fit_plain(&text, inner)));
         }
         let count = if find.is_empty() {
             " 0 matches".to_string()
@@ -3092,7 +3352,7 @@ impl Editor {
             format!(" {} match{}", job.count, if job.count == 1 { "" } else { "es" })
         };
         out.push_str(&format!(
-            "\x1b[{};{col}H{border}║\x1b[0m{muted}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{};{col}H{border}║\x1b[0m{BIDI_LRI}{muted}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             field0 + 3,
             fit_plain(&count, inner)
         ));
@@ -3105,7 +3365,7 @@ impl Editor {
         let pad = " ".repeat(inner.saturating_sub(buttons_w));
         let button_row = format!("{replace_style}{replace_label}\x1b[0m{muted}{gap}\x1b[0m{cancel_style}{cancel_label}\x1b[0m{muted}{pad}\x1b[0m");
         let button_y = field0 + 4;
-        out.push_str(&format!("\x1b[{button_y};{col}H{border}║\x1b[0m{button_row}{border}║\x1b[0m"));
+        out.push_str(&format!("\x1b[{button_y};{col}H{border}║\x1b[0m{BIDI_LRI}{button_row}{BIDI_PDI}{border}║\x1b[0m"));
         out.push_str(&format!("\x1b[{};{col}H{border}╚{}╝\x1b[0m", row + height - 1, "═".repeat(inner)));
         if field <= 2 {
             let (_, caret) = field_window(fields[field], cursors[field], inner.saturating_sub(10));
@@ -3141,8 +3401,17 @@ impl Editor {
 
     fn recompute_vscroll(&mut self) {
         let view = self.editor_view_rows();
-        self.show_editor_vscroll = self.tab().lines.len() > view;
+        self.show_editor_vscroll = self.editor_display_rows() > view;
         self.show_tree_vscroll = !self.sidebar_hidden && self.tree_rows.len() > view;
+    }
+
+    /// Display rows occupied by the current tab (wrapped rows when on).
+    fn editor_display_rows(&self) -> usize {
+        if self.word_wrap {
+            wrapped_row_count(&self.tab().lines, self.editor_text_width().max(1))
+        } else {
+            self.tab().lines.len()
+        }
     }
 
     fn recompute_hscroll(&mut self) {
@@ -3163,7 +3432,8 @@ impl Editor {
         };
         self.tree_max_visual = tree_max;
         let tree_view = self.tree_text_width().max(1);
-        let editor_need = max_v > self.editor_text_width();
+        // Wrapped lines never need horizontal scrolling.
+        let editor_need = !self.word_wrap && max_v > self.editor_text_width();
         let tree_need = !self.sidebar_hidden && tree_max > tree_view;
         self.show_hscroll = editor_need || tree_need;
         if !tree_need {
@@ -3217,8 +3487,16 @@ impl Editor {
             out.push_str(&self.render_vscroll_bar(self.tree_width.max(1), 4, track, self.tree_rows.len(), self.tree_scroll));
         }
         if self.show_editor_vscroll {
-            let tab = self.tab();
-            out.push_str(&self.render_vscroll_bar(self.cols.max(1), 4, track, tab.lines.len(), tab.row_offset));
+            let content = self.editor_display_rows();
+            let offset = if self.word_wrap {
+                // Approximate file-line offset in display-row space.
+                let width = self.editor_text_width().max(1);
+                let start = min(self.tab().row_offset, self.tab().lines.len().saturating_sub(1));
+                self.tab().lines[..start].iter().map(|l| wrap_segments(l, width).len()).sum()
+            } else {
+                self.tab().row_offset
+            };
+            out.push_str(&self.render_vscroll_bar(self.cols.max(1), 4, track, content, offset));
         }
         out
     }
@@ -3246,8 +3524,27 @@ impl Editor {
         self.vscroll_drag = Some(editor);
         if editor {
             self.follow_cursor = false;
-            let content = self.tab().lines.len();
-            self.tab_mut().row_offset = scrollbar_offset(track, track, content, local);
+            let content = self.editor_display_rows();
+            let file_rows = self.tab().lines.len().max(1);
+            // Scrollbar works in display-row space; map back to file lines.
+            let disp_off = scrollbar_offset(track, track, content, local);
+            if self.word_wrap {
+                let width = self.editor_text_width().max(1);
+                let mut acc = 0usize;
+                let mut file_off = 0usize;
+                for (i, l) in self.tab().lines.iter().enumerate() {
+                    let n = wrap_segments(l, width).len();
+                    if acc + n > disp_off {
+                        file_off = i;
+                        break;
+                    }
+                    acc += n;
+                    file_off = min(i + 1, file_rows.saturating_sub(1));
+                }
+                self.tab_mut().row_offset = file_off;
+            } else {
+                self.tab_mut().row_offset = min(disp_off, file_rows.saturating_sub(1));
+            }
         } else {
             self.follow_tree = false;
             self.tree_scroll = scrollbar_offset(track, track, self.tree_rows.len(), local);
@@ -3527,7 +3824,7 @@ impl Editor {
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{row};{col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         out.push_str(&format!(
-            "\x1b[{};{col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{};{col}H{border}║\x1b[0m{BIDI_LRI}{title_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             row + 1,
             fit_plain(" Find ", inner)
         ));
@@ -3537,11 +3834,11 @@ impl Editor {
         let (shown, _) = field_window(query, cursor, room);
         let text = format!(" {:<7} {}", "Find", shown);
         out.push_str(&format!(
-            "\x1b[{field_row};{col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{field_row};{col}H{border}║\x1b[0m{BIDI_LRI}{style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             fit_plain(&text, inner)
         ));
         out.push_str(&format!(
-            "\x1b[{};{col}H{border}║\x1b[0m{muted}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{};{col}H{border}║\x1b[0m{BIDI_LRI}{muted}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             field_row + 1,
             fit_plain(&count_label, inner)
         ));
@@ -3554,7 +3851,7 @@ impl Editor {
         let pad = " ".repeat(inner.saturating_sub(buttons_w));
         let button_row = format!("{next_style}{next_label}\x1b[0m{muted}{gap}\x1b[0m{close_style}{close_label}\x1b[0m{muted}{pad}\x1b[0m");
         let button_y = field_row + 2;
-        out.push_str(&format!("\x1b[{button_y};{col}H{border}║\x1b[0m{button_row}{border}║\x1b[0m"));
+        out.push_str(&format!("\x1b[{button_y};{col}H{border}║\x1b[0m{BIDI_LRI}{button_row}{BIDI_PDI}{border}║\x1b[0m"));
         out.push_str(&format!("\x1b[{};{col}H{border}╚{}╝\x1b[0m", row + height - 1, "═".repeat(inner)));
         if field == 0 {
             let (_, caret) = field_window(query, cursor, room);
@@ -4112,6 +4409,8 @@ impl Editor {
             ("Replace in current file", "Ctrl+R", "replace"),
             ("Toggle sidebar", "Ctrl+H", "toggle-tree"),
             ("Focus tree/editor", "Ctrl+T", "focus-tree"),
+            ("Toggle word wrap", "Alt+Z", "toggle-wrap"),
+            (if self.rtl { "Disable RTL Mode" } else { "Enable RTL Mode" }, "Alt+R", "toggle-rtl"),
             ("Close tab", "Ctrl+D", "close-tab"),
             ("Keyboard shortcuts", "searchable list (Ctrl+K)", "help"),
             ("Quit", "Ctrl+Q", "quit"),
@@ -4193,6 +4492,8 @@ impl Editor {
             "replace" => self.replace_prompt(),
             "toggle-tree" => self.toggle_sidebar(),
             "focus-tree" => self.toggle_tree_focus(),
+            "toggle-wrap" => self.toggle_word_wrap(),
+            "toggle-rtl" => self.toggle_rtl(),
             "close-tab" => self.close_current_tab(),
             "welcome" => self.show_welcome_command(),
             "undo" => self.undo(),
@@ -4225,8 +4526,8 @@ impl Editor {
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
-        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m", start_row + 1, fit_plain(title, inner)));
-        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{query_style}{}\x1b[0m{border}║\x1b[0m", start_row + 2, fit_plain(&shown, inner)));
+        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{BIDI_LRI}{title_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m", start_row + 1, fit_plain(title, inner)));
+        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{BIDI_LRI}{query_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m", start_row + 2, fit_plain(&shown, inner)));
         out.push_str(&format!("\x1b[{};{start_col}H{border}╠{}╣\x1b[0m", start_row + 3, "═".repeat(inner)));
         for i in 0..rows {
             let row = start_row + 4 + i;
@@ -4250,7 +4551,7 @@ impl Editor {
                 fit_plain("", inner)
             };
             let style = if i == selected && matches.get(i).is_some() { &active } else { &body };
-            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{cell}\x1b[0m{border}║\x1b[0m"));
+            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{BIDI_LRI}{style}{cell}\x1b[0m{BIDI_PDI}{border}║\x1b[0m"));
         }
         out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + panel_height - 1, "═".repeat(inner)));
         let cursor_col = min(self.cols, start_col + 1 + caret).max(1);
@@ -4604,6 +4905,25 @@ impl Editor {
         self.message = if self.sidebar_hidden { "Tree hidden" } else { "Tree shown" }.to_string();
     }
 
+    fn toggle_word_wrap(&mut self) {
+        self.word_wrap = !self.word_wrap;
+        self.follow_cursor = true;
+        if self.word_wrap {
+            self.tab_mut().col_offset = 0;
+        }
+        self.line_width_cache = None;
+        self.refresh_hscroll();
+        self.ensure_editor_visible();
+        self.message = if self.word_wrap { "Word wrap on (Alt+Z)".to_string() } else { "Word wrap off (Alt+Z)".to_string() };
+    }
+
+    fn toggle_rtl(&mut self) {
+        self.rtl = !self.rtl;
+        self.follow_cursor = true;
+        self.ensure_editor_visible();
+        self.message = if self.rtl { "RTL mode enabled (Alt+R)".to_string() } else { "RTL mode disabled (Alt+R)".to_string() };
+    }
+
     fn toggle_tree_focus(&mut self) {
         if self.sidebar_hidden {
             self.sidebar_hidden = false;
@@ -4731,7 +5051,7 @@ impl Editor {
             let spaces = inner.saturating_sub(visual_width(&label) + visual_width(&detail) + 2).max(1);
             let text = format!(" {label}{}{detail} ", " ".repeat(spaces));
             let style = if screen_i == self.autocomplete_index { &active } else { &body };
-            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(&text, inner)));
+            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{BIDI_LRI}{style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m", fit_plain(&text, inner)));
         }
         let bottom = start_row + 1 + count;
         if bottom < self.status_line {
@@ -5225,6 +5545,13 @@ fn truncate_plain(text: &str, width: usize) -> String {
     s
 }
 
+/// Like `fit_plain` but pads on the left (right-aligned text).
+fn fit_plain_right(text: &str, width: usize) -> String {
+    let t = truncate_plain(text, width);
+    let pad = width.saturating_sub(visual_width(&t));
+    format!("{}{t}", " ".repeat(pad))
+}
+
 fn escape_control(text: &str) -> String {
     text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect()
 }
@@ -5351,6 +5678,8 @@ fn parse_sgr_mouse(key: &str) -> Option<MouseEvent> {
 fn is_ctrl_k(k: &str) -> bool { k == "\x0b" || k == "\x1b[75;5u" || k == "\x1b[107;5u" }
 fn is_ctrl_shift_o(k: &str) -> bool { k == "\x1b[79;6u" || k == "\x1b[111;6u" }
 fn is_ctrl_shift_h(k: &str) -> bool { k == "\x1b[72;6u" || k == "\x1b[104;6u" }
+fn is_alt_z(k: &str) -> bool { matches!(k, "\x1bz" | "\x1bZ" | "\x1b[90;3u" | "\x1b[122;3u") }
+fn is_alt_r(k: &str) -> bool { matches!(k, "\x1br" | "\x1bR" | "\x1b[82;3u" | "\x1b[114;3u") }
 /// Shared `%` convention: `%Foo` = case-sensitive, otherwise case-insensitive.
 /// Used by both in-file find and Find in Files so behaviour stays in sync.
 fn parse_search_query(query: &str) -> (String, bool) {
@@ -5507,6 +5836,8 @@ fn shortcut_defs() -> Vec<(&'static str, &'static str)> {
         ("Ctrl+T", "Focus tree/editor"),
         ("Ctrl+H", "Hide/show tree (tree focus only)"),
         ("+ / -", "Tree width (tree focus only)"),
+        ("Alt+Z", "Toggle word wrap"),
+        ("Alt+R", "Enable/disable RTL mode (right-aligns editor text)"),
         ("Ctrl+N", "New empty tab"),
         ("+ on the tab bar", "New empty tab"),
         ("Ctrl+D", "Close tab (asks if modified)"),
@@ -5686,6 +6017,53 @@ fn shift_visual(text: &str, cols: usize) -> String {
         used += w;
     }
     String::new()
+}
+
+/// Split `line` into byte ranges that each fit in `width` visual cells.
+/// Hard wrap by width (tabs/wide/control aware via `display_cell`).
+/// Empty lines yield one empty segment. Guarantees char boundaries and
+/// at least one char per segment (a single wide cell wider than `width`
+/// still occupies its own row).
+fn wrap_segments(line: &str, width: usize) -> Vec<(usize, usize)> {
+    if width == 0 {
+        return vec![(0, line.len())];
+    }
+    if line.is_empty() {
+        return vec![(0, 0)];
+    }
+    let mut segs = Vec::new();
+    let mut seg_start = 0usize;
+    let mut used = 0usize;
+    let mut i = 0usize;
+    while i < line.len() {
+        let ch = next_char(line, i);
+        let w = max(1, visual_width(&display_cell(ch)));
+        if used > 0 && used + w > width {
+            segs.push((seg_start, i));
+            seg_start = i;
+            used = 0;
+            continue;
+        }
+        used += w;
+        i += ch.len();
+    }
+    segs.push((seg_start, line.len()));
+    segs
+}
+
+/// Index of the segment holding `byte` (byte==len belongs to the last one).
+fn wrap_segment_index(segs: &[(usize, usize)], byte: usize) -> usize {
+    for (idx, (s, e)) in segs.iter().enumerate() {
+        if byte >= *s && byte < *e {
+            return idx;
+        }
+    }
+    segs.len().saturating_sub(1)
+}
+
+/// Total display rows for `lines` at `width` when soft-wrapped.
+fn wrapped_row_count(lines: &[String], width: usize) -> usize {
+    lines.iter().map(|l| wrap_segments(l, width.max(1)).len()).sum::<usize>().max(1)
 }
 
 fn line_as_clipboard(lines: &[String], line: usize) -> String {
@@ -7338,6 +7716,217 @@ mod tests {
         assert!(tab.crlf);
         assert_eq!(tab.lines, vec!["a".to_string(), "b".to_string(), "".to_string()]);
         assert_eq!(tab.text(), "a\r\nb\r\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn alt_wrap_and_rtl_bindings() {
+        assert!(is_alt_z("\x1bz"));
+        assert!(is_alt_z("\x1bZ"));
+        assert!(is_alt_z("\x1b[122;3u"));
+        assert!(is_alt_z("\x1b[90;3u"));
+        assert!(!is_alt_z("\x1br"));
+        assert!(is_alt_r("\x1br"));
+        assert!(is_alt_r("\x1bR"));
+        assert!(is_alt_r("\x1b[114;3u"));
+        assert!(is_alt_r("\x1b[82;3u"));
+        assert!(!is_alt_r("\x1bz"));
+    }
+
+    #[test]
+    fn wrap_segments_split_by_visual_width() {
+        assert_eq!(wrap_segments("", 10), vec![(0, 0)]);
+        assert_eq!(wrap_segments("abc", 10), vec![(0, 3)]);
+        assert_eq!(wrap_segments("abcdef", 4), vec![(0, 4), (4, 6)]);
+        // Tab is 4 cells: "a\tb" is 1+4+1 = 6 cells.
+        let segs = wrap_segments("a\tb", 5);
+        assert_eq!(segs.len(), 2);
+        assert_eq!(segs[0].1, 2);
+        assert_eq!(wrap_segment_index(&segs, 0), 0);
+        assert_eq!(wrap_segment_index(&segs, 2), 1);
+        assert_eq!(wrapped_row_count(&["abcdef".to_string(), "xy".to_string()], 4), 3);
+    }
+
+    #[test]
+    fn wrap_toggle_renders_multiple_rows_and_hides_hscroll() {
+        fn strip_ansi(s: &str) -> String {
+            let mut o = String::new();
+            let b = s.as_bytes();
+            let mut i = 0usize;
+            while i < b.len() {
+                if b[i] == 0x1b {
+                    i += 1;
+                    while i < b.len() && b[i] != b'm' { i += 1; }
+                    i += 1;
+                } else {
+                    o.push(b[i] as char);
+                    i += 1;
+                }
+            }
+            o
+        }
+        let dir = std::env::temp_dir().join(format!("az-wrap-render-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("w.txt");
+        std::fs::write(&file, "abcdef\ngh\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 60;
+        ed.rows = 24;
+        ed.content_height = 19;
+        ed.tree_width = 28;
+        ed.sidebar_hidden = true;
+        ed.refresh_hscroll();
+        ed.ensure_editor_visible();
+        // Narrow the editor so "abcdef" must fold.
+        ed.cols = ed.editor_start_col() + ed.line_number_gutter_width() + 4 - 1;
+        ed.refresh_hscroll();
+        assert!(ed.show_hscroll, "long line should need hscroll when wrap is off");
+        ed.toggle_word_wrap();
+        assert!(ed.word_wrap);
+        assert_eq!(ed.tab().col_offset, 0);
+        ed.refresh_hscroll();
+        assert!(!ed.show_hscroll, "wrap must hide the horizontal bar");
+        let painted = strip_ansi(&ed.render_content());
+        // "abcdef" at width 4 folds into "abcd" + "ef", plus "gh": 3 rows.
+        assert_eq!(wrapped_row_count(&ed.tab().lines, ed.editor_text_width()), 4);
+        assert!(painted.contains("abcd"), "first fold missing: {painted:?}");
+        assert!(painted.contains("ef"), "second fold missing");
+        // Cursor on the second segment maps to the second screen row.
+        ed.tab_mut().cursor = Pos { line: 0, col: 5 };
+        ed.follow_cursor = true;
+        ed.ensure_editor_visible();
+        let (row, _) = ed.cursor_screen_position().expect("cursor visible");
+        assert_eq!(row, 5);
+        // Clicking the second wrapped row lands past the fold.
+        let text_first = ed.editor_start_col() + ed.line_number_gutter_width();
+        let pos = ed.click_to_pos(text_first + 1, 5).expect("click maps");
+        assert_eq!(pos.line, 0);
+        assert!(pos.col >= 4);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rtl_renders_right_aligned_with_mirrored_cursor() {
+        fn strip_ansi(s: &str) -> String {
+            let mut o = String::new();
+            let b = s.as_bytes();
+            let mut i = 0usize;
+            while i < b.len() {
+                if b[i] == 0x1b {
+                    i += 1;
+                    while i < b.len() && b[i] != b'm' { i += 1; }
+                    i += 1;
+                } else {
+                    // Keep zero-width isolates out of the plain comparison.
+                    let ch = s[i..].chars().next().unwrap();
+                    if ch != '\u{2067}' && ch != '\u{2066}' && ch != '\u{2068}' && ch != '\u{2069}' && ch != '\u{200e}' {
+                        o.push(ch);
+                    }
+                    i += ch.len_utf8();
+                }
+            }
+            o
+        }
+        let dir = std::env::temp_dir().join(format!("az-rtl-render-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("r.txt");
+        std::fs::write(&file, "abc\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 80;
+        ed.rows = 24;
+        ed.content_height = 19;
+        ed.sidebar_hidden = true;
+        ed.refresh_hscroll();
+        ed.toggle_rtl();
+        assert!(ed.rtl);
+        let width = ed.editor_text_width();
+        let rendered = ed.render_editor_line("abc", 0, SyntaxMode::Plain, width);
+        assert!(rendered.contains(BIDI_RLI), "rtl must use RLI isolate");
+        assert!(!rendered.contains(BIDI_FSI));
+        // Right-aligned: padding comes before the text.
+        let stripped = strip_ansi(&rendered);
+        assert!(stripped.ends_with("abc"), "rtl text should sit on the right: {stripped:?}");
+        assert!(stripped.len() >= width);
+        // Mirrored caret: start-of-line sits on the right, end on the left.
+        ed.tab_mut().cursor = Pos { line: 0, col: 0 };
+        ed.follow_cursor = true;
+        ed.ensure_editor_visible();
+        let text_first = ed.editor_start_col() + ed.line_number_gutter_width();
+        let (_, right) = ed.cursor_screen_position().expect("cursor");
+        assert_eq!(right, text_first + width - 1);
+        ed.tab_mut().cursor = Pos { line: 0, col: 3 };
+        let (_, left) = ed.cursor_screen_position().expect("cursor");
+        assert!(left < right);
+        // Mirrored click: rightmost cell maps to the start of the line.
+        let pos = ed.click_to_pos(text_first + width - 1, 4).expect("click");
+        assert_eq!(pos.col, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn overlay_rows_are_bidi_isolated() {
+        // Dialog/menu rows are painted over editor text. Without an isolate,
+        // row-level bidi merges the LTR chrome with surrounding RTL runs and
+        // the box comes out garbled (split borders, interleaved words).
+        let dir = std::env::temp_dir().join(format!("az-overlay-bidi-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("o.txt");
+        std::fs::write(&file, "x\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 80;
+        ed.rows = 24;
+        let menu = ed.context_menu_string(" Edit ", &["Cut".into(), "Copy".into()], 0, 0, 10, 6, 20, 6);
+        assert!(menu.contains(BIDI_LRI), "menu rows must open an isolate");
+        assert!(menu.contains(BIDI_PDI), "menu rows must close the isolate");
+        let cut = menu.find("1 Cut").expect("item");
+        assert!(menu[..cut].rfind(BIDI_LRI).is_some());
+        assert!(menu[cut..].find(BIDI_PDI).is_some());
+        let welcome = ed.welcome_dialog();
+        assert!(welcome.contains(BIDI_LRI) && welcome.contains(BIDI_PDI));
+        let items = vec![PickerItem { label: "main.rs".into(), detail: "file".into(), path: None, line: None, action: None }];
+        let picker = ed.simple_picker_string(" Quick Open ", "", "type", &items, 0, "No match", "");
+        assert!(picker.contains(BIDI_LRI) && picker.contains(BIDI_PDI));
+        let (search, _) = ed.search_replace_text(".", "foo", "bar", 1, &[1, 3, 3], &{
+            let mut job = ReplaceCount::idle();
+            job.done = true;
+            job.count = 1;
+            job
+        });
+        assert!(search.contains(BIDI_LRI) && search.contains(BIDI_PDI));
+        let (find, _) = ed.find_dialog_text("foo", 3, 0);
+        assert!(find.contains(BIDI_LRI) && find.contains(BIDI_PDI));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rtl_mode_label_and_menu_alignment() {
+        let dir = std::env::temp_dir().join(format!("az-rtl-label-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("o.txt");
+        std::fs::write(&file, "x\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 80;
+        ed.rows = 24;
+        // Palette offers "Enable RTL Mode" while off, "Disable" while on.
+        assert!(ed.command_items().iter().any(|c| c.label == "Enable RTL Mode" && c.action.as_deref() == Some("toggle-rtl")));
+        ed.toggle_rtl();
+        assert!(ed.command_items().iter().any(|c| c.label == "Disable RTL Mode" && c.action.as_deref() == Some("toggle-rtl")));
+        // RTL mode right-aligns menu text (padding moves to the left).
+        let menu = ed.context_menu_string(" Edit ", &["Cut".into()], 0, 0, 10, 6, 20, 6);
+        let row = menu.find("1 Cut").expect("item");
+        let line_start = menu[..row].rfind('║').expect("cell start");
+        assert!(menu[line_start..row].ends_with("  "), "padding must sit left of the item");
+        ed.toggle_rtl();
+        let menu_ltr = ed.context_menu_string(" Edit ", &["Cut".into()], 0, 0, 10, 6, 20, 6);
+        let row_ltr = menu_ltr.find("1 Cut").expect("item");
+        let line_start_ltr = menu_ltr[..row_ltr].rfind('║').expect("cell start");
+        // LTR keeps the item flush left (only the leading " 1" space).
+        assert!(menu_ltr[line_start_ltr..row_ltr].ends_with(' '));
+        assert!(!menu_ltr[line_start_ltr..row_ltr].ends_with("  "));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

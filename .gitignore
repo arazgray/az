@@ -5,6 +5,9 @@
 # az release binary copied to repo root by build.sh (rebuilt via `cargo build --release`)
 /az
 
+# deb build staging (final .deb ships in /dist/)
+/dist/deb/
+
 # Editor / OS noise
 *~
 *.swp
