@@ -32,6 +32,7 @@ Files included (42 languages):
 - `zig.rs`: keywords/types, `fn`/`const`/`test` symbols
 - `julia.rs`: keywords/types, `#` + `#= =#`, `function`/`struct`/`macro` symbols
 - `objc.rs`: keywords/types, `#import`, `@directives`, `@interface` + method symbols
+- `plain.rs`: `.txt` and the fallback mode. ASCII punctuation is orange. The editor stripes those rows (`#1a1b26` / `#1f2335`); other modes stay on one background.
 - `example.rs`: documented skeleton for adding a new plugin
 - `mod.rs`: plugin registry and mixed-language facade used by the editor
 

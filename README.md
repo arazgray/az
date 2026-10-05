@@ -160,7 +160,7 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 
 > No word wrap by design — long lines scroll horizontally. No splits or regex.
 
-### What is new in 3.1
+### What is new in 3.2
 
 General stability and performance improvements and bug fixes.
 
@@ -233,7 +233,7 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 | Zig | `*.zig` | keywords/types, `//` comments, `fn`/`const`/`test` symbols |
 | Julia | `*.jl` | keywords/types, `#` + `#= =#`, `function`/`struct`/`macro` symbols |
 | Objective-C | `*.m`, `*.mm` | keywords/types, `#import`, `@directives`, `@interface` + `- (…)` method symbols |
-| Plain | `*.txt` + fallback | no highlighting, always available via `set Plain` |
+| Plain | `*.txt` + fallback | orange punctuation (`~!@#$%^&*()[]` and the rest), striped rows (`#1a1b26` / `#1f2335`) |
 =======
 | Language | Extensions/Files | Highlighting & Symbol Support |
 | --- | --- | --- |
@@ -277,7 +277,7 @@ Older releases: [`CHANGELOG.md`](CHANGELOG.md).
 | **Zig** | `*.zig` | Keywords, types, `fn`/`const`/`test` symbols |
 | **Julia** | `*.jl` | Keywords, types, `function`/`struct`/`macro` symbols |
 | **Objective-C** | `*.m`, `*.mm` | Keywords, types, `#import`, `@directives`, method symbols |
-| **Plain Text** | `*.txt` | Fallback mode. No highlighting, always available. |
+| **Plain Text** | `*.txt` + fallback | Orange punctuation. Alternate rows use two dark blues. |
 
 **Extending Languages via AI:**
 `az` includes an [AI Agent Guide](AGENTS.md) that teaches LLM coding assistants the plugin API, architecture, and testing requirements. To add a new language, instruct your AI to scaffold the language implementation (`src/plugins/x.rs`), wire the routing, and add regression tests following the [Plugin Guide](https://www.google.com/search?q=PLUGIN_GUIDE.md).

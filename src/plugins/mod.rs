@@ -58,6 +58,7 @@ pub(crate) mod clojure;
 pub(crate) mod zig;
 pub(crate) mod julia;
 pub(crate) mod objc;
+pub(crate) mod plain;
 pub(crate) mod example;
 
 #[derive(Clone, Copy)]
@@ -371,7 +372,7 @@ pub(crate) fn highlight_segments(line: &str, syntax: SyntaxMode) -> Vec<Segment>
         SyntaxMode::Zig => zig::segments(line),
         SyntaxMode::Julia => julia::segments(line),
         SyntaxMode::Objc => objc::segments(line),
-        SyntaxMode::Plain => Vec::new(),
+        SyntaxMode::Plain => plain::segments(line),
     }
 }
 

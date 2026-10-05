@@ -1,6 +1,6 @@
 # az — Changelog
 
-## 3.1
+## 3.2
 
 General stability and performance improvements and bug fixes.
 

@@ -40,6 +40,14 @@ const YELLOW: &str = "#e0af68";
 const RED: &str = "#f7768e";
 const ACCENT: &str = BLUE;
 const QUIT_LABEL: &str = " Quit ";
+// Keep the tree on the left when a row has no filename. An RTL line would
+// otherwise be the first strong character and the terminal would mirror the
+// whole row into the sidebar. Isolates stop the gutter digits from joining
+// that run. All four are zero-width.
+const BIDI_LRM: &str = "\u{200E}";
+const BIDI_LRI: &str = "\u{2066}";
+const BIDI_FSI: &str = "\u{2068}";
+const BIDI_PDI: &str = "\u{2069}";
 const HISTORY_LIMIT: usize = 400;
 const QUICK_OPEN_LIMIT: usize = 2500;
 const PROJECT_SEARCH_LIMIT: usize = 80;
@@ -1694,7 +1702,7 @@ impl Editor {
         let text_rows = self.editor_view_rows();
         for screen_line in 0..self.content_height {
             let row_no = screen_line + 4;
-            out.push_str(&format!("\x1b[{row_no};1H"));
+            out.push_str(&format!("\x1b[{row_no};1H{BIDI_LRM}"));
             if self.show_hscroll && screen_line + 1 == self.content_height {
                 if !self.sidebar_hidden {
                     let tree_track = self.tree_width.max(1);
@@ -1709,15 +1717,29 @@ impl Editor {
                 out.push_str(&self.render_tree_line(screen_line));
             }
             let line_no = visible.0 + screen_line;
+            let row_bg = editor_row_bg(syntax, line_no);
             if screen_line < text_rows && line_no < tab.lines.len() {
                 let gutter_text = format!("{:>width$} ", line_no + 1, width = gutter.saturating_sub(1));
-                out.push_str(&format!("\x1b[{row_no};{editor_start}H{}{}\x1b[0m", ansi_style(Some(GUTTER), Some(BG), false, true, false), fit_plain(&gutter_text, gutter)));
+                out.push_str(&format!(
+                    "\x1b[{row_no};{editor_start}H{BIDI_LRI}{}{}\x1b[0m{BIDI_PDI}",
+                    ansi_style(Some(GUTTER), Some(row_bg), false, true, false),
+                    fit_plain(&gutter_text, gutter)
+                ));
                 let line = &tab.lines[line_no];
                 let rendered = self.render_editor_line(line, line_no, syntax, text_width);
                 out.push_str(&rendered);
             } else {
-                out.push_str(&format!("\x1b[{row_no};{editor_start}H{}~", ansi_style(Some(GUTTER), Some(BG), false, true, false)));
-                out.push_str(&format!("{}{}{}", ansi_style(Some(FG), Some(BG), false, false, false), fit_plain("", self.cols.saturating_sub(editor_start).saturating_add(1)), reset_fg_bg()));
+                // `~` is one column. The fill stops on the last content column
+                // so a short buffer cannot wrap onto the next row's tree.
+                let reserve = usize::from(self.show_editor_vscroll);
+                let fill = self.cols.saturating_sub(reserve).saturating_sub(editor_start);
+                out.push_str(&format!(
+                    "\x1b[{row_no};{editor_start}H{BIDI_LRI}{}~{}{}{BIDI_PDI}",
+                    ansi_style(Some(GUTTER), Some(row_bg), false, true, false),
+                    ansi_style(Some(FG), Some(row_bg), false, false, false),
+                    " ".repeat(fill)
+                ));
+                out.push_str(reset_fg_bg());
             }
         }
         out.push_str(&self.render_vscroll_bars());
@@ -1786,7 +1808,7 @@ impl Editor {
         } else {
             ansi_style(Some(FG_DARK), Some(BG_DARK), false, false, false)
         };
-        format!("{style}{}\x1b[0m", fit_plain(&text, width))
+        format!("{BIDI_LRI}{style}{}\x1b[0m{BIDI_PDI}", fit_plain(&text, width))
     }
 
     fn sidebar_shortcut_lines(&self) -> Vec<String> {
@@ -1806,8 +1828,10 @@ impl Editor {
         let tab = self.tab();
         let start = byte_at_visual(line, tab.col_offset);
         let mut out = String::new();
+        out.push_str(BIDI_FSI);
         let segs = highlight_segments(line, syntax);
         let sel = self.selection_range();
+        let row_bg = editor_row_bg(syntax, line_no);
         let mut byte_i = start;
         let mut used = 0usize;
 
@@ -1823,7 +1847,7 @@ impl Editor {
             if selected {
                 out.push_str(&ansi_style(Some(BG_DARK), Some(ACCENT), false, false, false));
             } else {
-                out.push_str(&ansi_style(Some(fg), Some(BG), false, false, false));
+                out.push_str(&ansi_style(Some(fg), Some(row_bg), false, false, false));
             }
             out.push_str(&rendered);
             used += cell_w;
@@ -1831,10 +1855,11 @@ impl Editor {
         }
 
         if used < width {
-            out.push_str(&ansi_style(Some(FG), Some(BG), false, false, false));
+            out.push_str(&ansi_style(Some(FG), Some(row_bg), false, false, false));
             out.push_str(&" ".repeat(width - used));
         }
         out.push_str("\x1b[0m");
+        out.push_str(BIDI_PDI);
         out
     }
 
@@ -4082,7 +4107,7 @@ impl Editor {
             ("Set syntax Julia", "force current tab to Julia", "set-syntax-julia"),
             ("Set syntax Objective-C", "force current tab to Objective-C", "set-syntax-objc"),
             ("Set syntax Auto", "use file extension again", "set-syntax-auto"),
-            ("Set syntax Plain", "disable highlighting/completion", "set-syntax-plain"),
+            ("Set syntax Plain", "punctuation highlight and striped rows", "set-syntax-plain"),
             ("Find in current file", "Ctrl+F", "find"),
             ("Replace in current file", "Ctrl+R", "replace"),
             ("Toggle sidebar", "Ctrl+H", "toggle-tree"),
@@ -4875,6 +4900,12 @@ fn highlight_segments(line: &str, syntax: SyntaxMode) -> Vec<Segment> {
 fn color_at<'a>(segments: &'a [Segment], pos: usize) -> Option<&'static str> {
     for seg in segments.iter().rev() { if pos >= seg.start && pos < seg.end { return Some(seg.color); } }
     None
+}
+
+/// Plain text (`.txt` and the fallback) alternates two dark blues, close to
+/// the editor background. Other modes stay on `BG`. Even file lines keep `BG`.
+fn editor_row_bg(syntax: SyntaxMode, line_no: usize) -> &'static str {
+    if syntax == SyntaxMode::Plain && line_no % 2 == 1 { BG_FLOAT } else { BG }
 }
 
 fn current_minute() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() / 60 }
@@ -6590,6 +6621,76 @@ mod tests {
         assert_eq!(SyntaxMode::from_path(Some(Path::new("a.zig"))), SyntaxMode::Zig);
         assert_eq!(SyntaxMode::from_path(Some(Path::new("a.jl"))), SyntaxMode::Julia);
         assert_eq!(SyntaxMode::from_path(Some(Path::new("a.m"))), SyntaxMode::Objc);
+    }
+
+    #[test]
+    fn plain_text_marks_symbols_and_stripes_rows() {
+        use std::path::Path;
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("notes.txt"))), SyntaxMode::Plain);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Makefile"))), SyntaxMode::Plain);
+        let line = "Hello ~!@#$%^&*()[]";
+        let segs = crate::plugins::highlight_segments(line, SyntaxMode::Plain);
+        assert_eq!(segs.len(), 1);
+        assert_eq!(&line[segs[0].start..segs[0].end], "~!@#$%^&*()[]");
+        assert_eq!(segs[0].color, ORANGE);
+        assert!(crate::plugins::highlight_segments("abc 123", SyntaxMode::Plain).is_empty());
+        assert_eq!(editor_row_bg(SyntaxMode::Plain, 0), BG);
+        assert_eq!(editor_row_bg(SyntaxMode::Plain, 1), BG_FLOAT);
+        assert_eq!(editor_row_bg(SyntaxMode::Php, 1), BG);
+
+        let dir = std::env::temp_dir().join(format!("az-plain-stripe-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("n.txt");
+        std::fs::write(&file, "hello!\nworld\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 80;
+        ed.rows = 24;
+        let even = ed.render_editor_line("hello!", 0, SyntaxMode::Plain, 20);
+        let odd = ed.render_editor_line("hello!", 1, SyntaxMode::Plain, 20);
+        assert!(even.contains("38;2;255;158;100"), "symbol color missing: {even}");
+        assert!(even.contains("48;2;26;27;38"), "even row should stay on BG: {even}");
+        assert!(odd.contains("48;2;31;35;53"), "odd row should use BG_FLOAT: {odd}");
+        let code = ed.render_editor_line("hello!", 1, SyntaxMode::Php, 20);
+        assert!(!code.contains("48;2;31;35;53"), "code rows must not stripe: {code}");
+        ed.tab_mut().syntax_mode = Some(SyntaxMode::Plain);
+        let painted = ed.render_content();
+        assert!(painted.contains("48;2;26;27;38"));
+        assert!(painted.contains("48;2;31;35;53"));
+        ed.tab_mut().syntax_mode = Some(SyntaxMode::Php);
+        let code_pane = ed.render_content();
+        assert!(!code_pane.contains("48;2;31;35;53"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rtl_editor_text_stays_out_of_the_tree() {
+        let dir = std::env::temp_dir().join(format!("az-rtl-tree-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("notes.txt");
+        std::fs::write(&file, "x\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 100;
+        ed.rows = 24;
+        ed.tree_width = 28;
+        ed.sidebar_hidden = false;
+        // A large plain file, and a tree that does not fill the screen. Those
+        // rows have no LTR filename, so the RTL line used to set the paragraph
+        // direction and the terminal mirrored it into the sidebar.
+        ed.tab_mut().lines = (0..20_000).map(|i| if i == 3 { "سلام دنیا".to_string() } else { format!("line {i}") }).collect();
+        ed.tab_mut().syntax_mode = Some(SyntaxMode::Plain);
+        ed.tree_rows.clear();
+        let painted = ed.render_content();
+        assert!(painted.contains(BIDI_LRM), "each row must force LTR");
+        assert!(painted.contains(BIDI_LRI), "tree and gutter must be isolated");
+        let idx = painted.find('س').expect("arabic line");
+        let open = painted[..idx].rfind(BIDI_FSI).expect("editor isolate");
+        let close = painted[idx..].find(BIDI_PDI).expect("isolate end");
+        assert!(open < idx && close > 0);
+        let row_start = painted[..idx].rfind(BIDI_LRM).expect("row mark");
+        assert!(row_start < open);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
