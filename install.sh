@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-REPO_URL="${AZ_REPO_URL:-https://github.com/arazgholami/az.git}"
+REPO_URL="${AZ_REPO_URL:-https://github.com/arazgray/az.git}"
 BIN_DIR="${AZ_BIN_DIR:-$HOME/.local/bin}"
 TMP_DIR=""
 

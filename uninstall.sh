@@ -7,24 +7,22 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/az-rust"
 PROFILE="$HOME/.profile"
 PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
 
-REMOVE_STATE=0
 REMOVE_PATH=0
 
 for arg in "$@"; do
   case "$arg" in
-    --remove-state) REMOVE_STATE=1 ;;
     --remove-path) REMOVE_PATH=1 ;;
     -h|--help)
-      echo "Usage: ./uninstall.sh [--remove-state] [--remove-path]"
+      echo "Usage: ./uninstall.sh [--remove-path]"
       echo ""
       echo "Removes the installed 'az' binary (default: \$HOME/.local/bin/az,"
-      echo "override with AZ_BIN_DIR). By default keeps your sessions/recovery"
-      echo "files and your shell PATH untouched."
+      echo "override with AZ_BIN_DIR). Asks whether to keep or remove the"
+      echo "state dir (sessions and recovery, default:"
+      echo "\$HOME/.local/state/az-rust, override with XDG_STATE_HOME)."
+      echo "Enter keeps it. A run without a terminal keeps it. The shell"
+      echo "PATH line is left in place."
       echo ""
       echo "Options:"
-      echo "  --remove-state  Also delete the state dir (sessions + recovery"
-      echo "                  files, default: \$HOME/.local/state/az-rust,"
-      echo "                  override with XDG_STATE_HOME)."
       echo "  --remove-path   Also remove the PATH line ./build.sh added to"
       echo "                  ~/.profile (exact line match only)."
       exit 0
@@ -57,15 +55,33 @@ if [ -f "$SYS_TARGET" ] || [ -L "$SYS_TARGET" ]; then
   fi
 fi
 
-if [ "$REMOVE_STATE" -eq 1 ]; then
-  if [ -d "$STATE_DIR" ]; then
-    rm -rf "$STATE_DIR"
-    printf '[az uninstall] Removed state dir %s.\n' "$STATE_DIR"
-  else
-    printf '[az uninstall] State dir %s not found, nothing to remove.\n' "$STATE_DIR"
-  fi
+if [ ! -d "$STATE_DIR" ]; then
+  printf '[az uninstall] State dir %s not found, nothing to remove.\n' "$STATE_DIR"
+elif [ ! -t 0 ]; then
+  printf '[az uninstall] Not a terminal; keeping state dir %s (sessions/recovery).\n' "$STATE_DIR"
 else
-  printf '[az uninstall] Keeping state dir %s (sessions/recovery). Use --remove-state to delete it.\n' "$STATE_DIR"
+  while true; do
+    printf 'Keep or remove state dir %s (sessions and recovery)? [K/r] ' "$STATE_DIR"
+    answer=""
+    if ! read -r answer; then
+      printf '\n'
+      answer=""
+    fi
+    case "$answer" in
+      ""|k|K|keep|Keep|KEEP)
+        printf '[az uninstall] Keeping state dir %s (sessions/recovery).\n' "$STATE_DIR"
+        break
+        ;;
+      r|R|remove|Remove|REMOVE)
+        rm -rf "$STATE_DIR"
+        printf '[az uninstall] Removed state dir %s.\n' "$STATE_DIR"
+        break
+        ;;
+      *)
+        printf 'Please answer k (keep) or r (remove).\n'
+        ;;
+    esac
+  done
 fi
 
 if [ "$REMOVE_PATH" -eq 1 ]; then

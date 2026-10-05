@@ -1,8 +1,8 @@
 # az — Changelog
 
-## Unreleased
+## 3.1
 
-- **Vertical scroll bars.** The editor and the sidebar each draw a bar on their right edge when that pane is taller than its viewport. Click or drag the bar to pan. The caret stays put. A click, the wheel, or the arrow keys in the sidebar follow the selection again.
+General stability and performance improvements and bug fixes.
 
 ## 3.0
 

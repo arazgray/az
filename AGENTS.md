@@ -1,4 +1,4 @@
-# AGENTS.md — AI Agent Guide for `az` 3.0
+# AGENTS.md — AI Agent Guide for `az` 3.1
 
 > Read this before editing. `az` is a single-binary Rust TUI editor (zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
@@ -6,7 +6,7 @@
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
 - Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (42 files: 41 languages + `example.rs` skeleton).
-- Build: `cargo check` (fast), `cargo test` (57 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
+- Build: `cargo check` (fast), `cargo test` (61 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -35,7 +35,7 @@ src/main.rs
     read_key(), read_escape(), handle_key(), handle_global_shortcut(),
     handle_tree_key(), handle_editor_key(), handle_mouse*()
     render(), render_titlebar(), render_topbar_separator(), render_tabbar(), titlebar_button_regions(), render_content(), render_status_separator(), render_status_line(),
-    render_popup_box(), render_simple_picker(), render_autocomplete_dropdown()
+    popup_box(), simple_picker_string(), render_autocomplete_dropdown(), present_overlay()
     open_file(), new_tab(), close_current_tab(), save_current_tab/_as()
     insert_text(), apply_insert_at(), apply_delete_range(), backspace(), delete_forward()
     undo(), redo(), copy/cut/paste, move_*, go_to_line()
@@ -62,7 +62,7 @@ Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock).
 
 Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters. Mouse: SGR `1000`+`1002`+`1006` enabled in `enable_raw_mode()`, disabled in `cleanup()`; `read_key()` breaks on `M/m` for `ESC[<…` (or 6-byte `ESC[M` legacy); `handle_key()` routes both via `parse_sgr_mouse()` / `parse_legacy_mouse()` → `handle_mouse()`. Picker loops (quick open, palette, find-in-files, shortcuts) and `context_menu()` scroll selection on wheel.
 
-Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()` (plain prefix is ` az   {mode} `, 7 + mode length; the hit starts on the label; orange ` X Quit ` sits left of the clock and calls `confirm_quit()`). Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) is ±1 per report: tab bar (`y==3`) cycles tabs, sidebar moves `tree_index` and sets `follow_tree = true`, editor sets `follow_cursor = false` and pans `row_offset` (caret and selection stay). Do not put the ±3 step back, and do not move the caret from the wheel. Right-click (`Cb&3==2`) opens `context_menu()`; middle-click (`==1`) on a tab closes via `close_tab_at()` (the `+` button is not a tab). A click on a vertical bar pans that pane and does not open a menu or move the caret. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start`, unless `vscroll_drag` or `hscroll_drag` is set. Picker dialogs and the search/replace dialog close on a click outside `picker_frame`. Autocomplete: click inside accepts, click outside closes and the click still lands. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status. When `show_hscroll`, the last content row is the shared horizontal bar and `editor_view_rows` is one shorter. Vertical bars (`show_editor_vscroll`, `show_tree_vscroll`) occupy the pane's right column on text rows only (`┃` / `│`); the corner stays on the horizontal bar. `refresh_hscroll` recomputes horizontal then vertical twice so a stolen column or row settles. `>` not `>=`. `ensure_tree_visible` uses `editor_view_rows` and honors `follow_tree`.
+Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-click same path <500ms calls `rename_tree_path_prompt(false)`. Title row buttons hit-tested via `titlebar_button_regions()` (plain prefix is ` az   {mode} `, 7 + mode length; the hit starts on the label; red ` Quit ` sits left of the clock and calls `confirm_quit()`). Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) is ±1 per report: tab bar (`y==3`) cycles tabs, sidebar moves `tree_index` and sets `follow_tree = true`, editor sets `follow_cursor = false` and pans `row_offset` (caret and selection stay). Do not put the ±3 step back, and do not move the caret from the wheel. Right-click (`Cb&3==2`) opens `context_menu()`; middle-click (`==1`) on a tab closes via `close_tab_at()` (the `+` button is not a tab). A click on a vertical bar pans that pane and does not open a menu or move the caret. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start`, unless `vscroll_drag` or `hscroll_drag` is set. Picker dialogs and the search/replace dialog close on a click outside `picker_frame`. Autocomplete: click inside accepts, click outside closes and the click still lands. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status. When `show_hscroll`, the last content row is the shared horizontal bar and `editor_view_rows` is one shorter. Vertical bars (`show_editor_vscroll`, `show_tree_vscroll`) occupy the pane's right column on text rows only (`┃` / `│`); the corner stays on the horizontal bar. `refresh_hscroll` recomputes horizontal then vertical twice so a stolen column or row settles. `>` not `>=`. `ensure_tree_visible` uses `editor_view_rows` and honors `follow_tree`.
 
 ## 3. Critical Invariants (do not break)
 
@@ -72,7 +72,7 @@ Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; double-c
 4. **`absolute_path()` must stay absolute.** Resolves against CWD + lexical `..` normalisation without FS access (supports new files). Session/recovery hashes depend on it.
 5. **History byte positions.** `apply_insert/delete` mutate `lines` + set `cursor=start`. `undo()` iterates `ops.rev()`, `redo()` forward. `mark_edited()` bumps `revision` (monotonic — do not decrement it; that breaks redo). `modified` is `buffer_hash(lines) != saved_hash`. Undo back to the saved text clears the dirty flag. `col_offset` is a visual column (`fit_visual_offset`), not a byte index.
 6. **No crates.** Std only (`fs`, `io`, `env`, `process::Command` for `date`, raw `ioctl` FFI). Don't add deps without discussion.
-7. **Picker widths.** Clamp to `cols-2`. Narrow terminals (30 cols) must not overflow. See `render_simple_picker()`.
+7. **Picker widths.** Clamp to `cols-2`. Narrow terminals (30 cols) must not overflow. See `simple_picker_string()`.
 8. **Skip lists must stay in sync.** `add_tree_rows()` + `collect_quick_open_files()` both skip `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Update both together.
 
 ## 4. Plugin API (add language in 15 min)
@@ -110,7 +110,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 57 tests (56 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF
+cargo test    # 61 tests (60 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF, welcome logo, dialog chrome
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -132,7 +132,7 @@ Unreleased (vertical scrollbars):
 3.0 (viewport, dialogs, tabs, bash rc files, dirty flag, CRLF, scrollbars, clipboard, sudo save, paste):
 - Wheel is one row per report. Editor pans `row_offset` with `follow_cursor = false` (caret and selection stay). Tree moves `tree_index` ±1. Tab-bar wheel calls `cycle_tab`. Do not put the ±3 step back and do not move the caret from the wheel.
 - Tabs: `visible_tab_indexes` uses `window_indexes` (max 9, centered on the current tab). `Alt+1-9` hits that window. `+` is an extra width after the tabs (`tab_hit_index` == `visible.len()`); middle/right-click on it must not close a tab. `Ctrl+N` and `+` call `new_tab(true)`. Saving a pathless tab prompts `Filename:`.
-- `Ctrl+F` / `Ctrl+R` / `Ctrl+Shift+H` open `search_replace_dialog`. Enter replaces all in the target (empty path or the current file = buffer; a directory = project replace, no y/N). Caps stay. Click-outside uses `picker_frame` / `PickerMouse` for every list dialog.
+- `Ctrl+F` opens `find_dialog` (current buffer: query, count, Next, Close). `Ctrl+R` and `Ctrl+Shift+H` open `search_replace_dialog`. Enter replaces all in the target (empty path or the current file = buffer; a directory = project replace, no y/N). Caps stay. Click-outside uses `picker_frame` / `PickerMouse` for every list dialog.
 - `col_offset` is a visual column (`fit_visual_offset`, `byte_at_visual`). Horizontal bar is the last content row when either pane overflows (`refresh_hscroll`). Do not steal the status row. Do not add word wrap unless asked.
 - Bash: `is_shell_rc_name` in `from_path`, `syntax_from_shebang` only when `from_path` is Plain. `Tab::syntax()` checks a manual mode first. `bash.rs` itself is unchanged.
 - `modified` compares `buffer_hash` to `saved_hash`. Do not decrement `revision`. Recovery sets `saved_hash` to `hash.wrapping_add(1)` so the restored tab stays dirty. `Tab.crlf` is detected before LF normalization; `text()` joins with `\r\n` when set. Project replace preserves it.
@@ -156,10 +156,10 @@ Unreleased (vertical scrollbars):
 - Replace in Files is `Ctrl+Shift+H` only (`is_ctrl_shift_h`); caps: 3000 files, 5MB, 10k matches. Open modified tabs are skipped (never clobber unsaved buffers); reloaded tabs get `undo/redo` cleared (positions refer to old content).
 - Right-click (`button&3==2`) opens `context_menu()`; middle-click (`==1`) on topbar closes via `close_tab_at()`. Menu loop swallows its own mouse (click-away/Esc cancel, `1-9` pick). Never route menu keys through global shortcuts.
 - Inactive tabs use `BG_TAB` (lighter than bar); open file row uses `BG_HIGHLIGHT` in `render_tree_line()`; status chips in `render_status_line()` (`modified`-only orange, stats yellow) — no `saved` chip, it was display-only noise. Mode chip lives in the titlebar via `focus_label()`.
-- `Ctrl+K` opens `shortcuts_dialog()` (`shortcut_defs()` + shared `filter_command_items()`); `Ctrl+/` (`is_ctrl_slash`) is gone. Titlebar buttons (plain ACCENT text, no bg chip; orange `X Quit` with `QUIT_LABEL` left of the clock) hit-tested via `titlebar_button_regions()` → quick-open/palette/shortcuts/quit. Palette `screenshot-showcase` draws palette + search-replace + shortcuts previews at random `showcase_box_pos()` spots (any key reshuffles, Esc closes).
+- `Ctrl+K` opens `shortcuts_dialog()` (`shortcut_defs()` + shared `filter_command_items()`); `Ctrl+/` (`is_ctrl_slash`) is gone. Titlebar buttons (plain ACCENT text, no bg chip; red `Quit` with `QUIT_LABEL` left of the clock) hit-tested via `titlebar_button_regions()` → quick-open/palette/shortcuts/quit. Palette `welcome` shows the welcome dialog again.
 - Clipboard: `copy_to_system_clipboard()` returns verified bool; cascade `try_clipboard_tool()` (`wl-copy`/`xclip`/`xsel`/`pbcopy` via `pipe_to_clipboard_tool()`) then `osc52_sequence()`; OSC52-first over SSH. Messages `Copied` vs `Copied (OSC52)`.
 - Status flash: `render()` arms `status_flash_until` on message change (750ms, 250ms phases, CYAN); `prompt()` blinks every prompt light blue (350ms) using non-blocking `read_key()` ticks + `redraw` flag.
-- Welcome logo is the user-supplied block `az` mark (`ttfx_logo()` + `TTFX_LOGO_WIDTH`, per-row widths — rows are ragged, never pad to a single width).
+- Welcome logo is `logo.txt` at the repo root, embedded with `include_str!` (`welcome_logo()`). Dark ink (`30`/`90`) is `#578bfb`; light ink (`37`/`97`) and the solid fills (`47`) are `#7aa2f7`. The mark is centered in the box. Read the terminal size before building the welcome or update dialog — `Editor::new` still has 80×24, and `present_overlay` paints after the string is built. The sidebar draws no hardware caret (the selection highlight is the indicator). Dialogs repaint only when their contents change: search, quick open, and find-in-files must not call `frame()` on every input wake. Shared chrome is `dialog_border/title/body/selected/input/muted`.
 
 2.2 (search + navigation):
 - Find in Files is `Ctrl+Shift+O` only (`is_ctrl_shift_o`); never re-add `Ctrl+Shift+F` — terminals reserve it for their own search bar.

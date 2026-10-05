@@ -1,4 +1,4 @@
-# az 3.0 — User Manual
+# az 3.1 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
@@ -48,8 +48,8 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
   └ popups: welcome, shortcuts (Ctrl+K), quick open (Ctrl+O), palette (Ctrl+P) ┘
 ```
 
-- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), orange `X Quit` button left of the clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
-- Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.).
+- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
+- Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.). The selected row is a highlight. The blinking caret is only in the editor.
 - Gutter: line numbers, min width 4.
 - Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the tree chip, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
 - No word wrap. Long lines scroll horizontally, and the caret stays on screen (a tab is four columns). When the editor or the sidebar is wider than its pane, the last content row is a horizontal scrollbar for both. Wheel on that row moves four columns. Drag the thumb to jump. When a pane is taller than the viewport, it draws a vertical bar on its right edge (`┃` thumb, `│` track). Click or drag that bar to pan. The editor caret stays where it is. A click, the wheel, or the arrow keys in the sidebar follow the selection again.
@@ -63,9 +63,9 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Ctrl+S` | Save (asks `Filename:` for an unsaved tab) |
 | `Ctrl+O` | Quick open file / symbol / `file:line` / `:line` |
 | `Ctrl+P` | Command palette |
-| `Ctrl+F` | Search & replace dialog, find field (`%term` = case-sensitive) |
-| `Ctrl+L` | Find next (uses last pattern; also inside the replace dialog) |
-| `Ctrl+R` | Search & replace dialog, replace field |
+| `Ctrl+F` | Find dialog for this file (`%term` = case-sensitive) |
+| `Ctrl+L` | Find next (uses last pattern; also inside the find dialog) |
+| `Ctrl+R` | Search & replace dialog |
 | `Ctrl+G` | Go to line |
 | `Ctrl+T` | Toggle tree focus (shows tree if hidden) |
 | `Ctrl+H` | Hide/show tree — **tree focus only**. In editor, `0x08` acts as Backspace for terminals sending `^H` |
@@ -136,10 +136,14 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, UI showcase for screenshots, Keyboard shortcuts, Quit`. Type `set php` to force language.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
 
-### Find / Replace
-`Ctrl+F` (find field), `Ctrl+R` (replace field), and `Ctrl+Shift+H` (project path) open the same dialog:
+### Find
+`Ctrl+F` opens the Find dialog for the current file:
+- One query field. The count updates as you type (`%Foo` = case-sensitive). `Enter` or Next jumps to the next match and leaves the dialog open. `Tab` moves across the query, Next, and Close. `Esc`, Close, or a click outside closes it. `Ctrl+L` finds the next match with the last pattern.
+
+### Replace
+`Ctrl+R` opens Search & Replace for the current file. `Ctrl+Shift+H` opens the same dialog on the project:
 - Path, find, and replace are editable. An empty path, or the path of the current file, means this buffer. A directory searches that folder. Another file rewrites that file.
 - The count under the fields updates as you type (`%Foo` = case-sensitive). `Tab` / `Shift+Tab` move across the fields, Replace, and Cancel. `Enter` replaces every match in the target and leaves the dialog open so the count refreshes. `Esc`, Cancel, or a click outside closes it. `Ctrl+L` finds the next match in the current buffer.
 - Project replace keeps the caps (3000 files, files over 5MB skipped, 10k matches). Open tabs with unsaved edits are skipped. A file that used CRLF is written back with CRLF. Replace in the current buffer is one undo entry.
@@ -152,7 +156,7 @@ Separate modal from Quick Open. Type to live-search file contents across the ope
 - Requires a Kitty-protocol terminal for the direct shortcut (`CSI-u`); otherwise use `Ctrl+P` → `Find in files`. (`Ctrl+Shift+O` is used because most terminals reserve `Ctrl+Shift+F` for their own search.)
 
 ### Replace in Files (palette or `Ctrl+Shift+H`)
-Same dialog as Find / Replace, opened on the project root (or a sidebar folder via right-click → `Search & Replace here`). The count is the confirmation. There is no extra y/N prompt. Requires a Kitty-protocol terminal for the direct shortcut; otherwise use `Ctrl+P` → `Replace in files`.
+Same dialog as Replace, opened on the project root (or a sidebar folder via right-click → `Search & Replace here`). The count is the confirmation. There is no extra y/N prompt. Requires a Kitty-protocol terminal for the direct shortcut; otherwise use `Ctrl+P` → `Replace in files`.
 
 ### Go to Line / Start / End
 - `Ctrl+G`, `:20` in quick open, or `az file:20` for a numbered line. Clamps to EOF.
@@ -184,7 +188,7 @@ Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern 
 - Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
   - Tab: `Close tab`, `Copy file path`.
   - Sidebar: `Open`, `Copy file path`, `Rename`, `Delete`, `Search here`, `Search & Replace here` (each opens its dialog; searches scope to that folder).
-  - Editor: `Cut`, `Copy`, `Paste`, `Select All`, `Find/Replace in File`, `Find/Replace in Files`, `Go to Line` (right-click keeps an active selection so Copy/Cut work on it).
+  - Editor: `Cut`, `Copy`, `Paste`, `Select All`, `Find in File`, `Replace in File`, `Find in Files`, `Replace in Files`, `Go to Line` (right-click keeps an active selection so Copy/Cut work on it).
 
 ## 6. Recovery & Sessions
 

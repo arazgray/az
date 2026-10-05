@@ -39,7 +39,7 @@ const ORANGE: &str = "#ff9e64";
 const YELLOW: &str = "#e0af68";
 const RED: &str = "#f7768e";
 const ACCENT: &str = BLUE;
-const QUIT_LABEL: &str = " X Quit ";
+const QUIT_LABEL: &str = " Quit ";
 const HISTORY_LIMIT: usize = 400;
 const QUICK_OPEN_LIMIT: usize = 2500;
 const PROJECT_SEARCH_LIMIT: usize = 80;
@@ -350,8 +350,8 @@ fn print_help() {
     println!("  -V, --version  Show version");
     println!();
     println!("KEYS:");
-    println!("  Ctrl+S save, Ctrl+O quick open, Ctrl+P commands, Ctrl+F find/replace dialog, Ctrl+L find next,");
-    println!("  Ctrl+Shift+O find in files (%Foo = case-sensitive), Ctrl+R replace dialog, Ctrl+G go to line,");
+    println!("  Ctrl+S save, Ctrl+O quick open, Ctrl+P commands, Ctrl+F find dialog, Ctrl+L find next,");
+    println!("  Ctrl+Shift+O find in files (%Foo = case-sensitive), Ctrl+R search & replace, Ctrl+G go to line,");
     println!("  Ctrl+Shift+H replace in files, Ctrl+E end of line, Ctrl+Home/End or Alt+Up/Down top/bottom,");
     println!("  Ctrl+T tree focus, Ctrl+H tree hide (tree), Ctrl+D close tab, Ctrl+N new empty tab,");
     println!("  Ctrl+Q quit, Ctrl+K shortcuts, Alt+1-9 visible tabs, Ctrl+Tab cycle tabs");
@@ -498,7 +498,6 @@ impl Editor {
         self.offer_recovery();
 
         if self.show_welcome {
-            self.render()?;
             self.render_welcome_screen()?;
             self.show_welcome = false;
             if let Ok(key) = self.read_key_blocking() {
@@ -508,7 +507,6 @@ impl Editor {
 
         if self.running {
             if let Some(remote) = self.pending_update.take() {
-                self.render()?;
                 self.render_update_notice(&remote)?;
                 if let Ok(key) = self.read_key_blocking() {
                     self.handle_key(key);
@@ -1174,7 +1172,7 @@ impl Editor {
             self.tab_index = idx;
             self.clear_selection();
             let items = vec!["Close tab".to_string(), "Copy file path".to_string()];
-            match self.context_menu(&items, ev.x, 4) {
+            match self.context_menu(" Tab ", &items, ev.x, 4) {
                 Some(0) => self.close_current_tab(),
                 Some(1) => self.copy_current_tab_path(),
                 _ => {}
@@ -1206,7 +1204,7 @@ impl Editor {
             "Search here".to_string(),
             "Search & Replace here".to_string(),
         ];
-        let Some(choice) = self.context_menu(&items, x, y) else { return; };
+        let Some(choice) = self.context_menu(" File ", &items, x, y) else { return; };
         match choice {
             0 => {
                 if entry.is_dir {
@@ -1251,7 +1249,7 @@ impl Editor {
             "Replace in Files".to_string(),
             "Go to Line".to_string(),
         ];
-        let Some(choice) = self.context_menu(&items, x, y) else { return; };
+        let Some(choice) = self.context_menu(" Edit ", &items, x, y) else { return; };
         match choice {
             0 => self.cut_selection_or_line(),
             1 => self.copy_selection_or_line(),
@@ -1292,25 +1290,26 @@ impl Editor {
         }
     }
 
-    fn context_menu(&mut self, items: &[String], col: usize, row: usize) -> Option<usize> {
+    fn context_menu(&mut self, title: &str, items: &[String], col: usize, row: usize) -> Option<usize> {
         if items.is_empty() {
             return None;
         }
         self.mouse_drag_start = None;
-        let max_w = items.iter().map(|s| visual_width(s)).max().unwrap_or(0) + 4;
+        let max_w = items.iter().map(|s| visual_width(s)).max().unwrap_or(0).max(visual_width(title)) + 4;
         let (sc, sr, width, height) = context_menu_geometry(items.len(), max_w, col, row, self.cols, self.rows);
         let mut selected = 0usize;
         let mut offset = 0usize;
         loop {
-            let vis = height.saturating_sub(2).max(1);
+            // top, title, rule, bottom
+            let vis = height.saturating_sub(4).max(1);
             if selected < offset {
                 offset = selected;
             }
             if selected >= offset + vis {
                 offset = selected + 1 - vis;
             }
-            let _ = self.render();
-            self.render_context_menu(items, selected, offset, sc, sr, width, height);
+            let dialog = self.context_menu_string(title, items, selected, offset, sc, sr, width, height);
+            let _ = self.present_overlay(&dialog, true);
             let key = self.read_key_blocking().unwrap_or_default();
             if let Some(m) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
                 if m.is_release || m.button & 32 != 0 {
@@ -1326,14 +1325,18 @@ impl Editor {
                 }
                 let btn = m.button & 3;
                 if btn == 0 && m.button & 32 == 0 {
-                    if m.x >= sc && m.x < sc + width && m.y > sr && m.y < sr + height - 1 {
-                        let idx = offset + (m.y - sr - 1);
+                    let inside = m.x >= sc && m.x < sc + width && m.y >= sr && m.y < sr + height;
+                    if !inside {
+                        return None;
+                    }
+                    let item_top = sr + 3;
+                    if m.y >= item_top && m.y < sr + height - 1 {
+                        let idx = offset + (m.y - item_top);
                         if idx < items.len() {
                             return Some(idx);
                         }
-                        continue;
                     }
-                    return None;
+                    continue;
                 }
                 if btn == 2 {
                     return None;
@@ -1357,31 +1360,35 @@ impl Editor {
         }
     }
 
-    fn render_context_menu(&self, items: &[String], selected: usize, offset: usize, start_col: usize, start_row: usize, width: usize, height: usize) {
+    fn context_menu_string(&self, title: &str, items: &[String], selected: usize, offset: usize, start_col: usize, start_row: usize, width: usize, height: usize) -> String {
         let inner = width.saturating_sub(2);
-        let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
+        let border = dialog_border();
+        let title_style = dialog_title();
+        let body = dialog_body();
+        let active = dialog_selected();
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
-        let vis = height.saturating_sub(2);
+        out.push_str(&format!(
+            "\x1b[{};{start_col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
+            start_row + 1,
+            fit_plain(title, inner)
+        ));
+        out.push_str(&format!("\x1b[{};{start_col}H{border}╠{}╣\x1b[0m", start_row + 2, "═".repeat(inner)));
+        let vis = height.saturating_sub(4);
         for i in 0..vis {
-            let r = start_row + 1 + i;
+            let r = start_row + 3 + i;
             let cell = if let Some(label) = items.get(offset + i) {
                 let plain = format!(" {} {}", offset + i + 1, label);
-                let style = if offset + i == selected {
-                    ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false)
-                } else {
-                    ansi_style(Some(FG), Some(BG_FLOAT), false, false, false)
-                };
+                let style = if offset + i == selected { &active } else { &body };
                 format!("{style}{}\x1b[0m", fit_plain(&plain, inner))
             } else {
-                format!("{}\x1b[0m", fit_plain("", inner))
+                format!("{body}{}\x1b[0m", fit_plain("", inner))
             };
             out.push_str(&format!("\x1b[{r};{start_col}H{border}║\x1b[0m{cell}{border}║\x1b[0m"));
         }
         out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + height - 1, "═".repeat(inner)));
-        print!("{out}");
-        let _ = io::stdout().flush();
+        out
     }
 
     fn handle_tree_key(&mut self, key: &str) {
@@ -1496,6 +1503,25 @@ impl Editor {
     }
 
     fn render(&mut self) -> io::Result<()> {
+        self.paint_frame(true)
+    }
+
+    fn paint_frame(&mut self, show_cursor: bool) -> io::Result<()> {
+        let out = self.frame(show_cursor);
+        print!("{out}");
+        io::stdout().flush()
+    }
+
+    /// Draw `dialog` over the editor. `with_base` repaints the editor in the
+    /// same write so the box does not blink off and on.
+    fn present_overlay(&mut self, dialog: &str, with_base: bool) -> io::Result<()> {
+        let mut out = if with_base { self.frame(false) } else { String::new() };
+        out.push_str(dialog);
+        print!("{out}");
+        io::stdout().flush()
+    }
+
+    fn frame(&mut self, show_cursor: bool) -> String {
         self.read_terminal_size();
         self.refresh_tree();
         self.update_tree_width();
@@ -1521,12 +1547,13 @@ impl Editor {
         out.push_str(&self.render_status_separator());
         out.push_str(&self.render_status_line());
 
-        if let Some((cursor_row, cursor_col)) = self.cursor_screen_position() {
-            out.push_str(&self.render_autocomplete_dropdown(cursor_row, cursor_col));
-            out.push_str(&format!("\x1b[{};{}H\x1b[?25h", cursor_row, cursor_col));
+        if show_cursor {
+            if let Some((cursor_row, cursor_col)) = self.cursor_screen_position() {
+                out.push_str(&self.render_autocomplete_dropdown(cursor_row, cursor_col));
+                out.push_str(&format!("\x1b[{};{}H\x1b[?25h", cursor_row, cursor_col));
+            }
         }
-        print!("{out}");
-        io::stdout().flush()
+        out
     }
 
     fn clock_text(&mut self) -> String {
@@ -1570,7 +1597,7 @@ impl Editor {
         let chip = ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false);
         let mode_chip = ansi_style(Some(ACCENT), Some(BG_HIGHLIGHT), true, false, false);
         let button = ansi_style(Some(ACCENT), Some(BG_FLOAT), false, false, false);
-        let quit_style = ansi_style(Some(BG_DARK), Some(ORANGE), true, false, false);
+        let quit_style = ansi_style(Some(BG_DARK), Some(RED), true, false, false);
         let right = format!(" {} ", self.clock_text());
         let right_w = visual_width(&right) + visual_width(QUIT_LABEL);
         let mode = self.focus_label();
@@ -1891,13 +1918,10 @@ impl Editor {
     }
 
     fn cursor_screen_position(&self) -> Option<(usize, usize)> {
-        if self.focus == Focus::Tree && !self.sidebar_hidden {
-            let visible = self.tree_index.saturating_sub(self.tree_scroll);
-            let row_limit = self.editor_view_rows().saturating_sub(1);
-            if visible > row_limit {
-                return None;
-            }
-            return Some((4 + visible, 1));
+        // The sidebar selection is the highlight. A hardware caret there blinks
+        // on the first cell of the row, so the tree draws none.
+        if self.focus == Focus::Tree {
+            return None;
         }
         let tab = self.tab();
         let view = self.editor_view_rows();
@@ -1916,6 +1940,14 @@ impl Editor {
     }
 
     fn render_welcome_screen(&mut self) -> io::Result<()> {
+        // The dialog is built before `present_overlay` paints. Size must already
+        // be the real terminal, or the box is placed for the 80×24 default.
+        self.read_terminal_size();
+        let dialog = self.welcome_dialog();
+        self.present_overlay(&dialog, true)
+    }
+
+    fn welcome_dialog(&self) -> String {
         let hint = "  Ctrl+K for all shortcuts (searchable) ".to_string();
         let lines = vec![
             String::new(),
@@ -1931,58 +1963,82 @@ impl Editor {
             "  Press any key to continue ...".to_string(),
         ];
         let hint_idx = lines.iter().position(|l| *l == hint).unwrap_or(0);
-        self.render_popup_box(&lines, &[hint_idx], &ttfx_logo())
+        self.popup_box(" Welcome ", &lines, &[hint_idx], &welcome_logo())
     }
 
-    fn render_update_notice(&self, remote: &str) -> io::Result<()> {
+    fn render_update_notice(&mut self, remote: &str) -> io::Result<()> {
+        self.read_terminal_size();
+        let dialog = self.update_dialog(remote);
+        self.present_overlay(&dialog, true)
+    }
+
+    fn update_dialog(&self, remote: &str) -> String {
         let title = format!("  A new version of az is available: {remote} (you have {}).", env!("CARGO_PKG_VERSION"));
         let lines = vec![
-            title.clone(),
+            title,
             String::new(),
             "  Upgrade with:".to_string(),
             "  curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh".to_string(),
             String::new(),
             "  Press any key to continue ...".to_string(),
         ];
-        self.render_popup_box(&lines, &[0], &[])
+        self.popup_box(" Update ", &lines, &[0], &[])
     }
 
-    fn render_popup_box(&self, lines: &[String], highlight_lines: &[usize], logo: &[(String, usize)]) -> io::Result<()> {
-        let content_w = lines.iter().map(|l| visual_width(l)).max().unwrap_or(30) + 4;
-        let need = max(56, max(content_w, if logo.is_empty() { 0 } else { TTFX_LOGO_WIDTH + 4 }));
-        let width = min(self.cols.saturating_sub(4), need);
-        let height = min(self.rows.saturating_sub(2), lines.len() + logo.len() + 2);
-        let start_col = max(1, (self.cols.saturating_sub(width)) / 2 + 1);
-        let start_row = max(1, (self.rows.saturating_sub(height)) / 2 + 1);
+    fn popup_box(&self, title: &str, lines: &[String], highlight_lines: &[usize], logo: &[(String, usize)]) -> String {
+        let content_w = lines.iter().map(|l| visual_width(l)).max().unwrap_or(20);
+        let logo_w = logo.iter().map(|(_, w)| *w).max().unwrap_or(0);
+        let need = max(56, max(content_w, max(logo_w, visual_width(title))) + 4);
+        let width = min(self.cols.saturating_sub(2), need).max(20.min(self.cols));
+        let max_h = self.rows.saturating_sub(1).max(4);
+        let mut height = logo.len() + lines.len() + 4;
+        if height > max_h {
+            height = max_h;
+        }
+        let (start_col, start_row) = centered_box(self.cols, self.rows, width, height);
         let inner = width.saturating_sub(2);
-        let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
-        let logo_bg = ansi_style(Some(FG), Some(BG_FLOAT), false, false, false);
+        let inner_rows = height.saturating_sub(2);
+        let border = dialog_border();
+        let title_style = dialog_title();
+        let body = dialog_body();
+        let selected = dialog_selected();
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
-        let mut drawn = 0usize;
-        for (styled, w) in logo.iter() {
-            if drawn >= height.saturating_sub(2) {
+        out.push_str(&format!(
+            "\x1b[{};{start_col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
+            start_row + 1,
+            fit_plain(title, inner)
+        ));
+        if inner_rows > 1 {
+            out.push_str(&format!("\x1b[{};{start_col}H{border}╠{}╣\x1b[0m", start_row + 2, "═".repeat(inner)));
+        }
+        let mut slot = 2usize;
+        for (styled, w) in logo {
+            if slot >= inner_rows {
                 break;
             }
-            let row = start_row + 1 + drawn;
-            drawn += 1;
-            let pad = " ".repeat(inner.saturating_sub(*w));
-            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{logo_bg}{styled}{pad}\x1b[0m{border}║\x1b[0m"));
+            let row = start_row + 1 + slot;
+            slot += 1;
+            let left = inner.saturating_sub(*w) / 2;
+            let right = inner.saturating_sub(left + *w);
+            out.push_str(&format!(
+                "\x1b[{row};{start_col}H{border}║\x1b[0m{body}{}{styled}{body}{}\x1b[0m{border}║\x1b[0m",
+                " ".repeat(left),
+                " ".repeat(right)
+            ));
         }
-        for i in 0..height.saturating_sub(2).saturating_sub(drawn) {
-            let row = start_row + 1 + drawn + i;
-            let raw = lines.get(i).map(String::as_str).unwrap_or("");
-            let style = if highlight_lines.contains(&i) {
-                ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false)
-            } else {
-                ansi_style(Some(FG), Some(BG_FLOAT), false, false, false)
-            };
-            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(raw, inner),));
+        let mut line_i = 0usize;
+        while slot < inner_rows {
+            let row = start_row + 1 + slot;
+            let raw = lines.get(line_i).map(String::as_str).unwrap_or("");
+            let style = if line_i < lines.len() && highlight_lines.contains(&line_i) { &selected } else { &body };
+            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(raw, inner)));
+            slot += 1;
+            line_i += 1;
         }
         out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + height - 1, "═".repeat(inner)));
-        print!("{out}");
-        io::stdout().flush()
+        out
     }
 
     fn refresh_tree(&mut self) {
@@ -2790,14 +2846,32 @@ impl Editor {
         let mut field = focus.min(2);
         let mut cursors = [path.chars().count(), find.chars().count(), 0usize];
         let mut job = ReplaceCount::idle();
+        let mut base_dirty = true;
+        let mut dialog_dirty = true;
+        let mut geom = ReplaceGeom { col: 1, row: 1, width: 1, height: 1, replace_btn: (1, 1, 1), cancel_btn: (1, 1, 1), field_rows: [1, 1, 1] };
         loop {
+            let before = (job.count, job.done, job.capped);
             self.advance_replace_count(&mut job, &path, &find);
-            let geom = self.render_search_replace(&path, &find, &replace, field, &cursors, &job);
+            if (job.count, job.done, job.capped) != before {
+                dialog_dirty = true;
+            }
+            if self.terminal_resized() || current_minute() != self.cached_clock_minute {
+                base_dirty = true;
+                dialog_dirty = true;
+            }
+            if dialog_dirty {
+                let (dialog, g) = self.search_replace_text(&path, &find, &replace, field, &cursors, &job);
+                geom = g;
+                let _ = self.present_overlay(&dialog, base_dirty);
+                base_dirty = false;
+                dialog_dirty = false;
+            }
             let key = match self.read_key() {
                 Ok(Some(k)) => k,
                 Ok(None) => continue,
                 Err(_) => return,
             };
+            dialog_dirty = true;
             if key.starts_with("\x1b[<") || key.starts_with("\x1b[M") {
                 let mut closed = false;
                 let mut do_replace = false;
@@ -2824,6 +2898,7 @@ impl Editor {
                 if do_replace {
                     self.commit_replace(&path, &find, &replace);
                     job.invalidate();
+                    base_dirty = true;
                 }
                 continue;
             }
@@ -2841,11 +2916,13 @@ impl Editor {
                     }
                     self.commit_replace(&path, &find, &replace);
                     job.invalidate();
+                    base_dirty = true;
                 }
                 "\x0c" => {
                     self.last_find = find.clone();
                     let q = find.clone();
                     self.find_next(&q);
+                    base_dirty = true;
                 }
                 _ => {
                     if field <= 2 {
@@ -2949,31 +3026,31 @@ impl Editor {
         }
     }
 
-    fn render_search_replace(&mut self, path: &str, find: &str, replace: &str, field: usize, cursors: &[usize; 3], job: &ReplaceCount) -> ReplaceGeom {
-        let _ = self.render();
+    fn search_replace_text(&self, path: &str, find: &str, replace: &str, field: usize, cursors: &[usize; 3], job: &ReplaceCount) -> (String, ReplaceGeom) {
         let frame = picker_frame(self.cols, self.rows);
         let width = frame.width.max(28).min(self.cols.saturating_sub(2).max(20));
-        let height = 8usize;
-        let col = max(1, (self.cols.saturating_sub(width)) / 2 + 1);
-        let row = max(2, (self.rows.saturating_sub(height)) / 2 + 1);
+        let height = 9usize;
+        let (col, row) = centered_box(self.cols, self.rows, width, height);
         let inner = width.saturating_sub(2);
-        let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
-        let label_style = ansi_style(Some(FG_DARK), Some(BG_FLOAT), false, false, false);
-        let active = ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false);
-        let idle = ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false);
+        let border = dialog_border();
+        let title_style = dialog_title();
+        let muted = dialog_muted();
+        let active = dialog_selected();
+        let idle = dialog_input();
         let fields = [path, find, replace];
         let names = ["Path", "Find", "Replace"];
+        let field0 = row + 3;
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{row};{col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         out.push_str(&format!(
-            "\x1b[{};{col}H{border}║\x1b[0m{}{}\x1b[0m{border}║\x1b[0m",
+            "\x1b[{};{col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
             row + 1,
-            ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false),
             fit_plain(" Search & Replace ", inner)
         ));
+        out.push_str(&format!("\x1b[{};{col}H{border}╠{}╣\x1b[0m", row + 2, "═".repeat(inner)));
         for i in 0..3 {
-            let y = row + 2 + i;
+            let y = field0 + i;
             let style = if field == i { &active } else { &idle };
             let room = inner.saturating_sub(10);
             let (shown, _) = field_window(fields[i], cursors[i], room);
@@ -2990,9 +3067,8 @@ impl Editor {
             format!(" {} match{}", job.count, if job.count == 1 { "" } else { "es" })
         };
         out.push_str(&format!(
-            "\x1b[{};{col}H{border}║\x1b[0m{}{}\x1b[0m{border}║\x1b[0m",
-            row + 5,
-            label_style,
+            "\x1b[{};{col}H{border}║\x1b[0m{muted}{}\x1b[0m{border}║\x1b[0m",
+            field0 + 3,
             fit_plain(&count, inner)
         ));
         let replace_label = " Replace ";
@@ -3002,28 +3078,27 @@ impl Editor {
         let gap = "  ";
         let buttons_w = visual_width(replace_label) + visual_width(gap) + visual_width(cancel_label);
         let pad = " ".repeat(inner.saturating_sub(buttons_w));
-        let button_row = format!("{replace_style}{replace_label}\x1b[0m{label_style}{gap}\x1b[0m{cancel_style}{cancel_label}\x1b[0m{label_style}{pad}\x1b[0m");
-        out.push_str(&format!("\x1b[{};{col}H{border}║\x1b[0m{button_row}{border}║\x1b[0m", row + 6));
-        out.push_str(&format!("\x1b[{};{col}H{border}╚{}╝\x1b[0m", row + 7, "═".repeat(inner)));
-        print!("{out}");
+        let button_row = format!("{replace_style}{replace_label}\x1b[0m{muted}{gap}\x1b[0m{cancel_style}{cancel_label}\x1b[0m{muted}{pad}\x1b[0m");
+        let button_y = field0 + 4;
+        out.push_str(&format!("\x1b[{button_y};{col}H{border}║\x1b[0m{button_row}{border}║\x1b[0m"));
+        out.push_str(&format!("\x1b[{};{col}H{border}╚{}╝\x1b[0m", row + height - 1, "═".repeat(inner)));
         if field <= 2 {
-            let (shown_off, caret) = field_window(fields[field], cursors[field], inner.saturating_sub(10));
-            let _ = shown_off;
-            let cursor_col = col + 1 + 1 + 7 + 1 + caret;
-            print!("\x1b[{};{}H\x1b[?25h", row + 2 + field, min(self.cols, cursor_col.max(1)));
+            let (_, caret) = field_window(fields[field], cursors[field], inner.saturating_sub(10));
+            let cursor_col = col + 10 + caret;
+            out.push_str(&format!("\x1b[{};{}H\x1b[?25h", field0 + field, min(self.cols, cursor_col.max(1))));
         }
-        let _ = io::stdout().flush();
         let replace_x = col + 1;
         let cancel_x = replace_x + replace_label.len() + 2;
-        ReplaceGeom {
+        let geom = ReplaceGeom {
             col,
             row,
             width,
             height,
-            replace_btn: (replace_x, row + 6, replace_label.len()),
-            cancel_btn: (cancel_x, row + 6, cancel_label.len()),
-            field_rows: [row + 2, row + 3, row + 4],
-        }
+            replace_btn: (replace_x, button_y, replace_label.len()),
+            cancel_btn: (cancel_x, button_y, cancel_label.len()),
+            field_rows: [field0, field0 + 1, field0 + 2],
+        };
+        (out, geom)
     }
 
     fn refresh_hscroll(&mut self) {
@@ -3201,15 +3276,20 @@ impl Editor {
             self.close_autocomplete();
             return false;
         };
-        let Some((start_col, start_row, width, count, first)) = self.autocomplete_geometry(row, col) else {
+        let Some((start_col, start_row, inner, count, first)) = self.autocomplete_geometry(row, col) else {
             return false;
         };
-        let inside = x >= start_col && x < start_col + width && y >= start_row && y < start_row + count;
+        let outer_w = inner + 2;
+        let outer_h = count + 2;
+        let inside = x >= start_col && x < start_col + outer_w && y >= start_row && y < start_row + outer_h;
         if !inside {
             self.close_autocomplete();
             return false;
         }
-        let index = first + (y - start_row);
+        if y == start_row || y + 1 == start_row + outer_h || x == start_col || x + 1 == start_col + outer_w {
+            return true;
+        }
+        let index = first + (y - start_row - 1);
         if index < self.autocomplete_items.len() {
             self.autocomplete_index = index;
             self.accept_autocomplete();
@@ -3222,18 +3302,20 @@ impl Editor {
             return None;
         }
         let max_items = min(8, self.autocomplete_items.len());
-        let width = min(52, max(28, self.editor_text_width() / 2));
-        let mut start_col = min(cursor_col, self.cols.saturating_sub(width).max(1));
+        let inner = min(52, max(28, self.editor_text_width() / 2)).min(self.cols.saturating_sub(2).max(1));
+        let outer = inner + 2;
+        let mut start_col = min(cursor_col, self.cols.saturating_sub(outer).max(1));
         if start_col < self.editor_start_col() {
             start_col = self.editor_start_col();
         }
-        let mut start_row = cursor_row + 1;
-        if start_row + max_items >= self.status_line {
-            start_row = max(2, cursor_row.saturating_sub(max_items));
-        }
         let first = self.autocomplete_index.saturating_sub(4);
         let count = self.autocomplete_items.len().saturating_sub(first).min(max_items);
-        Some((start_col, start_row, width, count, first))
+        let outer_h = count + 2;
+        let mut start_row = cursor_row + 1;
+        if start_row + outer_h >= self.status_line {
+            start_row = max(2, cursor_row.saturating_sub(outer_h));
+        }
+        Some((start_col, start_row, inner, count, first))
     }
 
     fn picker_mouse(&self, key: &str, selected: usize, len: usize) -> PickerMouse {
@@ -3285,8 +3367,187 @@ impl Editor {
     }
 
     fn find_prompt(&mut self) {
-        let path = self.tab().path.clone().unwrap_or_else(|| self.root.clone());
-        self.search_replace_dialog(path, 1);
+        self.find_dialog();
+    }
+
+    /// Find in the current buffer. Enter and Next jump to the next match.
+    fn find_dialog(&mut self) {
+        let mut query = self.last_find.clone();
+        let mut cursor = query.chars().count();
+        let mut field = 0usize;
+        let mut searched = false;
+        let mut base_dirty = true;
+        let mut dialog_dirty = true;
+        let mut geom = ReplaceGeom {
+            col: 1,
+            row: 1,
+            width: 1,
+            height: 1,
+            replace_btn: (1, 1, 1),
+            cancel_btn: (1, 1, 1),
+            field_rows: [usize::MAX, usize::MAX, usize::MAX],
+        };
+        loop {
+            if self.terminal_resized() || current_minute() != self.cached_clock_minute {
+                base_dirty = true;
+                dialog_dirty = true;
+            }
+            if dialog_dirty {
+                let (dialog, g) = self.find_dialog_text(&query, cursor, field);
+                geom = g;
+                let _ = self.present_overlay(&dialog, base_dirty);
+                base_dirty = false;
+                dialog_dirty = false;
+            }
+            let key = match self.read_key() {
+                Ok(Some(k)) => k,
+                Ok(None) => continue,
+                Err(_) => return,
+            };
+            dialog_dirty = true;
+            if key.starts_with("\x1b[<") || key.starts_with("\x1b[M") {
+                let mut closed = false;
+                let mut do_next = false;
+                for ev in parse_mouse_events(&key) {
+                    if ev.is_release || ev.button & 32 != 0 || ev.is_scroll() || ev.button & 3 != 0 {
+                        continue;
+                    }
+                    if !geom.contains(ev.x, ev.y) || geom.hits(ev.x, ev.y, geom.cancel_btn) {
+                        closed = true;
+                        break;
+                    }
+                    if geom.hits(ev.x, ev.y, geom.replace_btn) {
+                        do_next = true;
+                        break;
+                    }
+                    if geom.field_at(ev.y) == Some(0) {
+                        field = 0;
+                    }
+                }
+                if closed {
+                    self.close_find(searched);
+                    return;
+                }
+                if do_next {
+                    self.last_find = query.clone();
+                    self.find_next(&query);
+                    searched = true;
+                    base_dirty = true;
+                }
+                continue;
+            }
+            match key.as_str() {
+                "\x1b" => {
+                    self.close_find(searched);
+                    return;
+                }
+                "\t" => field = (field + 1) % 3,
+                "\x1b[Z" => field = (field + 2) % 3,
+                "\x0c" => {
+                    self.last_find = query.clone();
+                    self.find_next(&query);
+                    searched = true;
+                    base_dirty = true;
+                }
+                "\r" | "\n" => {
+                    if field == 2 {
+                        self.close_find(searched);
+                        return;
+                    }
+                    self.last_find = query.clone();
+                    self.find_next(&query);
+                    searched = true;
+                    base_dirty = true;
+                }
+                _ => {
+                    if field == 0 && apply_line_edit(&mut query, &mut cursor, &key) {
+                        self.last_find = query.clone();
+                    }
+                }
+            }
+        }
+    }
+
+    fn close_find(&mut self, searched: bool) {
+        if !searched {
+            self.message = "Find closed".to_string();
+        }
+    }
+
+    fn find_dialog_text(&self, query: &str, cursor: usize, field: usize) -> (String, ReplaceGeom) {
+        let frame = picker_frame(self.cols, self.rows);
+        let width = frame.width.max(28).min(self.cols.saturating_sub(2).max(20));
+        let height = 7usize;
+        let (col, row) = centered_box(self.cols, self.rows, width, height);
+        let inner = width.saturating_sub(2);
+        let border = dialog_border();
+        let title_style = dialog_title();
+        let muted = dialog_muted();
+        let active = dialog_selected();
+        let idle = dialog_input();
+        let field_row = row + 3;
+        let (needle, ignore_case) = parse_search_query(query);
+        let (count, capped) = if needle.is_empty() {
+            (0usize, false)
+        } else {
+            let n = count_in_lines(&self.tab().lines, &needle, ignore_case).min(REPLACE_MATCH_LIMIT);
+            (n, n >= REPLACE_MATCH_LIMIT)
+        };
+        let count_label = if capped {
+            format!(" {count}+ matches")
+        } else {
+            format!(" {count} match{}", if count == 1 { "" } else { "es" })
+        };
+        let mut out = String::new();
+        out.push_str("\x1b[?25l");
+        out.push_str(&format!("\x1b[{row};{col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
+        out.push_str(&format!(
+            "\x1b[{};{col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m",
+            row + 1,
+            fit_plain(" Find ", inner)
+        ));
+        out.push_str(&format!("\x1b[{};{col}H{border}╠{}╣\x1b[0m", row + 2, "═".repeat(inner)));
+        let style = if field == 0 { &active } else { &idle };
+        let room = inner.saturating_sub(10);
+        let (shown, _) = field_window(query, cursor, room);
+        let text = format!(" {:<7} {}", "Find", shown);
+        out.push_str(&format!(
+            "\x1b[{field_row};{col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m",
+            fit_plain(&text, inner)
+        ));
+        out.push_str(&format!(
+            "\x1b[{};{col}H{border}║\x1b[0m{muted}{}\x1b[0m{border}║\x1b[0m",
+            field_row + 1,
+            fit_plain(&count_label, inner)
+        ));
+        let next_label = " Next ";
+        let close_label = " Close ";
+        let next_style = if field == 1 { &active } else { &idle };
+        let close_style = if field == 2 { &active } else { &idle };
+        let gap = "  ";
+        let buttons_w = visual_width(next_label) + visual_width(gap) + visual_width(close_label);
+        let pad = " ".repeat(inner.saturating_sub(buttons_w));
+        let button_row = format!("{next_style}{next_label}\x1b[0m{muted}{gap}\x1b[0m{close_style}{close_label}\x1b[0m{muted}{pad}\x1b[0m");
+        let button_y = field_row + 2;
+        out.push_str(&format!("\x1b[{button_y};{col}H{border}║\x1b[0m{button_row}{border}║\x1b[0m"));
+        out.push_str(&format!("\x1b[{};{col}H{border}╚{}╝\x1b[0m", row + height - 1, "═".repeat(inner)));
+        if field == 0 {
+            let (_, caret) = field_window(query, cursor, room);
+            let cursor_col = col + 10 + caret;
+            out.push_str(&format!("\x1b[{};{}H\x1b[?25h", field_row, min(self.cols, cursor_col.max(1))));
+        }
+        let next_x = col + 1;
+        let close_x = next_x + next_label.len() + 2;
+        let geom = ReplaceGeom {
+            col,
+            row,
+            width,
+            height,
+            replace_btn: (next_x, button_y, next_label.len()),
+            cancel_btn: (close_x, button_y, close_label.len()),
+            field_rows: [field_row, usize::MAX, usize::MAX],
+        };
+        (out, geom)
     }
 
     fn find_next(&mut self, query: &str) -> bool {
@@ -3412,30 +3673,42 @@ impl Editor {
         let mut value = default.to_string();
         let mut cursor = value.chars().count();
         let mut history_at: Option<usize> = None;
-        // Prompts block awaiting input, so the prompt line blinks until answered.
+        // The prompt line blinks until answered. The editor behind it is painted
+        // once; later phases only rewrite the status row so the screen stays still.
         let normal = ansi_style(Some(FG), Some(BG_HIGHLIGHT), true, false, false);
         let alert = ansi_style(Some(BG_DARK), Some(alert_color), true, false, false);
         let mut phase = false;
         let mut last_toggle = Instant::now();
         let mut drawn_phase = true;
         let mut redraw = true;
+        let mut base_drawn = false;
         loop {
             let now = Instant::now();
             if now.duration_since(last_toggle) > Duration::from_millis(350) {
                 phase = !phase;
                 last_toggle = now;
             }
+            if self.terminal_resized() {
+                base_drawn = false;
+                redraw = true;
+            }
             if redraw || phase != drawn_phase {
                 redraw = false;
                 drawn_phase = phase;
-                let _ = self.render();
                 let style = if phase { &alert } else { &normal };
                 let shown = if secret { "*".repeat(value.chars().count()) } else { value.clone() };
                 let prefix: String = shown.chars().take(cursor.min(shown.chars().count())).collect();
                 let text = format!(" az> {label}{shown}");
-                print!("\x1b[{};1H{}{}\x1b[0m", self.status_line, style, fit_plain(&text, self.cols));
+                let mut out = if !base_drawn {
+                    base_drawn = true;
+                    self.frame(false)
+                } else {
+                    String::new()
+                };
+                out.push_str(&format!("\x1b[{};1H{}{}\x1b[0m", self.status_line, style, fit_plain(&text, self.cols)));
                 let cursor_col = min(self.cols, 6 + label.len() + visual_width(&prefix)).max(1);
-                print!("\x1b[{};{}H\x1b[?25h", self.status_line, cursor_col);
+                out.push_str(&format!("\x1b[{};{}H\x1b[?25h", self.status_line, cursor_col));
+                print!("{out}");
                 let _ = io::stdout().flush();
             }
             let key = match self.read_key() {
@@ -3491,6 +3764,10 @@ impl Editor {
         let mut symbol_at = 0usize;
         let mut query = String::new();
         let mut selected = 0usize;
+        let mut base_dirty = true;
+        let mut dialog_dirty = true;
+        let mut seen = String::new();
+        self.message = "Quick open".to_string();
         loop {
             if symbol_at < files.len() && symbols.len() < QUICK_OPEN_LIMIT {
                 let next = min(files.len(), symbol_at + 20);
@@ -3500,8 +3777,26 @@ impl Editor {
             let (bare_line, q, line) = parse_quick_open_query(&query);
             let matches = if bare_line { Vec::new() } else { self.filter_quick_open_items(&files, &symbols, &q) };
             selected = min(selected, matches.len().saturating_sub(1));
-            self.render_quick_open(&query, &matches, selected);
+            let fingerprint = format!(
+                "{query}|{selected}|{}",
+                matches.iter().map(|m| format!("{} {}", m.label, m.detail)).collect::<Vec<_>>().join("\n")
+            );
+            if fingerprint != seen {
+                seen = fingerprint;
+                dialog_dirty = true;
+            }
+            if self.terminal_resized() || current_minute() != self.cached_clock_minute {
+                base_dirty = true;
+                dialog_dirty = true;
+            }
+            if dialog_dirty {
+                let dialog = self.quick_open_dialog(&query, &matches, selected);
+                let _ = self.present_overlay(&dialog, base_dirty);
+                base_dirty = false;
+                dialog_dirty = false;
+            }
             // Non-blocking so symbol chunks keep scanning between keystrokes.
+            // A wake with no key and no new rows does not repaint.
             let key = match self.read_key() {
                 Ok(Some(k)) => k,
                 Ok(None) => continue,
@@ -3631,28 +3926,29 @@ impl Editor {
         ranked.into_iter().map(|x| x.1).take(14).collect()
     }
 
-    fn render_quick_open(&mut self, query: &str, matches: &[PickerItem], selected: usize) {
-        let old = self.message.clone();
-        self.message = "Quick open".to_string();
-        let _ = self.render();
-        self.message = old;
-        // Bold the file/symbol part only, not the `:line` suffix.
+    fn quick_open_dialog(&self, query: &str, matches: &[PickerItem], selected: usize) -> String {
         let (_, highlight, _) = parse_quick_open_query(query);
-        self.render_simple_picker(" Quick Open ", if query.is_empty() { "type file, symbol, file:line, or :line" } else { query }, matches, selected, "No matching files", &highlight);
+        self.simple_picker_string(
+            " Quick Open ",
+            query,
+            "type file, symbol, file:line, or :line",
+            matches,
+            selected,
+            "No matching files",
+            &highlight,
+        )
     }
 
     fn command_palette(&mut self) {
         let commands = self.command_items();
         let mut query = String::new();
         let mut selected = 0usize;
+        self.message = "Command palette".to_string();
         loop {
             let matches = self.filter_command_items(&commands, &query);
             selected = min(selected, matches.len().saturating_sub(1));
-            let old = self.message.clone();
-            self.message = "Command palette".to_string();
-            let _ = self.render();
-            self.message = old;
-            self.render_simple_picker(" Command Palette ", if query.is_empty() { "type a command" } else { &query }, &matches, selected, "No matching commands", &query);
+            let dialog = self.simple_picker_string(" Command Palette ", &query, "type a command", &matches, selected, "No matching commands", &query);
+            let _ = self.present_overlay(&dialog, true);
             let key = self.read_key_blocking().unwrap_or_default();
             let key = match self.picker_mouse(&key, selected, matches.len()) {
                 PickerMouse::NotMouse => key,
@@ -3693,14 +3989,12 @@ impl Editor {
         let shortcuts = self.shortcut_items();
         let mut query = String::new();
         let mut selected = 0usize;
+        self.message = "Keyboard shortcuts".to_string();
         loop {
             let matches = self.filter_command_items(&shortcuts, &query);
             selected = min(selected, matches.len().saturating_sub(1));
-            let old = self.message.clone();
-            self.message = "Keyboard shortcuts".to_string();
-            let _ = self.render();
-            self.message = old;
-            self.render_simple_picker(" Keyboard Shortcuts ", if query.is_empty() { "type to filter (Enter/Esc closes)" } else { &query }, &matches, selected, "No matching shortcuts", &query);
+            let dialog = self.simple_picker_string(" Keyboard Shortcuts ", &query, "type to filter (Enter/Esc closes)", &matches, selected, "No matching shortcuts", &query);
+            let _ = self.present_overlay(&dialog, true);
             let key = self.read_key_blocking().unwrap_or_default();
             let key = match self.picker_mouse(&key, selected, matches.len()) {
                 PickerMouse::NotMouse => key,
@@ -3740,6 +4034,10 @@ impl Editor {
             ("Go to End of Line", "End / Ctrl+E", "go-line-end"),
             ("Go to Start of File", "Ctrl+Home / Alt+Up", "go-file-top"),
             ("Go to End of File", "Ctrl+End / Alt+Down", "go-file-bottom"),
+            ("Welcome", "show the welcome dialog", "welcome"),
+            ("Undo", "Ctrl+Z", "undo"),
+            ("Redo", "Ctrl+Y / Ctrl+Shift+Z", "redo"),
+            ("Select all", "Ctrl+A", "select-all"),
             ("Find in files", "search project files (Ctrl+Shift+O, %term = case-sensitive)", "project-search"),
             ("Replace in files", "search & replace across project (Ctrl+Shift+H, %term = case-sensitive)", "replace-in-files"),
             ("Set syntax PHP", "force current tab to PHP", "set-syntax-php"),
@@ -3790,7 +4088,6 @@ impl Editor {
             ("Toggle sidebar", "Ctrl+H", "toggle-tree"),
             ("Focus tree/editor", "Ctrl+T", "focus-tree"),
             ("Close tab", "Ctrl+D", "close-tab"),
-            ("UI showcase for screenshots", "random palette / search-replace / shortcuts", "screenshot-showcase"),
             ("Keyboard shortcuts", "searchable list (Ctrl+K)", "help"),
             ("Quit", "Ctrl+Q", "quit"),
         ];
@@ -3872,14 +4169,17 @@ impl Editor {
             "toggle-tree" => self.toggle_sidebar(),
             "focus-tree" => self.toggle_tree_focus(),
             "close-tab" => self.close_current_tab(),
-            "screenshot-showcase" => self.show_screenshot_showcase(),
+            "welcome" => self.show_welcome_command(),
+            "undo" => self.undo(),
+            "redo" => self.redo(),
+            "select-all" => self.select_all(),
             "help" => self.shortcuts_dialog(),
             "quit" => self.confirm_quit(),
             _ => self.message = "Unknown command".to_string(),
         }
     }
 
-    fn render_simple_picker(&self, title: &str, query_line: &str, matches: &[PickerItem], selected: usize, empty: &str, highlight_query: &str) {
+    fn simple_picker_string(&self, title: &str, query: &str, placeholder: &str, matches: &[PickerItem], selected: usize, empty: &str, highlight_query: &str) -> String {
         let frame = picker_frame(self.cols, self.rows);
         let rows = frame.list_rows;
         let panel_width = frame.width;
@@ -3887,13 +4187,21 @@ impl Editor {
         let start_col = frame.start_col;
         let start_row = frame.start_row;
         let inner = panel_width.saturating_sub(2);
-        let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
-        let query_style = ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false);
+        let border = dialog_border();
+        let title_style = dialog_title();
+        let query_style = dialog_input();
+        let body = dialog_body();
+        let active = dialog_selected();
+        let (shown, caret) = if query.is_empty() {
+            (placeholder.to_string(), 0)
+        } else {
+            field_window(query, query.chars().count(), inner)
+        };
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
-        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{}{}\x1b[0m{border}║\x1b[0m", start_row + 1, ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false), fit_plain(title, inner)));
-        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{query_style}{}\x1b[0m{border}║\x1b[0m", start_row + 2, fit_plain(query_line, inner)));
+        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{title_style}{}\x1b[0m{border}║\x1b[0m", start_row + 1, fit_plain(title, inner)));
+        out.push_str(&format!("\x1b[{};{start_col}H{border}║\x1b[0m{query_style}{}\x1b[0m{border}║\x1b[0m", start_row + 2, fit_plain(&shown, inner)));
         out.push_str(&format!("\x1b[{};{start_col}H{border}╠{}╣\x1b[0m", start_row + 3, "═".repeat(inner)));
         for i in 0..rows {
             let row = start_row + 4 + i;
@@ -3902,7 +4210,6 @@ impl Editor {
                 let left_plain = format!("{prefix}{}", item.label);
                 let right_plain = if item.detail.is_empty() { String::new() } else { format!("  {}", item.detail) };
                 let spaces = inner.saturating_sub(visual_width(&left_plain) + visual_width(&right_plain)).max(1);
-                // Bold the query match inside label (fall back to detail).
                 let label_ranges = match_bold_ranges(&item.label, highlight_query);
                 let (bold_label, bold_detail) = if !label_ranges.is_empty() {
                     (apply_bold_ansi(&item.label, &label_ranges), item.detail.clone())
@@ -3917,12 +4224,13 @@ impl Editor {
             } else {
                 fit_plain("", inner)
             };
-            let style = if i == selected && matches.get(i).is_some() { ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false) } else { ansi_style(Some(FG), Some(BG_FLOAT), false, false, false) };
+            let style = if i == selected && matches.get(i).is_some() { &active } else { &body };
             out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{cell}\x1b[0m{border}║\x1b[0m"));
         }
         out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + panel_height - 1, "═".repeat(inner)));
-        print!("{out}");
-        let _ = io::stdout().flush();
+        let cursor_col = min(self.cols, start_col + 1 + caret).max(1);
+        out.push_str(&format!("\x1b[{};{}H\x1b[?25h", start_row + 2, cursor_col));
+        out
     }
 
     fn project_search_prompt(&mut self) {
@@ -3937,6 +4245,10 @@ impl Editor {
         let mut matches = Vec::new();
         let mut scanned = 0usize;
         let mut selected = 0usize;
+        let mut base_dirty = true;
+        let mut dialog_dirty = true;
+        let mut seen = String::new();
+        self.message = "Find in files".to_string();
         loop {
             if query != active {
                 active = query.clone();
@@ -3949,21 +4261,35 @@ impl Editor {
                 scanned = next;
             }
             selected = min(selected, matches.len().saturating_sub(1));
-            let old = self.message.clone();
-            self.message = "Find in files".to_string();
-            let _ = self.render();
-            self.message = old;
-            // Strip `%` for highlight so `%Foo` still bolds `Foo` in results.
             let (needle, _) = parse_search_query(&query);
             let highlight = if needle.is_empty() { query.clone() } else { needle };
-            let placeholder = if query.is_empty() {
-                "type text to search files (%Foo = case-sensitive)"
-            } else if scanned < files.len() {
-                "searching…"
-            } else {
-                &query
-            };
-            self.render_simple_picker(" Find in Files ", placeholder, &matches, selected, "No matches", &highlight);
+            let empty = if !query.is_empty() && scanned < files.len() { "searching…" } else { "No matches" };
+            let fingerprint = format!(
+                "{query}|{selected}|{empty}|{}",
+                matches.iter().map(|m| format!("{} {}", m.label, m.detail)).collect::<Vec<_>>().join("\n")
+            );
+            if fingerprint != seen {
+                seen = fingerprint;
+                dialog_dirty = true;
+            }
+            if self.terminal_resized() || current_minute() != self.cached_clock_minute {
+                base_dirty = true;
+                dialog_dirty = true;
+            }
+            if dialog_dirty {
+                let dialog = self.simple_picker_string(
+                    " Find in Files ",
+                    &query,
+                    "type text to search files (%Foo = case-sensitive)",
+                    &matches,
+                    selected,
+                    empty,
+                    &highlight,
+                );
+                let _ = self.present_overlay(&dialog, base_dirty);
+                base_dirty = false;
+                dialog_dirty = false;
+            }
             let key = match self.read_key() {
                 Ok(Some(k)) => k,
                 _ => continue,
@@ -4281,63 +4607,13 @@ impl Editor {
         self.close_autocomplete();
     }
 
-    /// Random-placed previews of the real dialogs so screenshots look alive.
-    /// Any key reshuffles the layout, Esc closes.
-    fn show_screenshot_showcase(&mut self) {
-        let mut rng = screenshot_seed();
-        loop {
-            let _ = self.render();
-            let palette: Vec<String> = self.command_items().iter().take(6)
-                .map(|i| format!("{}  {}", i.label, i.detail))
-                .collect();
-            let search = vec![
-                " Path     .".to_string(),
-                " Find     foo".to_string(),
-                " Replace  bar".to_string(),
-                " 3 matches".to_string(),
-                " Replace    Cancel".to_string(),
-            ];
-            let shortcuts: Vec<String> = shortcut_defs().iter().take(6)
-                .map(|(k, d)| format!("{k}  {d}"))
-                .collect();
-            let mut out = String::new();
-            out.push_str(&self.render_showcase_box(&mut rng, " Command Palette ", &palette, Some(0)));
-            out.push_str(&self.render_showcase_box(&mut rng, " Search & Replace ", &search, None));
-            out.push_str(&self.render_showcase_box(&mut rng, " Keyboard Shortcuts ", &shortcuts, Some(1)));
-            print!("{out}");
-            let _ = io::stdout().flush();
-            self.message = "Showcase: any key reshuffles, Esc closes".to_string();
-            match self.read_key_blocking() {
-                Ok(k) if k == "\x1b" => {
-                    self.message = "Showcase closed".to_string();
-                    return;
-                }
-                Err(_) => {
-                    self.message = "Showcase closed".to_string();
-                    return;
-                }
-                _ => {}
-            }
+    fn show_welcome_command(&mut self) {
+        if self.render_welcome_screen().is_err() {
+            return;
         }
-    }
-
-    fn render_showcase_box(&self, rng: &mut u64, title: &str, lines: &[String], selected: Option<usize>) -> String {
-        let width = min(46, self.cols.saturating_sub(2)).max(20);
-        let height = min(lines.len() + 3, self.rows.saturating_sub(4)).max(5);
-        let body = &lines[..min(lines.len(), height.saturating_sub(3))];
-        let (col, row) = showcase_box_pos(screenshot_next(rng), self.cols, self.rows, width, height);
-        let inner = width.saturating_sub(2);
-        let border = ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false);
-        let mut out = String::new();
-        out.push_str(&format!("\x1b[{row};{col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
-        out.push_str(&format!("\x1b[{};{col}H{border}║\x1b[0m{}{}\x1b[0m{border}║\x1b[0m", row + 1, ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false), fit_plain(title, inner)));
-        for (i, text) in body.iter().enumerate() {
-            let r = row + 2 + i;
-            let style = if selected == Some(i) { ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false) } else { ansi_style(Some(FG), Some(BG_FLOAT), false, false, false) };
-            out.push_str(&format!("\x1b[{r};{col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(text, inner)));
+        if let Ok(key) = self.read_key_blocking() {
+            self.handle_key(key);
         }
-        out.push_str(&format!("\x1b[{};{col}H{border}╚{}╝\x1b[0m", row + height - 1, "═".repeat(inner)));
-        out
     }
 
     fn handle_autocomplete_key(&mut self, key: &str) -> bool {
@@ -4412,21 +4688,29 @@ impl Editor {
 
 
     fn render_autocomplete_dropdown(&self, cursor_row: usize, cursor_col: usize) -> String {
-        let Some((start_col, start_row, width, count, first)) = self.autocomplete_geometry(cursor_row, cursor_col) else {
+        let Some((start_col, start_row, inner, count, first)) = self.autocomplete_geometry(cursor_row, cursor_col) else {
             return String::new();
         };
+        let border = dialog_border();
+        let body = dialog_body();
+        let active = dialog_selected();
         let mut out = String::new();
+        out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         for (screen_i, item) in self.autocomplete_items.iter().enumerate().skip(first).take(count) {
-            let row = start_row + screen_i - first;
+            let row = start_row + 1 + screen_i - first;
             if row >= self.status_line { break; }
-            let detail_width = min(20, max(10, width * 28 / 100));
-            let label_width = width.saturating_sub(detail_width + 4).max(8);
+            let detail_width = min(20, max(10, inner * 28 / 100));
+            let label_width = inner.saturating_sub(detail_width + 4).max(8);
             let label = truncate_plain(&item.label, label_width);
             let detail = truncate_plain(&item.detail, detail_width);
-            let spaces = width.saturating_sub(visual_width(&label) + visual_width(&detail) + 2).max(1);
+            let spaces = inner.saturating_sub(visual_width(&label) + visual_width(&detail) + 2).max(1);
             let text = format!(" {label}{}{detail} ", " ".repeat(spaces));
-            let style = if screen_i == self.autocomplete_index { ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false) } else { ansi_style(Some(FG), Some(BG_FLOAT), false, false, false) };
-            out.push_str(&format!("\x1b[{row};{start_col}H{style}{}\x1b[0m", fit_plain(&text, width)));
+            let style = if screen_i == self.autocomplete_index { &active } else { &body };
+            out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{style}{}\x1b[0m{border}║\x1b[0m", fit_plain(&text, inner)));
+        }
+        let bottom = start_row + 1 + count;
+        if bottom < self.status_line {
+            out.push_str(&format!("\x1b[{bottom};{start_col}H{border}╚{}╝\x1b[0m", "═".repeat(inner)));
         }
         out
     }
@@ -4750,20 +5034,95 @@ fn sudo_failure_message(stderr: &[u8]) -> String {
 fn ansi_fg(hex: &str) -> String { let (r, g, b) = rgb(hex); format!("\x1b[38;2;{r};{g};{b}m") }
 fn ansi_bg(hex: &str) -> String { let (r, g, b) = rgb(hex); format!("\x1b[48;2;{r};{g};{b}m") }
 
-/// Welcome logo: block `az` mark (user-supplied art).
-/// Each row is (styled text, plain visual width); rows are ragged, pad per row.
-const TTFX_LOGO_WIDTH: usize = 23;
+fn dialog_border() -> String { ansi_style(Some(BLUE), Some(BG_FLOAT), true, false, false) }
+fn dialog_title() -> String { ansi_style(Some(ACCENT), Some(BG_FLOAT), true, false, false) }
+fn dialog_body() -> String { ansi_style(Some(FG), Some(BG_FLOAT), false, false, false) }
+fn dialog_selected() -> String { ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false) }
+fn dialog_input() -> String { ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false) }
+fn dialog_muted() -> String { ansi_style(Some(FG_DARK), Some(BG_FLOAT), false, false, false) }
 
-fn ttfx_logo() -> Vec<(String, usize)> {
-    vec![
-        ("\x1b[38;2;255;255;255m▄▀▀▀▀▀▀▀▄  █▀▀▀▀▀▀▀▀▄".to_string(), 21),
-        ("\x1b[38;2;225;245;255m█   ▄▄▄   █ █▄▄▄▄▄▄   █".to_string(), 23),
-        ("\x1b[38;2;185;228;255m█  █   █  █    ▄▄▄▄▀  ▄".to_string(), 23),
-        ("\x1b[38;2;145;210;255m▀  ▀▄▄▄█  ▄  ▄▀     ▄▀".to_string(), 22),
-        ("\x1b[38;2;125;195;252m█         █ ▀  ▄▀▀▀▀".to_string(), 20),
-        ("\x1b[38;2;122;175;250m█  █▀▀▀█  █ █   ▀▀▀▀▀▀█".to_string(), 23),
-        ("\x1b[38;2;122;160;247m█▄▄█   █▄▄█  ▀▄▄▄▄▄▄▄▄█".to_string(), 23),
-    ]
+/// Welcome mark from `logo.txt`, embedded so the installed binary keeps it.
+/// The file's black/white SGR is remapped: dark ink `#578bfb`, light ink and
+/// the solid fills `#7aa2f7`. Empty background stays the dialog color.
+const WELCOME_LOGO_SRC: &str = include_str!("../logo.txt");
+const LOGO_DARK: &str = "#578bfb";
+const LOGO_LIGHT: &str = "#7aa2f7";
+
+fn welcome_logo() -> Vec<(String, usize)> {
+    welcome_logo_rows(WELCOME_LOGO_SRC)
+}
+
+fn welcome_logo_rows(src: &str) -> Vec<(String, usize)> {
+    let mut rows = Vec::new();
+    for line in src.split('\n') {
+        let line = line.trim_end_matches('\r');
+        if line.is_empty() {
+            continue;
+        }
+        rows.push(logo_line_recolored(line));
+    }
+    rows
+}
+
+/// `true` when this 16-color SGR number is one of the logo's dark inks.
+fn logo_sgr_is_dark(n: u16) -> bool {
+    matches!(n, 30 | 90)
+}
+
+fn logo_line_recolored(line: &str) -> (String, usize) {
+    let mut out = String::new();
+    let mut width = 0usize;
+    let mut fg_light = true;
+    let mut bg_light = false;
+    let mut dirty = true;
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == 0x1b {
+            i += 1;
+            if i < bytes.len() && bytes[i] == b'[' {
+                i += 1;
+            }
+            let param_start = i;
+            while i < bytes.len() && bytes[i] != b'm' {
+                i += 1;
+            }
+            let params = &line[param_start..i];
+            if i < bytes.len() {
+                i += 1;
+            }
+            for part in params.split(';') {
+                if part.is_empty() {
+                    continue;
+                }
+                let Ok(n) = part.parse::<u16>() else { continue };
+                match n {
+                    0 => {
+                        fg_light = true;
+                        bg_light = false;
+                    }
+                    n if logo_sgr_is_dark(n) => fg_light = false,
+                    37 | 97 | 39 => fg_light = true,
+                    47 | 107 => bg_light = true,
+                    40 | 49 => bg_light = false,
+                    _ => {}
+                }
+            }
+            dirty = true;
+            continue;
+        }
+        if dirty {
+            let fg = if fg_light { LOGO_LIGHT } else { LOGO_DARK };
+            let bg = if bg_light { LOGO_LIGHT } else { BG_FLOAT };
+            out.push_str(&ansi_style(Some(fg), Some(bg), false, false, false));
+            dirty = false;
+        }
+        let ch = next_char(line, i);
+        width += visual_width(ch);
+        out.push_str(ch);
+        i += ch.len();
+    }
+    (out, width)
 }
 fn ansi_style(fg: Option<&str>, bg: Option<&str>, bold: bool, dim: bool, underline: bool) -> String {
     let mut s = String::new();
@@ -5104,10 +5463,10 @@ fn shortcut_defs() -> Vec<(&'static str, &'static str)> {
         ("Ctrl+O", "Quick open file / symbol / file:line / :line"),
         ("Ctrl+P", "Command palette"),
         ("Ctrl+K", "This shortcuts dialog (searchable)"),
-        ("Ctrl+F", "Search & replace dialog (%term = case-sensitive)"),
+        ("Ctrl+F", "Find dialog (%term = case-sensitive)"),
         ("Ctrl+L", "Find next (uses last pattern)"),
         ("Ctrl+Shift+O", "Find in files (separate modal)"),
-        ("Ctrl+R", "Search & replace dialog, replace field"),
+        ("Ctrl+R", "Search & replace dialog"),
         ("Ctrl+Shift+H", "Search & replace in the project"),
         ("Ctrl+G", "Go to line"),
         ("Ctrl+E", "Go to end of line"),
@@ -5160,10 +5519,22 @@ fn tab_hit_index(prefix_w: usize, tab_widths: &[usize], click_col: usize) -> Opt
 /// Returns (start_col, start_row, width, height); the status line stays clear.
 fn context_menu_geometry(item_count: usize, max_item_w: usize, col: usize, row: usize, cols: usize, rows: usize) -> (usize, usize, usize, usize) {
     let width = min(max_item_w + 6, cols.saturating_sub(2)).max(12);
-    let height = min(item_count + 2, rows.saturating_sub(1)).max(3);
+    // top, title, rule, items, bottom
+    let height = min(item_count + 4, rows.saturating_sub(1)).max(5);
     let start_col = min(col, (cols + 1).saturating_sub(width)).max(1);
     let start_row = min(row, rows.saturating_sub(height)).max(1);
     (start_col, start_row, width, height)
+}
+
+/// 1-based origin of a box, kept off the status line when it fits.
+fn centered_box(cols: usize, rows: usize, width: usize, height: usize) -> (usize, usize) {
+    let col = max(1, (cols.saturating_sub(width)) / 2 + 1);
+    let mut row = max(2, (rows.saturating_sub(height)) / 2 + 1);
+    let limit = rows.saturating_sub(1).max(1);
+    if row + height - 1 > limit {
+        row = limit.saturating_sub(height.saturating_sub(1)).max(1);
+    }
+    (col, row)
 }
 
 const PASTE_START: &[u8] = b"\x1b[200~";
@@ -5401,30 +5772,6 @@ fn picker_frame(cols: usize, rows: usize) -> PickerFrame {
     PickerFrame { start_col, start_row, width, height, list_rows }
 }
 
-/// Std-only PRNG for the screenshot showcase (no crates).
-fn screenshot_seed() -> u64 {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.subsec_nanos() as u64).unwrap_or(0x9e37);
-    nanos ^ ((std::process::id() as u64).wrapping_mul(0x9e3779b97f4a7c15))
-}
-
-fn screenshot_next(state: &mut u64) -> u64 {
-    *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-    (*state >> 33) ^ *state
-}
-
-/// Random 1-based box origin clamped inside the viewport.
-/// Keeps rows 1-3 (titlebar/tabs) and the status line clear.
-fn showcase_box_pos(rand_val: u64, cols: usize, rows: usize, width: usize, height: usize) -> (usize, usize) {
-    let w = width.min(cols.saturating_sub(2).max(1)).max(1);
-    let h = height.min(rows.saturating_sub(4).max(1)).max(1);
-    let max_col = cols.saturating_sub(w).max(1);
-    let top = 4usize;
-    let max_row = rows.saturating_sub(1).saturating_sub(h).max(top);
-    let col = (rand_val as usize % max_col.max(1)) + 1;
-    let row = top + ((rand_val >> 16) as usize % (max_row.saturating_sub(top) + 1).max(1));
-    (col.min(max_col).max(1), row.min(max_row).max(top))
-}
-
 enum PickerMouse {
     NotMouse,
     Handled(usize),
@@ -5457,6 +5804,7 @@ impl ReplaceCount {
     }
 }
 
+#[derive(Clone, Copy)]
 struct ReplaceGeom {
     col: usize,
     row: usize,
@@ -6067,11 +6415,11 @@ mod tests {
 
     #[test]
     fn context_menu_geometry_clamps() {
-        // Fits as requested.
-        assert_eq!(context_menu_geometry(6, 20, 10, 5, 80, 24), (10, 5, 26, 8));
+        // Fits as requested: items plus title, rule, and borders.
+        assert_eq!(context_menu_geometry(6, 20, 10, 5, 80, 24), (10, 5, 26, 10));
         // Bottom-right corner: shifted up/left, status line stays clear.
         let (c, r, w, h) = context_menu_geometry(9, 20, 79, 23, 80, 24);
-        assert_eq!((w, h), (26, 11));
+        assert_eq!((w, h), (26, 13));
         assert!(c + w - 1 <= 80);
         assert!(r + h - 1 <= 23);
         // Narrow terminal: width clamped, still on screen.
@@ -6721,20 +7069,84 @@ mod tests {
         assert_eq!(ed.titlebar_button_action(80), None);
         let bar = ed.render_titlebar();
         assert!(bar.contains(QUIT_LABEL));
-        assert!(bar.contains("48;2;255;158;100"));
+        assert!(bar.contains("48;2;247;118;142"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn showcase_box_stays_in_viewport() {
-        for seed in [0u64, 1, 42, 0xdeadbeef, u64::MAX] {
-            let (col, row) = showcase_box_pos(seed, 80, 24, 46, 9);
-            assert!(col >= 1 && col + 46 - 1 <= 80, "col {col}");
-            assert!(row >= 4 && row + 9 - 1 <= 23, "row {row}");
-        }
-        let (col, row) = showcase_box_pos(7, 30, 12, 46, 20);
-        assert!(col >= 1 && col <= 30);
-        assert!(row >= 4 && row <= 11);
+    fn welcome_logo_matches_logo_file() {
+        let rows = welcome_logo_rows(include_str!("../logo.txt"));
+        assert_eq!(rows.len(), 5);
+        assert!(rows.iter().all(|(_, w)| *w == 9));
+        let joined: String = rows.iter().map(|(s, _)| s.as_str()).collect();
+        assert!(joined.contains('█'));
+        assert!(joined.contains('▀'));
+        // #578bfb dark ink, #7aa2f7 light ink and the solid fills.
+        assert!(joined.contains("38;2;87;139;251"));
+        assert!(joined.contains("38;2;122;162;247"));
+        assert!(joined.contains("48;2;122;162;247"));
+        assert!(!joined.contains(";47m"));
+        assert!(logo_sgr_is_dark(90));
+        assert!(!logo_sgr_is_dark(97));
+    }
+
+    #[test]
+    fn welcome_dialog_is_centered_in_the_viewport() {
+        let dir = std::env::temp_dir().join(format!("az-welcome-pos-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("w.txt");
+        std::fs::write(&file, "x").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 120;
+        ed.rows = 40;
+        let welcome = ed.welcome_dialog();
+        let (col, row) = centered_box(120, 40, 56, 20);
+        assert_eq!((col, row), (33, 11));
+        assert!(welcome.contains(&format!("\x1b[{row};{col}H")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn welcome_and_search_dialogs_share_chrome() {
+        let dir = std::env::temp_dir().join(format!("az-dialogs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("d.txt");
+        std::fs::write(&file, "foo\n").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 80;
+        ed.rows = 24;
+        let welcome = ed.welcome_dialog();
+        assert!(welcome.contains(" Welcome "));
+        assert!(welcome.contains('█'));
+        assert!(welcome.contains("╔"));
+        assert!(welcome.contains("╠"));
+        let (search, geom) = ed.search_replace_text(".", "foo", "bar", 1, &[1, 3, 3], &{
+            let mut job = ReplaceCount::idle();
+            job.done = true;
+            job.count = 1;
+            job
+        });
+        assert!(search.contains(" Search & Replace "));
+        assert!(search.contains("╠"));
+        assert!(search.contains(" 1 match"));
+        assert_eq!(geom.height, 9);
+        assert!(geom.row + geom.height - 1 < ed.rows);
+        let menu = ed.context_menu_string(" Edit ", &["Cut".into(), "Copy".into()], 0, 0, 10, 6, 20, 6);
+        assert!(menu.contains(" Edit "));
+        assert!(menu.contains("╠"));
+        assert!(menu.contains(" 1 Cut"));
+        let (find, find_geom) = ed.find_dialog_text("foo", 3, 0);
+        assert!(find.contains(" Find "));
+        assert!(find.contains(" Next "));
+        assert!(find.contains(" Close "));
+        assert!(find.contains(" 1 match"));
+        assert!(!find.contains("Replace"));
+        assert!(!find.contains("Path"));
+        assert_eq!(find_geom.height, 7);
+        assert!(find_geom.row + find_geom.height - 1 < ed.rows);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

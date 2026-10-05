@@ -36,8 +36,8 @@ az newfile.txt      # new file tab
 ```text
 az  [Open] [Commands] [Shortcuts]  tabs above editor (click switch, middle-click close)
 Ctrl+S  save              Ctrl+O  quick open (file, symbol, file:line, :line)
-Ctrl+P  command palette   Ctrl+K  shortcuts (searchable)   Ctrl+F  search & replace dialog
-Ctrl+Shift+O find in files   Ctrl+Shift+H replace in files   Ctrl+R replace field   Ctrl+G go to line
+Ctrl+P  command palette   Ctrl+K  shortcuts (searchable)   Ctrl+F  find dialog
+Ctrl+Shift+O find in files   Ctrl+Shift+H replace in files   Ctrl+R search & replace   Ctrl+G go to line
 Ctrl+L  find next         Ctrl+E  end of line                +/-   tree width (in tree)
 Ctrl+D  close tab         Ctrl+N  new empty tab               Ctrl+Q  quit   Alt+1-9  visible tabs
 Ctrl+Tab  cycle tabs      + on the tab bar  new empty tab
@@ -152,13 +152,17 @@ No config drama, no plugins to install. Keyboard-first, mouse supported for clic
 | Open | Files, folders, `file:line`, `:line`, non-existent → new tab |
 | Navigate | Tree, quick open (fuzzy file + symbol), find in files, go-to-line/start/end, `Alt+1-9` on the visible tabs, `Ctrl+Tab` |
 | Edit | Undo/redo (400; dirty flag clears when the text matches the save), auto-indent, `()` `{}` `[]` close, wrap a selection with those or quotes, `<div>` → `</div>`, copy/cut/paste (OS clipboard, OSC52 fallback), select-all, delete-line |
-| Search | Search & replace dialog (`Ctrl+F` / `Ctrl+R` / `Ctrl+Shift+H`) with path, find, replace, and a live count. Find in files modal (`Ctrl+Shift+O`). Case-insensitive default, `%term` sensitive |
+| Search | Find dialog (`Ctrl+F`) for the current file, with a live count and Next. Search & replace (`Ctrl+R`, and `Ctrl+Shift+H` for the project) has path, find, replace, and a live count. Find in files modal (`Ctrl+Shift+O`). Case-insensitive default, `%term` sensitive |
 | Highlight | 42 languages (table below); PHP/Blade/HTML/CSS/JS mixed per-line; CSS `#id` + hex; logs levels + timestamps |
 | Complete | `Tab` context items: PHP `$vars`/members, HTML/XML tags/attrs, CSS props/values/`@rules`, JS/TS members/snippets, Blade directives, Bash `$vars`, SQL keywords, Nginx/Apache/Dockerfile/Rust words, keywords + symbols for the 20 new languages |
 | Safety | Atomic saves, root-password save when the file is not writable, session restore per project, throttled recovery (`$XDG_STATE_HOME/az-rust`), terminal cleanup |
 | Term | Raw-mode `stty`, bracketed paste (5 MB), truecolor, tabs/wide-char aware, UTF-8 byte-safe, SGR mouse click/drag/scroll, horizontal and vertical scrollbars when a pane overflows |
 
 > No word wrap by design — long lines scroll horizontally. No splits or regex.
+
+### What is new in 3.1
+
+General stability and performance improvements and bug fixes.
 
 ### What is new in 3.0?
 
