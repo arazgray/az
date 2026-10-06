@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="az Logo" height="64"/>
+  <img src="logo.png" alt="az Logo" height="64"/>
   <h1 align="center">az</h1>
 </p>
 
