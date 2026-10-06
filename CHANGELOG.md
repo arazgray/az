@@ -1,5 +1,12 @@
 # az — Changelog
 
+## Unreleased
+
+- **Multi-OS releases.** New CI matrix (`.github/workflows/release.yml`) builds Linux (x86_64 + ARM64), macOS (Intel + Apple Silicon), and Windows (x86_64 + ARM64) on every tag. New artifacts: `az-<ver>-linux-<arch>.tar.gz` (any distro: Arch, Alpine, NixOS...), `az_<ver>_<arch>.deb` (amd64 + arm64), `az-<ver>-1.<arch>.rpm` (Fedora/RHEL/openSUSE), `az-<ver>-macos-<arch>.tar.gz`, plus a Homebrew formula at `dist/homebrew/az.rb`. `install.sh` now detects OS + CPU and picks `.deb` → `.rpm` → tarball on Linux, tarball on macOS, and the arch-matched `.exe` on Windows. `dist/package.sh` reproduces the Linux packages locally (`--arch`, `--all`, SHA256SUMS).
+- **macOS terminal fix.** `TIOCGWINSZ` is now `0x40087468` on macOS (was the Linux-only `0x5413`), so window-size detection works on Mac terminals; other Unix keeps the Linux value with `stty size` as fallback.
+- **Homebrew tap.** New [`arazgray/homebrew-tap`](https://github.com/arazgray/homebrew-tap) repo: `brew install arazgray/tap/az` builds from source (zero deps, sha256-pinned tag archive, `livecheck` included). Mirror copy at `dist/homebrew/az.rb`; tap CI recipe staged at `dist/homebrew/test-workflow.yml` (needs one web-UI commit — see the tap README).
+- **AUR.** `dist/aur/az-bin/` holds a ready-to-publish `PKGBUILD` + `.SRCINFO` for `az-bin` (name verified free on the AUR; sums verified against the 4.0 release assets), with an `aarch64` stanza to uncomment after the first multi-arch release. Publish steps in `dist/aur/README.md`.
+
 ## 4.0
 
 - **Word wrap (`Alt+Z`).** Soft-folds long lines onto the next screen row (palette `Toggle word wrap`, editor right-click, status `wrap` chip). While on, the horizontal scrollbar hides and `col_offset` stays at 0. Continuation rows show a blank gutter. Click, caret, vertical scrollbar, and viewport follow the folds; `Up/Down` still move by file line.

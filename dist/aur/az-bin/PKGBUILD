@@ -1,0 +1,40 @@
+# Maintainer: Araz Gray
+# Prebuilt binary package for az (https://github.com/arazgray/az).
+# Arch-independent source build lives in release tarballs; this -bin
+# package installs the official prebuilt binary instead (no Rust needed).
+pkgname=az-bin
+pkgver=4.0.0
+pkgrel=1
+pkgdesc='A fast, small & sane terminal text editor'
+arch=('x86_64')
+url='https://github.com/arazgray/az'
+license=('custom:WTFPL')
+provides=('az')
+conflicts=('az')
+# Release tags are short ('4.0'); file names carry the full Cargo version.
+_tag="${pkgver%.*}"
+source=("az-$pkgver-linux-amd64::https://github.com/arazgray/az/releases/download/$_tag/az-$pkgver-linux-amd64"
+        "logo.png::https://raw.githubusercontent.com/arazgray/az/refs/tags/$_tag/logo.png")
+sha256sums=('eda877d465593f0501c41e1aa5b916dccf22e1a989af95db99bd8601c061cf73'
+            '0e253788e75d2c0bc1700e046f4f1e3ea7d65abdb67014a7cfb5dd4856840d81')
+# aarch64 (Apple Silicon runners now publish it — uncomment after the first
+# multi-arch release that ships az-<ver>-linux-arm64, then add its sums):
+# arch=('x86_64' 'aarch64')
+# source_aarch64=("az-$pkgver-linux-arm64::https://github.com/arazgray/az/releases/download/$_tag/az-$pkgver-linux-arm64")
+# sha256sums_aarch64=('FILL-IN-AFTER-RELEASE')
+
+package() {
+  install -Dm755 "az-$pkgver-linux-amd64" "$pkgdir/usr/bin/az"
+  install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/az.desktop" <<EOF
+[Desktop Entry]
+Name=az
+Comment=A fast, small & sane text editor
+Exec=az
+Icon=az
+Terminal=true
+Type=Application
+Categories=Development;TextEditor;
+Keywords=editor;text;code;
+EOF
+  install -Dm644 logo.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/az.png"
+}

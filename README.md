@@ -52,20 +52,81 @@ az
 
 ## Packages
 
-Prebuilt packages are available for Linux and Windows.
+Prebuilt packages are available for Linux, macOS, and Windows (x86_64 + ARM64).
+Tagged releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml);
+Linux packages can also be reproduced locally with `./dist/package.sh`.
 
-| Operating System | Package                                                                                                           | Architecture |    Size | SHA-256                                                            |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------- | ------------ | ------: | ------------------------------------------------------------------ |
-| Linux            | [**az-4.0.0-linux-amd64**](https://github.com/arazgray/az/releases/download/4.0/az-4.0.0-linux-amd64)             | x86_64       | 1.23 MB | `eda877d465593f0501c41e1aa5b916dccf22e1a989af95db99bd8601c061cf73` |
-| Windows          | [**az-4.0.0-windows-amd64.exe**](https://github.com/arazgray/az/releases/download/4.0/az-4.0.0-windows-amd64.exe) | x86_64       | 1.18 MB | `93588bfc89ac07221732958c9d73626952490a5b6e1099f1cc82ae8e8543d310` |
-| Debian / Ubuntu  | [**az_4.0.0_amd64.deb**](https://github.com/arazgray/az/releases/download/4.0/az_4.0.0_amd64.deb)                 | x86_64       |  475 KB | `227756b78fc8ba523f7a5b4cfde95eed57a2cb5e7dee7e21145da51d0816d2df` |
+| Operating System | Package | Architecture |
+| ---------------- | ------- | ------------ |
+| Linux (generic) | [**az-4.0.0-linux-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.0/az-4.0.0-linux-amd64.tar.gz) | x86_64 |
+| Linux (generic) | `az-4.0.0-linux-arm64.tar.gz` | aarch64 |
+| Debian / Ubuntu / Mint / Pop!_OS | [**az_4.0.0_amd64.deb**](https://github.com/arazgray/az/releases/download/4.0/az_4.0.0_amd64.deb) | x86_64 |
+| Debian / Ubuntu (ARM) | `az_4.0.0_arm64.deb` | aarch64 |
+| Fedora / RHEL / openSUSE | `az-4.0.0-1.x86_64.rpm` | x86_64 |
+| Fedora / RHEL (ARM) | `az-4.0.0-1.aarch64.rpm` | aarch64 |
+| macOS Apple Silicon | `az-4.0.0-macos-arm64.tar.gz` | arm64 |
+| macOS Intel | `az-4.0.0-macos-amd64.tar.gz` | x86_64 |
+| Windows | [**az-4.0.0-windows-amd64.exe**](https://github.com/arazgray/az/releases/download/4.0/az-4.0.0-windows-amd64.exe) | x86_64 |
+| Windows (ARM) | `az-4.0.0-windows-arm64.exe` | aarch64 |
+
+> Rows without a link ship with the next tagged release (run `./dist/package.sh --all`
+> in CI). The one-line installer below already knows these names and picks the
+> right one for your OS + CPU.
 
 ### Debian / Ubuntu
 
-To install the `.deb` package manually:
-
 ```sh
 sudo dpkg -i az_4.0.0_amd64.deb
+```
+
+ARM (Raspberry Pi, Ampere, AWS Graviton):
+
+```sh
+sudo dpkg -i az_4.0.0_arm64.deb
+```
+
+### Arch Linux (AUR)
+
+```sh
+yay -S az-bin
+# or: paru -S az-bin
+```
+
+Packaging files live in `dist/aur/az-bin/` (`PKGBUILD` + `.SRCINFO`, sums
+verified against the release assets). Publishing to the AUR needs an AUR
+account — steps are in `dist/aur/README.md`.
+
+### Fedora / RHEL / openSUSE
+
+```sh
+# Fedora / RHEL / CentOS:
+sudo dnf install ./az-4.0.0-1.x86_64.rpm
+# or, without a network solver:
+sudo rpm -i az-4.0.0-1.x86_64.rpm
+# openSUSE:
+sudo zypper install ./az-4.0.0-1.x86_64.rpm
+```
+
+### Arch / Alpine / other Linux (generic tarball)
+
+```sh
+tar -xzf az-4.0.0-linux-amd64.tar.gz
+sudo install -m755 az /usr/local/bin/az
+```
+
+### macOS
+
+```sh
+brew install arazgray/tap/az
+```
+
+Or manually from the release tarball:
+
+```sh
+tar -xzf az-4.0.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.0.0-macos-amd64.tar.gz # Intel
+mkdir -p ~/.local/bin
+install -m755 az ~/.local/bin/az
 ```
 
 ---

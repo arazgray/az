@@ -6458,6 +6458,11 @@ unsafe extern "C" {
 
 #[cfg(unix)]
 fn terminal_size_from_ioctl() -> Option<(usize, usize)> {
+    // Linux and macOS/BSD use different TIOCGWINSZ request numbers.
+    // Linux: 0x5413. macOS/BSD: 0x40087468 (built from _IOR('t', 104, winsize)).
+    #[cfg(target_os = "macos")]
+    const TIOCGWINSZ: c_ulong = 0x4008_7468;
+    #[cfg(not(target_os = "macos"))]
     const TIOCGWINSZ: c_ulong = 0x5413;
     let tty = File::open("/dev/tty").ok();
     let fd = tty.as_ref().map(|f| f.as_raw_fd()).unwrap_or(0);

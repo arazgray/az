@@ -108,6 +108,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 | Autocomplete | `autocomplete_context()` → `plugins::completion_context()`, `refresh_autocomplete()`, per-plugin `completion_*`. |
 | Session/recovery | `state_dir()`, `session_file()`, `try_restore_session()` (reads `tab_index`), `save_session()`, `write_recovery_for_current_tab()` (250ms throttle), `offer_recovery()`. |
 | Perf | `clock_text()` caches `date` subprocess per minute. Quick-open symbols scan 20 files per `read_key` wake; find-in-files scans 25; the replace count scans 20. Caps stay (600 files/1MB symbols, 3000 files/5MB search, 10k matches). Don't remove caps. Don't add a thread. |
+| Release packaging | `dist/package.sh` (local `.deb`/`.tar.gz`/`.rpm` + `SHA256SUMS`), `.github/workflows/release.yml` (CI matrix: linux amd64/arm64, macos amd64/arm64, windows amd64/arm64), `install.sh` (`arch_name()` picks the asset; Linux tries `.deb` → `.rpm` → tarball). AUR: `dist/aur/az-bin/` (`PKGBUILD`+`.SRCINFO`, publish via `dist/aur/README.md`). Homebrew: tap repo `arazgray/homebrew-tap` (`Formula/az.rb`), mirror at `dist/homebrew/az.rb`. Keep asset names in sync across all of these. `TIOCGWINSZ` is `0x40087468` on macOS, `0x5413` elsewhere. |
 
 ## 6. Testing
 

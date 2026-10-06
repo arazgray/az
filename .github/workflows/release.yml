@@ -1,0 +1,153 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "[0-9]*"
+      - "v[0-9]*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.target }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 — native runner, glibc.
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            arch: amd64
+            family: linux
+          # Linux ARM64 — native ARM runner.
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+            family: linux
+          # macOS Apple Silicon.
+          - os: macos-15
+            target: aarch64-apple-darwin
+            arch: arm64
+            family: macos
+          # macOS Intel (Rosetta-era Macs still in use).
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: amd64
+            family: macos
+          # Windows x86_64.
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            arch: amd64
+            family: windows
+          # Windows ARM64.
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            arch: arm64
+            family: windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Version from Cargo.toml
+        id: ver
+        shell: bash
+        run: |
+          VER="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -n1)"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Build (release)
+        shell: bash
+        run: cargo build --release --target "${{ matrix.target }}"
+
+      - name: Stage binary (unix)
+        if: matrix.family != 'windows'
+        shell: bash
+        run: |
+          mkdir -p stage
+          cp "target/${{ matrix.target }}/release/az" "stage/az"
+          chmod +x stage/az
+
+      - name: Stage binary (windows)
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path stage | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/az.exe" "stage/az.exe"
+
+      - name: Smoke test (unix)
+        if: matrix.family != 'windows'
+        shell: bash
+        run: ./stage/az --version
+
+      - name: Smoke test (windows)
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: ./stage/az.exe --version
+
+      - name: Tarball (linux / macos)
+        if: matrix.family != 'windows'
+        shell: bash
+        run: |
+          cp logo.png stage/ 2>/dev/null || true
+          cp README.md stage/ 2>/dev/null || true
+          cp USER_MANUAL.md stage/ 2>/dev/null || true
+          cp dist/deb/az_4.0.0_amd64/usr/share/applications/az.desktop stage/az.desktop 2>/dev/null || true
+          tar -czf "az-${{ steps.ver.outputs.version }}-${{ matrix.family }}-${{ matrix.arch }}.tar.gz" -C stage az logo.png README.md USER_MANUAL.md az.desktop 2>/dev/null \
+            || tar -czf "az-${{ steps.ver.outputs.version }}-${{ matrix.family }}-${{ matrix.arch }}.tar.gz" -C stage az
+
+      - name: Debian package (linux only)
+        if: matrix.family == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q dpkg-dev
+          chmod +x dist/package.sh
+          cp "target/${{ matrix.target }}/release/az" "dist/az-${{ steps.ver.outputs.version }}-linux-${{ matrix.arch }}"
+          VERSION="${{ steps.ver.outputs.version }}" ./dist/package.sh --arch "${{ matrix.arch }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: az-${{ matrix.family }}-${{ matrix.arch }}
+          path: |
+            az-*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            stage/az.exe
+          if-no-files-found: warn
+
+  release:
+    name: publish release
+    needs: [build]
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        shell: bash
+        run: |
+          cd artifacts
+          ls -la
+          sha256sum az-* 2>/dev/null > SHA256SUMS.txt || true
+          cat SHA256SUMS.txt || true
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/az-*
+            artifacts/SHA256SUMS.txt
+          generate_release_notes: true

@@ -1,0 +1,28 @@
+name: test tap
+
+on:
+  push:
+    paths:
+      - "Formula/**"
+  pull_request:
+    paths:
+      - "Formula/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install formula from source
+        run: brew install --build-from-source ./Formula/az.rb
+      - name: Smoke test
+        run: |
+          az --version
+          brew test arazgray/tap/az || brew test az
+      - name: Audit
+        run: brew audit --strict ./Formula/az.rb

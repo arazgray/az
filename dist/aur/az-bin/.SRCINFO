@@ -1,0 +1,15 @@
+pkgbase = az-bin
+	pkgdesc = A fast, small & sane terminal text editor
+	pkgver = 4.0.0
+	pkgrel = 1
+	url = https://github.com/arazgray/az
+	arch = x86_64
+	license = custom:WTFPL
+	provides = az
+	conflicts = az
+	source = az-4.0.0-linux-amd64::https://github.com/arazgray/az/releases/download/4.0/az-4.0.0-linux-amd64
+	sha256sums = eda877d465593f0501c41e1aa5b916dccf22e1a989af95db99bd8601c061cf73
+	source = logo.png::https://raw.githubusercontent.com/arazgray/az/refs/tags/4.0/logo.png
+	sha256sums = 0e253788e75d2c0bc1700e046f4f1e3ea7d65abdb67014a7cfb5dd4856840d81
+
+pkgname = az-bin
