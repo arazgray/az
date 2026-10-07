@@ -10,7 +10,7 @@
 #                                     # binary already exists at
 #                                     # dist/az-<ver>-linux-<arm64|amd64>
 #   ./dist/package.sh --all           # package every binary present in dist/
-#   VERSION=4.0.1 ./dist/package.sh
+#   VERSION=4.1.0 ./dist/package.sh
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -104,8 +104,8 @@ make_deb() {
   for s in 48x48 64x64 128x128 256x256; do
     if [ -f logo.png ]; then cp logo.png "$work/usr/share/icons/hicolor/$s/apps/az.png"; fi
   done
-  if [ -f dist/deb/az_4.0.0_amd64/usr/share/applications/az.desktop ]; then
-    cp dist/deb/az_4.0.0_amd64/usr/share/applications/az.desktop "$work/usr/share/applications/az.desktop"
+  if [ -f "dist/deb/az_${VERSION}_${deb_arch}/usr/share/applications/az.desktop" ]; then
+    cp "dist/deb/az_${VERSION}_${deb_arch}/usr/share/applications/az.desktop" "$work/usr/share/applications/az.desktop"
   else
     cat > "$work/usr/share/applications/az.desktop" <<EOF
 [Desktop Entry]
@@ -157,16 +157,35 @@ make_rpm() {
     return 0
   fi
   top="$(mktemp -d)"
-  mkdir -p "$top/BUILD" "$top/RPMS" "$top/SOURCES" "$top/SPECS" "$top/SRPMS" \
-    "$top/BUILDROOT/az-${VERSION}-1.${rpm_arch}/usr/bin" \
-    "$top/BUILDROOT/az-${VERSION}-1.${rpm_arch}/usr/share/applications" \
-    "$top/BUILDROOT/az-${VERSION}-1.${rpm_arch}/usr/share/icons/hicolor/256x256/apps"
-  cp "$bin" "$top/BUILDROOT/az-${VERSION}-1.${rpm_arch}/usr/bin/az"
-  chmod 755 "$top/BUILDROOT/az-${VERSION}-1.${rpm_arch}/usr/bin/az"
-  [ -f logo.png ] && cp logo.png "$top/BUILDROOT/az-${VERSION}-1.${rpm_arch}/usr/share/icons/hicolor/256x256/apps/az.png" || true
-  if [ -f dist/deb/az_4.0.0_amd64/usr/share/applications/az.desktop ]; then
-    cp dist/deb/az_4.0.0_amd64/usr/share/applications/az.desktop \
-      "$top/BUILDROOT/az-${VERSION}-1.${rpm_arch}/usr/share/applications/az.desktop"
+  mkdir -p "$top/BUILD" "$top/RPMS" "$top/SOURCES" "$top/SPECS" "$top/SRPMS" "$top/BUILDROOT"
+  # Stage inputs under SOURCES. Do NOT pre-fill BUILDROOT: rpmbuild wipes
+  # %{buildroot} before %install, so anything placed there beforehand is
+  # deleted and the install step finds an empty directory (this broke the
+  # 4.0 CI builds with `cp .../*: No such file or directory`).
+  cp "$bin" "$top/SOURCES/az"
+  [ -f logo.png ] && cp logo.png "$top/SOURCES/az.png" || true
+  deb_arch="$(DEB_ARCH "$arch")"
+  if [ -f "dist/deb/az_${VERSION}_${deb_arch}/usr/share/applications/az.desktop" ]; then
+    cp "dist/deb/az_${VERSION}_${deb_arch}/usr/share/applications/az.desktop" \
+      "$top/SOURCES/az.desktop"
+  else
+    cat > "$top/SOURCES/az.desktop" <<EOF
+[Desktop Entry]
+Name=az
+Comment=A fast, small & sane text editor
+Exec=az
+Icon=az
+Terminal=true
+Type=Application
+Categories=Development;TextEditor;
+Keywords=editor;text;code;
+EOF
+  fi
+  have_icon=0
+  [ -f "$top/SOURCES/az.png" ] && have_icon=1
+  files_icon=""
+  if [ "$have_icon" = "1" ]; then
+    files_icon="/usr/share/icons/hicolor/256x256/apps/az.png"
   fi
   cat > "$top/SPECS/az.spec" <<EOF
 Name:           az
@@ -184,12 +203,19 @@ Terminal text editor written in Rust with zero dependencies.
 Supports word wrap (Alt+Z) and RTL/LTR direction (Alt+R).
 
 %install
-cp -a %{_topdir}/BUILDROOT/az-${VERSION}-1.${rpm_arch}/* %{buildroot}/
+rm -rf %{buildroot}
+mkdir -p %{buildroot}/usr/bin %{buildroot}/usr/share/applications
+install -m755 %{_topdir}/SOURCES/az %{buildroot}/usr/bin/az
+install -m644 %{_topdir}/SOURCES/az.desktop %{buildroot}/usr/share/applications/az.desktop
+if [ -f %{_topdir}/SOURCES/az.png ]; then
+  mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
+  install -m644 %{_topdir}/SOURCES/az.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/az.png
+fi
 
 %files
 /usr/bin/az
 /usr/share/applications/az.desktop
-/usr/share/icons/hicolor/256x256/apps/az.png
+$files_icon
 
 %post
 update-desktop-database >/dev/null 2>&1 || true

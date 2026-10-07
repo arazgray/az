@@ -58,6 +58,116 @@ pub(crate) mod clojure;
 pub(crate) mod zig;
 pub(crate) mod julia;
 pub(crate) mod objc;
+pub(crate) mod makefile;
+pub(crate) mod cmake;
+pub(crate) mod powershell;
+pub(crate) mod proto;
+pub(crate) mod graphql;
+pub(crate) mod terraform;
+pub(crate) mod vue;
+pub(crate) mod svelte;
+pub(crate) mod asm;
+pub(crate) mod tex;
+pub(crate) mod erlang;
+pub(crate) mod solidity;
+pub(crate) mod ada;
+pub(crate) mod arduino;
+pub(crate) mod asciidoc;
+pub(crate) mod ats;
+pub(crate) mod awk;
+pub(crate) mod bat;
+pub(crate) mod b;
+pub(crate) mod caddyfile;
+pub(crate) mod cake;
+pub(crate) mod coffeescript;
+pub(crate) mod conky;
+pub(crate) mod crontab;
+pub(crate) mod crystal;
+pub(crate) mod cuda;
+pub(crate) mod cython;
+pub(crate) mod d;
+pub(crate) mod dot;
+pub(crate) mod ebuild;
+pub(crate) mod elm;
+pub(crate) mod erb;
+pub(crate) mod etcportage;
+pub(crate) mod fish;
+pub(crate) mod forth;
+pub(crate) mod fortran;
+pub(crate) mod freebsd;
+pub(crate) mod fsharp;
+pub(crate) mod gdscript;
+pub(crate) mod gemini;
+pub(crate) mod gitcommit;
+pub(crate) mod gitconfig;
+pub(crate) mod gitrebase;
+pub(crate) mod gleam;
+pub(crate) mod glsl;
+pub(crate) mod gnuplot;
+pub(crate) mod godoc;
+pub(crate) mod golo;
+pub(crate) mod gomod;
+pub(crate) mod groff;
+pub(crate) mod groovy;
+pub(crate) mod haml;
+pub(crate) mod hare;
+pub(crate) mod hc;
+pub(crate) mod inputrc;
+pub(crate) mod jinja2;
+pub(crate) mod jsonnet;
+pub(crate) mod justfile;
+pub(crate) mod keymap;
+pub(crate) mod kickstart;
+pub(crate) mod kvlang;
+pub(crate) mod ledger;
+pub(crate) mod lfe;
+pub(crate) mod lilypond;
+pub(crate) mod lisp;
+pub(crate) mod mail;
+pub(crate) mod man;
+pub(crate) mod mc;
+pub(crate) mod meson;
+pub(crate) mod micro;
+pub(crate) mod mpd;
+pub(crate) mod msbuild;
+pub(crate) mod nanorc;
+pub(crate) mod nftables;
+pub(crate) mod nim;
+pub(crate) mod nix;
+pub(crate) mod nu;
+pub(crate) mod ocaml;
+pub(crate) mod octave;
+pub(crate) mod odin;
+pub(crate) mod pascal;
+pub(crate) mod patch;
+pub(crate) mod pkgconfig;
+pub(crate) mod peg;
+pub(crate) mod po;
+pub(crate) mod pony;
+pub(crate) mod pov;
+pub(crate) mod privoxy;
+pub(crate) mod prql;
+pub(crate) mod puppet;
+pub(crate) mod raku;
+pub(crate) mod renpy;
+pub(crate) mod rpmspec;
+pub(crate) mod rest;
+pub(crate) mod sage;
+pub(crate) mod salt;
+pub(crate) mod sed;
+pub(crate) mod smalltalk;
+pub(crate) mod stata;
+pub(crate) mod tcl;
+pub(crate) mod twig;
+pub(crate) mod v;
+pub(crate) mod vala;
+pub(crate) mod verilog;
+pub(crate) mod vhdl;
+pub(crate) mod vi;
+pub(crate) mod xresources;
+pub(crate) mod yum;
+pub(crate) mod zscript;
+pub(crate) mod scad;
 pub(crate) mod plain;
 pub(crate) mod example;
 
@@ -110,6 +220,116 @@ pub(crate) fn mode_label(mode: SyntaxMode) -> &'static str {
         SyntaxMode::Zig => "ZIG",
         SyntaxMode::Julia => "JL",
         SyntaxMode::Objc => "OBJC",
+        SyntaxMode::Makefile => "MAKE",
+        SyntaxMode::Cmake => "CMAKE",
+        SyntaxMode::Powershell => "PS1",
+        SyntaxMode::Proto => "PROTO",
+        SyntaxMode::Graphql => "GQL",
+        SyntaxMode::Terraform => "TF",
+        SyntaxMode::Vue => "VUE",
+        SyntaxMode::Svelte => "SVELTE",
+        SyntaxMode::Asm => "ASM",
+        SyntaxMode::Tex => "TEX",
+        SyntaxMode::Erlang => "ERL",
+        SyntaxMode::Solidity => "SOL",
+        SyntaxMode::Ada => "ADA",
+        SyntaxMode::Arduino => "ARDUINO",
+        SyntaxMode::Asciidoc => "ADOC",
+        SyntaxMode::Ats => "ATS",
+        SyntaxMode::Awk => "AWK",
+        SyntaxMode::Bat => "BAT",
+        SyntaxMode::B => "B",
+        SyntaxMode::Caddyfile => "CADDY",
+        SyntaxMode::Cake => "CAKE",
+        SyntaxMode::Coffeescript => "COFFEE",
+        SyntaxMode::Conky => "CONKY",
+        SyntaxMode::Crontab => "CRON",
+        SyntaxMode::Crystal => "CR",
+        SyntaxMode::Cuda => "CUDA",
+        SyntaxMode::Cython => "CYTHON",
+        SyntaxMode::D => "D",
+        SyntaxMode::Dot => "DOT",
+        SyntaxMode::Ebuild => "EBUILD",
+        SyntaxMode::Elm => "ELM",
+        SyntaxMode::Erb => "ERB",
+        SyntaxMode::Etcportage => "PORTAGE",
+        SyntaxMode::Fish => "FISH",
+        SyntaxMode::Forth => "FORTH",
+        SyntaxMode::Fortran => "FORTRAN",
+        SyntaxMode::Freebsd => "FREEBSD",
+        SyntaxMode::Fsharp => "FS",
+        SyntaxMode::Gdscript => "GD",
+        SyntaxMode::Gemini => "GEMINI",
+        SyntaxMode::Gitcommit => "GIT-COMMIT",
+        SyntaxMode::Gitconfig => "GITCONFIG",
+        SyntaxMode::Gitrebase => "GIT-REBASE",
+        SyntaxMode::Gleam => "GLEAM",
+        SyntaxMode::Glsl => "GLSL",
+        SyntaxMode::Gnuplot => "GNUPLOT",
+        SyntaxMode::Godoc => "GODOC",
+        SyntaxMode::Golo => "GOLO",
+        SyntaxMode::Gomod => "GOMOD",
+        SyntaxMode::Groff => "GROFF",
+        SyntaxMode::Groovy => "GROOVY",
+        SyntaxMode::Haml => "HAML",
+        SyntaxMode::Hare => "HARE",
+        SyntaxMode::Hc => "HC",
+        SyntaxMode::Inputrc => "INPUTRC",
+        SyntaxMode::Jinja2 => "JINJA",
+        SyntaxMode::Jsonnet => "JSONNET",
+        SyntaxMode::Justfile => "JUST",
+        SyntaxMode::Keymap => "KEYMAP",
+        SyntaxMode::Kickstart => "KICKSTART",
+        SyntaxMode::Kvlang => "KV",
+        SyntaxMode::Ledger => "LEDGER",
+        SyntaxMode::Lfe => "LFE",
+        SyntaxMode::Lilypond => "LY",
+        SyntaxMode::Lisp => "LISP",
+        SyntaxMode::Mail => "MAIL",
+        SyntaxMode::Man => "MAN",
+        SyntaxMode::Mc => "MC",
+        SyntaxMode::Meson => "MESON",
+        SyntaxMode::Micro => "MICRO",
+        SyntaxMode::Mpd => "MPD",
+        SyntaxMode::Msbuild => "MSBUILD",
+        SyntaxMode::Nanorc => "NANORC",
+        SyntaxMode::Nftables => "NFT",
+        SyntaxMode::Nim => "NIM",
+        SyntaxMode::Nix => "NIX",
+        SyntaxMode::Nu => "NU",
+        SyntaxMode::Ocaml => "OCAML",
+        SyntaxMode::Octave => "OCTAVE",
+        SyntaxMode::Odin => "ODIN",
+        SyntaxMode::Pascal => "PASCAL",
+        SyntaxMode::Patch => "DIFF",
+        SyntaxMode::Pkgconfig => "PKGCONF",
+        SyntaxMode::Peg => "PEG",
+        SyntaxMode::Po => "PO",
+        SyntaxMode::Pony => "PONY",
+        SyntaxMode::Pov => "POV",
+        SyntaxMode::Privoxy => "PRIVOXY",
+        SyntaxMode::Prql => "PRQL",
+        SyntaxMode::Puppet => "PUPPET",
+        SyntaxMode::Raku => "RAKU",
+        SyntaxMode::Renpy => "RENPY",
+        SyntaxMode::Rpmspec => "SPEC",
+        SyntaxMode::Rest => "RST",
+        SyntaxMode::Sage => "SAGE",
+        SyntaxMode::Salt => "SALT",
+        SyntaxMode::Sed => "SED",
+        SyntaxMode::Smalltalk => "SMALLTALK",
+        SyntaxMode::Stata => "STATA",
+        SyntaxMode::Tcl => "TCL",
+        SyntaxMode::Twig => "TWIG",
+        SyntaxMode::V => "V",
+        SyntaxMode::Vala => "VALA",
+        SyntaxMode::Verilog => "VERILOG",
+        SyntaxMode::Vhdl => "VHDL",
+        SyntaxMode::Vi => "VIM",
+        SyntaxMode::Xresources => "XRES",
+        SyntaxMode::Yum => "YUM",
+        SyntaxMode::Zscript => "ZSCRIPT",
+        SyntaxMode::Scad => "SCAD",
         SyntaxMode::Plain => "PLAIN",
     }
 }
@@ -118,7 +338,7 @@ pub(crate) fn from_word(word: &str) -> Option<SyntaxMode> {
     match word.trim().to_ascii_lowercase().as_str() {
         "php" => Some(SyntaxMode::Php),
         "blade" => Some(SyntaxMode::Blade),
-        "html" => Some(SyntaxMode::Html),
+        "html" | "html4" | "html5" => Some(SyntaxMode::Html),
         "css" => Some(SyntaxMode::Css),
         "js" | "javascript" | "mjs" | "cjs" | "jsx" => Some(SyntaxMode::JavaScript),
         "ts" | "typescript" | "tsx" | "mts" | "cts" => Some(SyntaxMode::TypeScript),
@@ -137,9 +357,9 @@ pub(crate) fn from_word(word: &str) -> Option<SyntaxMode> {
         "dockerfile" | "docker" | "containerfile" => Some(SyntaxMode::Dockerfile),
         "systemd" | "service" | "unit" => Some(SyntaxMode::Systemd),
         "sql" => Some(SyntaxMode::Sql),
-        "python" | "py" => Some(SyntaxMode::Python),
+        "python" | "py" | "python2" | "python3" => Some(SyntaxMode::Python),
         "java" => Some(SyntaxMode::Java),
-        "csharp" | "c#" | "cs" => Some(SyntaxMode::Csharp),
+        "csharp" | "c#" | "cs" | "csx" => Some(SyntaxMode::Csharp),
         "cpp" | "c++" | "cxx" => Some(SyntaxMode::Cpp),
         "c" => Some(SyntaxMode::C),
         "go" | "golang" => Some(SyntaxMode::Go),
@@ -157,6 +377,116 @@ pub(crate) fn from_word(word: &str) -> Option<SyntaxMode> {
         "zig" => Some(SyntaxMode::Zig),
         "julia" | "jl" => Some(SyntaxMode::Julia),
         "objc" | "objective-c" | "objectivec" | "mm" => Some(SyntaxMode::Objc),
+        "makefile" | "make" | "mk" => Some(SyntaxMode::Makefile),
+        "cmake" => Some(SyntaxMode::Cmake),
+        "powershell" | "ps1" | "psm1" => Some(SyntaxMode::Powershell),
+        "proto" | "protobuf" => Some(SyntaxMode::Proto),
+        "graphql" | "gql" => Some(SyntaxMode::Graphql),
+        "terraform" | "tf" | "hcl" => Some(SyntaxMode::Terraform),
+        "vue" => Some(SyntaxMode::Vue),
+        "svelte" => Some(SyntaxMode::Svelte),
+        "asm" | "assembly" | "nasm" => Some(SyntaxMode::Asm),
+        "tex" | "latex" => Some(SyntaxMode::Tex),
+        "erlang" | "erl" => Some(SyntaxMode::Erlang),
+        "solidity" | "sol" => Some(SyntaxMode::Solidity),
+        "ada" => Some(SyntaxMode::Ada),
+        "arduino" | "ino" => Some(SyntaxMode::Arduino),
+        "asciidoc" | "adoc" => Some(SyntaxMode::Asciidoc),
+        "ats" => Some(SyntaxMode::Ats),
+        "awk" => Some(SyntaxMode::Awk),
+        "batch" | "bat" | "dosbatch" => Some(SyntaxMode::Bat),
+        "b" => Some(SyntaxMode::B),
+        "caddyfile" | "caddy" => Some(SyntaxMode::Caddyfile),
+        "cake" => Some(SyntaxMode::Cake),
+        "coffeescript" | "coffee" => Some(SyntaxMode::Coffeescript),
+        "conky" => Some(SyntaxMode::Conky),
+        "crontab" | "cron" => Some(SyntaxMode::Crontab),
+        "crystal" | "cr" => Some(SyntaxMode::Crystal),
+        "cuda" => Some(SyntaxMode::Cuda),
+        "cython" | "pyx" => Some(SyntaxMode::Cython),
+        "d" | "dlang" => Some(SyntaxMode::D),
+        "dot" | "graphviz" => Some(SyntaxMode::Dot),
+        "ebuild" | "gentoo" => Some(SyntaxMode::Ebuild),
+        "elm" => Some(SyntaxMode::Elm),
+        "erb" => Some(SyntaxMode::Erb),
+        "portage" | "etc-portage" => Some(SyntaxMode::Etcportage),
+        "fish" => Some(SyntaxMode::Fish),
+        "forth" => Some(SyntaxMode::Forth),
+        "fortran" | "f90" | "f95" => Some(SyntaxMode::Fortran),
+        "freebsd" | "bsd" => Some(SyntaxMode::Freebsd),
+        "fsharp" | "f#" | "fs" => Some(SyntaxMode::Fsharp),
+        "gdscript" | "godot" | "gd" => Some(SyntaxMode::Gdscript),
+        "gemini" | "gemtext" => Some(SyntaxMode::Gemini),
+        "git-commit" => Some(SyntaxMode::Gitcommit),
+        "git-config" | "gitconfig" => Some(SyntaxMode::Gitconfig),
+        "git-rebase" | "git-rebase-todo" => Some(SyntaxMode::Gitrebase),
+        "gleam" => Some(SyntaxMode::Gleam),
+        "glsl" => Some(SyntaxMode::Glsl),
+        "gnuplot" => Some(SyntaxMode::Gnuplot),
+        "godoc" => Some(SyntaxMode::Godoc),
+        "golo" => Some(SyntaxMode::Golo),
+        "gomod" => Some(SyntaxMode::Gomod),
+        "groff" | "troff" => Some(SyntaxMode::Groff),
+        "groovy" | "gradle" => Some(SyntaxMode::Groovy),
+        "haml" => Some(SyntaxMode::Haml),
+        "hare" => Some(SyntaxMode::Hare),
+        "hc" | "holyc" => Some(SyntaxMode::Hc),
+        "inputrc" => Some(SyntaxMode::Inputrc),
+        "jinja2" | "jinja" => Some(SyntaxMode::Jinja2),
+        "jsonnet" => Some(SyntaxMode::Jsonnet),
+        "just" | "justfile" => Some(SyntaxMode::Justfile),
+        "keymap" | "xmodmap" => Some(SyntaxMode::Keymap),
+        "kickstart" | "ks" => Some(SyntaxMode::Kickstart),
+        "kvlang" | "kivy" | "kv" => Some(SyntaxMode::Kvlang),
+        "ledger" => Some(SyntaxMode::Ledger),
+        "lfe" => Some(SyntaxMode::Lfe),
+        "lilypond" | "ly" => Some(SyntaxMode::Lilypond),
+        "lisp" | "elisp" | "scheme" => Some(SyntaxMode::Lisp),
+        "mail" | "email" => Some(SyntaxMode::Mail),
+        "man" | "manpage" => Some(SyntaxMode::Man),
+        "mc" | "m4" => Some(SyntaxMode::Mc),
+        "meson" => Some(SyntaxMode::Meson),
+        "micro" => Some(SyntaxMode::Micro),
+        "mpd" => Some(SyntaxMode::Mpd),
+        "msbuild" => Some(SyntaxMode::Msbuild),
+        "nanorc" | "nano" => Some(SyntaxMode::Nanorc),
+        "nftables" | "nft" => Some(SyntaxMode::Nftables),
+        "nim" => Some(SyntaxMode::Nim),
+        "nix" => Some(SyntaxMode::Nix),
+        "nu" | "nushell" => Some(SyntaxMode::Nu),
+        "ocaml" => Some(SyntaxMode::Ocaml),
+        "octave" => Some(SyntaxMode::Octave),
+        "odin" => Some(SyntaxMode::Odin),
+        "pascal" | "pas" => Some(SyntaxMode::Pascal),
+        "patch" | "diff" => Some(SyntaxMode::Patch),
+        "pkg-config" | "pkgconfig" | "pkgconf" => Some(SyntaxMode::Pkgconfig),
+        "peg" => Some(SyntaxMode::Peg),
+        "po" | "gettext" => Some(SyntaxMode::Po),
+        "pony" => Some(SyntaxMode::Pony),
+        "pov" | "povray" => Some(SyntaxMode::Pov),
+        "privoxy" => Some(SyntaxMode::Privoxy),
+        "prql" => Some(SyntaxMode::Prql),
+        "puppet" => Some(SyntaxMode::Puppet),
+        "raku" | "perl6" => Some(SyntaxMode::Raku),
+        "renpy" => Some(SyntaxMode::Renpy),
+        "rpmspec" | "spec" => Some(SyntaxMode::Rpmspec),
+        "rst" | "rest" | "restructuredtext" => Some(SyntaxMode::Rest),
+        "sage" => Some(SyntaxMode::Sage),
+        "salt" | "saltstack" => Some(SyntaxMode::Salt),
+        "sed" => Some(SyntaxMode::Sed),
+        "smalltalk" => Some(SyntaxMode::Smalltalk),
+        "stata" => Some(SyntaxMode::Stata),
+        "tcl" => Some(SyntaxMode::Tcl),
+        "twig" => Some(SyntaxMode::Twig),
+        "v" | "vlang" => Some(SyntaxMode::V),
+        "vala" => Some(SyntaxMode::Vala),
+        "verilog" => Some(SyntaxMode::Verilog),
+        "vhdl" => Some(SyntaxMode::Vhdl),
+        "vi" | "vim" | "vimscript" => Some(SyntaxMode::Vi),
+        "xresources" | "xres" => Some(SyntaxMode::Xresources),
+        "yum" => Some(SyntaxMode::Yum),
+        "zscript" => Some(SyntaxMode::Zscript),
+        "openscad" | "scad" => Some(SyntaxMode::Scad),
         "plain" | "text" | "txt" => Some(SyntaxMode::Plain),
         _ => None,
     }
@@ -181,6 +511,161 @@ pub(crate) fn from_path(path: Option<&Path>) -> SyntaxMode {
     }
     if name == "gemfile" || name == "rakefile" {
         return SyntaxMode::Ruby;
+    }
+    if name == "makefile" || name == "gnumakefile" || name.ends_with(".mk") || name.ends_with(".mak") {
+        return SyntaxMode::Makefile;
+    }
+    if name == "cmakelists.txt" || name.ends_with(".cmake") {
+        return SyntaxMode::Cmake;
+    }
+    if name == "caddyfile" {
+        return SyntaxMode::Caddyfile;
+    }
+    if name == "conky.conf" {
+        return SyntaxMode::Conky;
+    }
+    if name.contains("conkyrc") {
+        return SyntaxMode::Conky;
+    }
+    if name == "crontab" {
+        return SyntaxMode::Crontab;
+    }
+    if name.starts_with("crontab.") {
+        return SyntaxMode::Crontab;
+    }
+    if name == "generic" {
+        return SyntaxMode::Freebsd;
+    }
+    if name == "commit_editmsg" {
+        return SyntaxMode::Gitcommit;
+    }
+    if name == "tag_editmsg" {
+        return SyntaxMode::Gitcommit;
+    }
+    if name == "merge_msg" {
+        return SyntaxMode::Gitcommit;
+    }
+    if name == ".gitconfig" {
+        return SyntaxMode::Gitconfig;
+    }
+    if name == "gitconfig" {
+        return SyntaxMode::Gitconfig;
+    }
+    if name == "gitmodules" {
+        return SyntaxMode::Gitconfig;
+    }
+    if name == "git-rebase-todo" {
+        return SyntaxMode::Gitrebase;
+    }
+    if name == "go.mod" {
+        return SyntaxMode::Gomod;
+    }
+    if name.starts_with("tmac.") {
+        return SyntaxMode::Groff;
+    }
+    if name == "jenkinsfile" {
+        return SyntaxMode::Groovy;
+    }
+    if name == "inputrc" {
+        return SyntaxMode::Inputrc;
+    }
+    if name == ".inputrc" {
+        return SyntaxMode::Inputrc;
+    }
+    if name == "justfile" {
+        return SyntaxMode::Justfile;
+    }
+    if name == ".justfile" {
+        return SyntaxMode::Justfile;
+    }
+    if name == "xmodmap" {
+        return SyntaxMode::Keymap;
+    }
+    if name == "ledger" {
+        return SyntaxMode::Ledger;
+    }
+    if name == "ldgr" {
+        return SyntaxMode::Ledger;
+    }
+    if name == "beancount" {
+        return SyntaxMode::Ledger;
+    }
+    if name == "bnct" {
+        return SyntaxMode::Ledger;
+    }
+    if name == "emacs" {
+        return SyntaxMode::Lisp;
+    }
+    if name == "zile" {
+        return SyntaxMode::Lisp;
+    }
+    if name.starts_with("mutt-") {
+        return SyntaxMode::Mail;
+    }
+    if name == "meson.build" {
+        return SyntaxMode::Meson;
+    }
+    if name == "meson_options.txt" {
+        return SyntaxMode::Meson;
+    }
+    if name == "meson.options" {
+        return SyntaxMode::Meson;
+    }
+    if name == "mpd.conf" {
+        return SyntaxMode::Mpd;
+    }
+    if name == "nanorc" {
+        return SyntaxMode::Nanorc;
+    }
+    if name == ".nanorc" {
+        return SyntaxMode::Nanorc;
+    }
+    if name == "nftables.conf" {
+        return SyntaxMode::Nftables;
+    }
+    if name == "nftables.rules" {
+        return SyntaxMode::Nftables;
+    }
+    if name == "nim.cfg" {
+        return SyntaxMode::Nim;
+    }
+    if name == "vimrc" {
+        return SyntaxMode::Vi;
+    }
+    if name == ".vimrc" {
+        return SyntaxMode::Vi;
+    }
+    if name == "exrc" {
+        return SyntaxMode::Vi;
+    }
+    if name == ".exrc" {
+        return SyntaxMode::Vi;
+    }
+    if name == "gvimrc" {
+        return SyntaxMode::Vi;
+    }
+    if name == ".gvimrc" {
+        return SyntaxMode::Vi;
+    }
+    if name == "xdefaults" {
+        return SyntaxMode::Xresources;
+    }
+    if name == "xresources" {
+        return SyntaxMode::Xresources;
+    }
+    if name == "yum.conf" {
+        return SyntaxMode::Yum;
+    }
+    if name == "config" {
+        if path.components().any(|c| c.as_os_str() == OsStr::new(".git")) {
+            return SyntaxMode::Gitconfig;
+        }
+        if path.components().any(|c| c.as_os_str() == OsStr::new("privoxy")) {
+            return SyntaxMode::Privoxy;
+        }
+    }
+    if name == "pkgfile" {
+        return SyntaxMode::Bash;
     }
     if is_shell_rc_name(&name) {
         return SyntaxMode::Bash;
@@ -223,6 +708,100 @@ pub(crate) fn from_path(path: Option<&Path>) -> SyntaxMode {
         "jl" => SyntaxMode::Julia,
         "m" | "mm" => SyntaxMode::Objc,
         "service" | "timer" | "socket" | "unit" => SyntaxMode::Systemd,
+        "mk" | "mak" => SyntaxMode::Makefile,
+        "cmake" => SyntaxMode::Cmake,
+        "ps1" | "psm1" | "psd1" => SyntaxMode::Powershell,
+        "proto" => SyntaxMode::Proto,
+        "graphql" | "gql" => SyntaxMode::Graphql,
+        "tf" | "hcl" => SyntaxMode::Terraform,
+        "vue" => SyntaxMode::Vue,
+        "svelte" => SyntaxMode::Svelte,
+        "s" | "asm" => SyntaxMode::Asm,
+        "tex" | "bib" | "cls" | "sty" => SyntaxMode::Tex,
+        "erl" | "hrl" => SyntaxMode::Erlang,
+        "sol" => SyntaxMode::Solidity,
+        "ads" | "adb" | "ada" => SyntaxMode::Ada,
+        "ino" => SyntaxMode::Arduino,
+        "asc" | "asciidoc" | "adoc" => SyntaxMode::Asciidoc,
+        "dats" | "hats" | "sats" => SyntaxMode::Ats,
+        "awk" => SyntaxMode::Awk,
+        "bat" | "cmd" => SyntaxMode::Bat,
+        "b" => SyntaxMode::B,
+        "cake" => SyntaxMode::Cake,
+        "coffee" => SyntaxMode::Coffeescript,
+        "cr" => SyntaxMode::Crystal,
+        "cu" | "cuh" => SyntaxMode::Cuda,
+        "pyx" | "pxd" => SyntaxMode::Cython,
+        "d" | "di" | "dd" => SyntaxMode::D,
+        "dot" | "gv" => SyntaxMode::Dot,
+        "ebuild" | "eclass" => SyntaxMode::Ebuild,
+        "elm" => SyntaxMode::Elm,
+        "erb" | "rhtml" => SyntaxMode::Erb,
+        "keywords" | "mask" | "unmask" | "use" => SyntaxMode::Etcportage,
+        "fish" => SyntaxMode::Fish,
+        "forth" | "4th" | "fs8" | "ft" | "fth" | "frt" => SyntaxMode::Forth,
+        "f" | "f90" | "f95" | "for" => SyntaxMode::Fortran,
+        "fs" | "fsi" | "fsx" => SyntaxMode::Fsharp,
+        "gd" => SyntaxMode::Gdscript,
+        "gmi" | "gemini" => SyntaxMode::Gemini,
+        "gleam" => SyntaxMode::Gleam,
+        "frag" | "vert" | "fp" | "vp" | "glsl" => SyntaxMode::Glsl,
+        "gnu" | "gpi" | "plt" | "gp" => SyntaxMode::Gnuplot,
+        "godoc" => SyntaxMode::Godoc,
+        "golo" => SyntaxMode::Golo,
+        "me" | "ms" | "rof" | "tmac" => SyntaxMode::Groff,
+        "groovy" | "gy" | "gvy" | "gsh" | "gradle" => SyntaxMode::Groovy,
+        "haml" => SyntaxMode::Haml,
+        "ha" => SyntaxMode::Hare,
+        "hc" => SyntaxMode::Hc,
+        "j2" | "jinja" | "jinja2" => SyntaxMode::Jinja2,
+        "jsonnet" | "libsonnet" => SyntaxMode::Jsonnet,
+        "just" => SyntaxMode::Justfile,
+        "map" | "kmap" | "keymap" => SyntaxMode::Keymap,
+        "ks" | "kickstart" => SyntaxMode::Kickstart,
+        "kv" => SyntaxMode::Kvlang,
+        "ledger" | "ldgr" | "beancount" | "bnct" => SyntaxMode::Ledger,
+        "lfe" => SyntaxMode::Lfe,
+        "ly" | "ily" | "lly" => SyntaxMode::Lilypond,
+        "el" | "lisp" | "lsp" | "scm" | "ss" | "rkt" => SyntaxMode::Lisp,
+        "eml" => SyntaxMode::Mail,
+        "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" => SyntaxMode::Man,
+        "mc" => SyntaxMode::Mc,
+        "micro" => SyntaxMode::Micro,
+        "props" | "targets" | "tasks" => SyntaxMode::Msbuild,
+        "nim" | "nims" => SyntaxMode::Nim,
+        "nix" => SyntaxMode::Nix,
+        "nu" => SyntaxMode::Nu,
+        "ml" | "mli" => SyntaxMode::Ocaml,
+        "odin" => SyntaxMode::Odin,
+        "pas" => SyntaxMode::Pascal,
+        "patch" | "diff" => SyntaxMode::Patch,
+        "pc" => SyntaxMode::Pkgconfig,
+        "peg" | "lpeg" => SyntaxMode::Peg,
+        "po" | "pot" => SyntaxMode::Po,
+        "pony" => SyntaxMode::Pony,
+        "pov" | "povray" => SyntaxMode::Pov,
+        "action" | "filter" => SyntaxMode::Privoxy,
+        "prql" => SyntaxMode::Prql,
+        "pp" => SyntaxMode::Puppet,
+        "p6" | "pl6" | "pm6" | "pod6" | "raku" | "rakumod" | "rakudoc" | "rakutest" | "nqp" => SyntaxMode::Raku,
+        "rpy" => SyntaxMode::Renpy,
+        "spec" | "rpmspec" => SyntaxMode::Rpmspec,
+        "rest" | "rst" => SyntaxMode::Rest,
+        "sage" => SyntaxMode::Sage,
+        "sls" => SyntaxMode::Salt,
+        "sed" => SyntaxMode::Sed,
+        "st" | "sources" | "changes" => SyntaxMode::Smalltalk,
+        "do" | "ado" => SyntaxMode::Stata,
+        "tcl" => SyntaxMode::Tcl,
+        "twig" => SyntaxMode::Twig,
+        "vala" => SyntaxMode::Vala,
+        "v" | "vh" | "sv" | "svh" => SyntaxMode::Verilog,
+        "vhdl" | "vhd" => SyntaxMode::Vhdl,
+        "vim" => SyntaxMode::Vi,
+        "repo" => SyntaxMode::Yum,
+        "zc" | "zsc" => SyntaxMode::Zscript,
+        "scad" => SyntaxMode::Scad,
         _ => SyntaxMode::Plain,
     }
 }
@@ -291,6 +870,51 @@ pub(crate) fn tree_color(path: &Path, is_dir: bool) -> &'static str {
     if is_shell_rc_name(&name) {
         return RED;
     }
+    if name == "makefile" || name == "gnumakefile" || name == "cmakelists.txt" {
+        return BLUE;
+    }
+    if name == "caddyfile" {
+        return BLUE;
+    }
+    if name == "conky.conf" {
+        return GREEN;
+    }
+    if name == "crontab" {
+        return FG_DARK;
+    }
+    if name == "generic" {
+        return FG_DARK;
+    }
+    if name == "commit_editmsg" || name == "tag_editmsg" || name == "merge_msg" {
+        return YELLOW;
+    }
+    if name == ".gitconfig" || name == "gitconfig" || name == "gitmodules" {
+        return CYAN;
+    }
+    if name == "git-rebase-todo" {
+        return YELLOW;
+    }
+    if name == "go.mod" {
+        return CYAN;
+    }
+    if name == "inputrc" || name == ".inputrc" {
+        return FG_DARK;
+    }
+    if name == "meson.build" || name == "meson_options.txt" || name == "meson.options" {
+        return BLUE;
+    }
+    if name == "mpd.conf" {
+        return FG_DARK;
+    }
+    if name == "nanorc" || name == ".nanorc" {
+        return FG_DARK;
+    }
+    if name == "nftables.conf" || name == "nftables.rules" {
+        return RED;
+    }
+    if name == "xdefaults" || name == "xresources" {
+        return FG_DARK;
+    }
     match path.extension().and_then(OsStr::to_str).unwrap_or("").to_ascii_lowercase().as_str() {
         "php" | "phtml" => PURPLE,
         "html" | "htm" | "xml" | "svg" => ORANGE,
@@ -317,6 +941,97 @@ pub(crate) fn tree_color(path: &Path, is_dir: bool) -> &'static str {
         "zig" => ORANGE,
         "jl" => MAGENTA,
         "m" | "mm" => ORANGE,
+        "vue" | "svelte" => GREEN,
+        "ps1" | "psm1" | "psd1" => CYAN,
+        "proto" | "graphql" | "gql" => ORANGE,
+        "tf" | "hcl" => PURPLE,
+        "s" | "asm" => FG_DARK,
+        "tex" | "bib" | "cls" | "sty" => GREEN,
+        "erl" | "hrl" => RED,
+        "sol" => CYAN,
+        "ads" | "adb" | "ada" => PURPLE,
+        "ino" => CYAN,
+        "asc" | "asciidoc" | "adoc" => GREEN,
+        "dats" | "hats" | "sats" => CYAN,
+        "awk" => ORANGE,
+        "bat" | "cmd" => YELLOW,
+        "b" => FG_DARK,
+        "cake" => RED,
+        "coffee" => YELLOW,
+        "cr" => RED,
+        "cu" | "cuh" => GREEN,
+        "pyx" | "pxd" => GREEN,
+        "d" | "di" | "dd" => RED,
+        "dot" | "gv" => CYAN,
+        "ebuild" | "eclass" => PURPLE,
+        "elm" => BLUE,
+        "erb" | "rhtml" => RED,
+        "keywords" | "mask" | "unmask" | "use" => FG_DARK,
+        "fish" => GREEN,
+        "forth" | "4th" | "fs8" | "ft" | "fth" | "frt" => ORANGE,
+        "f" | "f90" | "f95" | "for" => BLUE,
+        "fs" | "fsi" | "fsx" => CYAN,
+        "gd" => CYAN,
+        "gmi" | "gemini" => FG_DARK,
+        "gleam" => MAGENTA,
+        "frag" | "vert" | "fp" | "vp" | "glsl" => PURPLE,
+        "gnu" | "gpi" | "plt" | "gp" => ORANGE,
+        "godoc" => FG_DARK,
+        "golo" => ORANGE,
+        "me" | "ms" | "rof" | "tmac" => FG_DARK,
+        "groovy" | "gy" | "gvy" | "gsh" | "gradle" => GREEN,
+        "haml" => ORANGE,
+        "ha" => ORANGE,
+        "hc" => YELLOW,
+        "j2" | "jinja" | "jinja2" => GREEN,
+        "jsonnet" | "libsonnet" => CYAN,
+        "just" => BLUE,
+        "map" | "kmap" | "keymap" => FG_DARK,
+        "ks" | "kickstart" => RED,
+        "kv" => ORANGE,
+        "ledger" | "ldgr" | "beancount" | "bnct" => GREEN,
+        "lfe" => GREEN,
+        "ly" | "ily" | "lly" => PURPLE,
+        "el" | "lisp" | "lsp" | "scm" | "ss" | "rkt" => GREEN,
+        "eml" => FG_DARK,
+        "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" => FG_DARK,
+        "mc" => ORANGE,
+        "micro" => CYAN,
+        "props" | "targets" | "tasks" => BLUE,
+        "nim" | "nims" => YELLOW,
+        "nix" => CYAN,
+        "nu" => GREEN,
+        "ml" | "mli" => ORANGE,
+        "odin" => CYAN,
+        "pas" => BLUE,
+        "patch" | "diff" => FG_DARK,
+        "pc" => CYAN,
+        "peg" | "lpeg" => PURPLE,
+        "po" | "pot" => YELLOW,
+        "pony" => ORANGE,
+        "pov" | "povray" => CYAN,
+        "action" | "filter" => FG_DARK,
+        "prql" => ORANGE,
+        "pp" => PURPLE,
+        "p6" | "pl6" | "pm6" | "pod6" | "raku" | "rakumod" | "rakudoc" | "rakutest" | "nqp" => PURPLE,
+        "rpy" => MAGENTA,
+        "spec" | "rpmspec" => RED,
+        "rest" | "rst" => FG_DARK,
+        "sage" => GREEN,
+        "sls" => YELLOW,
+        "sed" => ORANGE,
+        "st" | "sources" | "changes" => YELLOW,
+        "do" | "ado" => BLUE,
+        "tcl" => CYAN,
+        "twig" => GREEN,
+        "vala" => PURPLE,
+        "v" | "vh" | "sv" | "svh" => GREEN,
+        "vhdl" | "vhd" => GREEN,
+        "vim" => GREEN,
+        "repo" => RED,
+        "zc" | "zsc" => ORANGE,
+        "scad" => YELLOW,
+        "mk" | "mak" | "cmake" => BLUE,
         "md" | "mkd" | "markdown" | "txt" => GREEN,
         "json" | "jsonc" | "json5" | "toml" | "yaml" | "yml" => CYAN,
         "sh" | "bash" | "zsh" => RED,
@@ -372,6 +1087,116 @@ pub(crate) fn highlight_segments(line: &str, syntax: SyntaxMode) -> Vec<Segment>
         SyntaxMode::Zig => zig::segments(line),
         SyntaxMode::Julia => julia::segments(line),
         SyntaxMode::Objc => objc::segments(line),
+        SyntaxMode::Makefile => makefile::segments(line),
+        SyntaxMode::Cmake => cmake::segments(line),
+        SyntaxMode::Powershell => powershell::segments(line),
+        SyntaxMode::Proto => proto::segments(line),
+        SyntaxMode::Graphql => graphql::segments(line),
+        SyntaxMode::Terraform => terraform::segments(line),
+        SyntaxMode::Vue => vue::segments(line),
+        SyntaxMode::Svelte => svelte::segments(line),
+        SyntaxMode::Asm => asm::segments(line),
+        SyntaxMode::Tex => tex::segments(line),
+        SyntaxMode::Erlang => erlang::segments(line),
+        SyntaxMode::Solidity => solidity::segments(line),
+        SyntaxMode::Ada => ada::segments(line),
+        SyntaxMode::Arduino => arduino::segments(line),
+        SyntaxMode::Asciidoc => asciidoc::segments(line),
+        SyntaxMode::Ats => ats::segments(line),
+        SyntaxMode::Awk => awk::segments(line),
+        SyntaxMode::Bat => bat::segments(line),
+        SyntaxMode::B => b::segments(line),
+        SyntaxMode::Caddyfile => caddyfile::segments(line),
+        SyntaxMode::Cake => cake::segments(line),
+        SyntaxMode::Coffeescript => coffeescript::segments(line),
+        SyntaxMode::Conky => conky::segments(line),
+        SyntaxMode::Crontab => crontab::segments(line),
+        SyntaxMode::Crystal => crystal::segments(line),
+        SyntaxMode::Cuda => cuda::segments(line),
+        SyntaxMode::Cython => cython::segments(line),
+        SyntaxMode::D => d::segments(line),
+        SyntaxMode::Dot => dot::segments(line),
+        SyntaxMode::Ebuild => ebuild::segments(line),
+        SyntaxMode::Elm => elm::segments(line),
+        SyntaxMode::Erb => erb::segments(line),
+        SyntaxMode::Etcportage => etcportage::segments(line),
+        SyntaxMode::Fish => fish::segments(line),
+        SyntaxMode::Forth => forth::segments(line),
+        SyntaxMode::Fortran => fortran::segments(line),
+        SyntaxMode::Freebsd => freebsd::segments(line),
+        SyntaxMode::Fsharp => fsharp::segments(line),
+        SyntaxMode::Gdscript => gdscript::segments(line),
+        SyntaxMode::Gemini => gemini::segments(line),
+        SyntaxMode::Gitcommit => gitcommit::segments(line),
+        SyntaxMode::Gitconfig => gitconfig::segments(line),
+        SyntaxMode::Gitrebase => gitrebase::segments(line),
+        SyntaxMode::Gleam => gleam::segments(line),
+        SyntaxMode::Glsl => glsl::segments(line),
+        SyntaxMode::Gnuplot => gnuplot::segments(line),
+        SyntaxMode::Godoc => godoc::segments(line),
+        SyntaxMode::Golo => golo::segments(line),
+        SyntaxMode::Gomod => gomod::segments(line),
+        SyntaxMode::Groff => groff::segments(line),
+        SyntaxMode::Groovy => groovy::segments(line),
+        SyntaxMode::Haml => haml::segments(line),
+        SyntaxMode::Hare => hare::segments(line),
+        SyntaxMode::Hc => hc::segments(line),
+        SyntaxMode::Inputrc => inputrc::segments(line),
+        SyntaxMode::Jinja2 => jinja2::segments(line),
+        SyntaxMode::Jsonnet => jsonnet::segments(line),
+        SyntaxMode::Justfile => justfile::segments(line),
+        SyntaxMode::Keymap => keymap::segments(line),
+        SyntaxMode::Kickstart => kickstart::segments(line),
+        SyntaxMode::Kvlang => kvlang::segments(line),
+        SyntaxMode::Ledger => ledger::segments(line),
+        SyntaxMode::Lfe => lfe::segments(line),
+        SyntaxMode::Lilypond => lilypond::segments(line),
+        SyntaxMode::Lisp => lisp::segments(line),
+        SyntaxMode::Mail => mail::segments(line),
+        SyntaxMode::Man => man::segments(line),
+        SyntaxMode::Mc => mc::segments(line),
+        SyntaxMode::Meson => meson::segments(line),
+        SyntaxMode::Micro => micro::segments(line),
+        SyntaxMode::Mpd => mpd::segments(line),
+        SyntaxMode::Msbuild => msbuild::segments(line),
+        SyntaxMode::Nanorc => nanorc::segments(line),
+        SyntaxMode::Nftables => nftables::segments(line),
+        SyntaxMode::Nim => nim::segments(line),
+        SyntaxMode::Nix => nix::segments(line),
+        SyntaxMode::Nu => nu::segments(line),
+        SyntaxMode::Ocaml => ocaml::segments(line),
+        SyntaxMode::Octave => octave::segments(line),
+        SyntaxMode::Odin => odin::segments(line),
+        SyntaxMode::Pascal => pascal::segments(line),
+        SyntaxMode::Patch => patch::segments(line),
+        SyntaxMode::Pkgconfig => pkgconfig::segments(line),
+        SyntaxMode::Peg => peg::segments(line),
+        SyntaxMode::Po => po::segments(line),
+        SyntaxMode::Pony => pony::segments(line),
+        SyntaxMode::Pov => pov::segments(line),
+        SyntaxMode::Privoxy => privoxy::segments(line),
+        SyntaxMode::Prql => prql::segments(line),
+        SyntaxMode::Puppet => puppet::segments(line),
+        SyntaxMode::Raku => raku::segments(line),
+        SyntaxMode::Renpy => renpy::segments(line),
+        SyntaxMode::Rpmspec => rpmspec::segments(line),
+        SyntaxMode::Rest => rest::segments(line),
+        SyntaxMode::Sage => sage::segments(line),
+        SyntaxMode::Salt => salt::segments(line),
+        SyntaxMode::Sed => sed::segments(line),
+        SyntaxMode::Smalltalk => smalltalk::segments(line),
+        SyntaxMode::Stata => stata::segments(line),
+        SyntaxMode::Tcl => tcl::segments(line),
+        SyntaxMode::Twig => twig::segments(line),
+        SyntaxMode::V => v::segments(line),
+        SyntaxMode::Vala => vala::segments(line),
+        SyntaxMode::Verilog => verilog::segments(line),
+        SyntaxMode::Vhdl => vhdl::segments(line),
+        SyntaxMode::Vi => vi::segments(line),
+        SyntaxMode::Xresources => xresources::segments(line),
+        SyntaxMode::Yum => yum::segments(line),
+        SyntaxMode::Zscript => zscript::segments(line),
+        SyntaxMode::Scad => scad::segments(line),
         SyntaxMode::Plain => plain::segments(line),
     }
 }
@@ -476,6 +1301,116 @@ pub(crate) fn completion_context(syntax: SyntaxMode, before: &str, explicit: boo
     word_mode!(Zig, zig);
     word_mode!(Julia, julia);
     word_mode!(Objc, objc);
+    word_mode!(Makefile, makefile);
+    word_mode!(Cmake, cmake);
+    word_mode!(Powershell, powershell);
+    word_mode!(Proto, proto);
+    word_mode!(Graphql, graphql);
+    word_mode!(Terraform, terraform);
+    word_mode!(Vue, vue);
+    word_mode!(Svelte, svelte);
+    word_mode!(Asm, asm);
+    word_mode!(Tex, tex);
+    word_mode!(Erlang, erlang);
+    word_mode!(Solidity, solidity);
+    word_mode!(Ada, ada);
+    word_mode!(Arduino, arduino);
+    word_mode!(Asciidoc, asciidoc);
+    word_mode!(Ats, ats);
+    word_mode!(Awk, awk);
+    word_mode!(Bat, bat);
+    word_mode!(B, b);
+    word_mode!(Caddyfile, caddyfile);
+    word_mode!(Cake, cake);
+    word_mode!(Coffeescript, coffeescript);
+    word_mode!(Conky, conky);
+    word_mode!(Crontab, crontab);
+    word_mode!(Crystal, crystal);
+    word_mode!(Cuda, cuda);
+    word_mode!(Cython, cython);
+    word_mode!(D, d);
+    word_mode!(Dot, dot);
+    word_mode!(Ebuild, ebuild);
+    word_mode!(Elm, elm);
+    word_mode!(Erb, erb);
+    word_mode!(Etcportage, etcportage);
+    word_mode!(Fish, fish);
+    word_mode!(Forth, forth);
+    word_mode!(Fortran, fortran);
+    word_mode!(Freebsd, freebsd);
+    word_mode!(Fsharp, fsharp);
+    word_mode!(Gdscript, gdscript);
+    word_mode!(Gemini, gemini);
+    word_mode!(Gitcommit, gitcommit);
+    word_mode!(Gitconfig, gitconfig);
+    word_mode!(Gitrebase, gitrebase);
+    word_mode!(Gleam, gleam);
+    word_mode!(Glsl, glsl);
+    word_mode!(Gnuplot, gnuplot);
+    word_mode!(Godoc, godoc);
+    word_mode!(Golo, golo);
+    word_mode!(Gomod, gomod);
+    word_mode!(Groff, groff);
+    word_mode!(Groovy, groovy);
+    word_mode!(Haml, haml);
+    word_mode!(Hare, hare);
+    word_mode!(Hc, hc);
+    word_mode!(Inputrc, inputrc);
+    word_mode!(Jinja2, jinja2);
+    word_mode!(Jsonnet, jsonnet);
+    word_mode!(Justfile, justfile);
+    word_mode!(Keymap, keymap);
+    word_mode!(Kickstart, kickstart);
+    word_mode!(Kvlang, kvlang);
+    word_mode!(Ledger, ledger);
+    word_mode!(Lfe, lfe);
+    word_mode!(Lilypond, lilypond);
+    word_mode!(Lisp, lisp);
+    word_mode!(Mail, mail);
+    word_mode!(Man, man);
+    word_mode!(Mc, mc);
+    word_mode!(Meson, meson);
+    word_mode!(Micro, micro);
+    word_mode!(Mpd, mpd);
+    word_mode!(Msbuild, msbuild);
+    word_mode!(Nanorc, nanorc);
+    word_mode!(Nftables, nftables);
+    word_mode!(Nim, nim);
+    word_mode!(Nix, nix);
+    word_mode!(Nu, nu);
+    word_mode!(Ocaml, ocaml);
+    word_mode!(Octave, octave);
+    word_mode!(Odin, odin);
+    word_mode!(Pascal, pascal);
+    word_mode!(Patch, patch);
+    word_mode!(Pkgconfig, pkgconfig);
+    word_mode!(Peg, peg);
+    word_mode!(Po, po);
+    word_mode!(Pony, pony);
+    word_mode!(Pov, pov);
+    word_mode!(Privoxy, privoxy);
+    word_mode!(Prql, prql);
+    word_mode!(Puppet, puppet);
+    word_mode!(Raku, raku);
+    word_mode!(Renpy, renpy);
+    word_mode!(Rpmspec, rpmspec);
+    word_mode!(Rest, rest);
+    word_mode!(Sage, sage);
+    word_mode!(Salt, salt);
+    word_mode!(Sed, sed);
+    word_mode!(Smalltalk, smalltalk);
+    word_mode!(Stata, stata);
+    word_mode!(Tcl, tcl);
+    word_mode!(Twig, twig);
+    word_mode!(V, v);
+    word_mode!(Vala, vala);
+    word_mode!(Verilog, verilog);
+    word_mode!(Vhdl, vhdl);
+    word_mode!(Vi, vi);
+    word_mode!(Xresources, xresources);
+    word_mode!(Yum, yum);
+    word_mode!(Zscript, zscript);
+    word_mode!(Scad, scad);
 
     if syntax == SyntaxMode::Xml {
         if let Some(ctx) = xml::completion_context(before, explicit) { return Some(ctx); }
@@ -537,6 +1472,116 @@ pub(crate) fn completion_items(kind: &str, prefix: &str, ctx: CompletionContext<
         "zig" => zig::completion_items(kind, ctx),
         "julia" => julia::completion_items(kind, ctx),
         "objc" => objc::completion_items(kind, ctx),
+        "makefile" => makefile::completion_items(kind, ctx),
+        "cmake" => cmake::completion_items(kind, ctx),
+        "powershell" => powershell::completion_items(kind, ctx),
+        "proto" => proto::completion_items(kind, ctx),
+        "graphql" => graphql::completion_items(kind, ctx),
+        "terraform" => terraform::completion_items(kind, ctx),
+        "vue" => vue::completion_items(kind, ctx),
+        "svelte" => svelte::completion_items(kind, ctx),
+        "asm" => asm::completion_items(kind, ctx),
+        "tex" => tex::completion_items(kind, ctx),
+        "erlang" => erlang::completion_items(kind, ctx),
+        "solidity" => solidity::completion_items(kind, ctx),
+        "ada" => ada::completion_items(kind, ctx),
+        "arduino" => arduino::completion_items(kind, ctx),
+        "asciidoc" => asciidoc::completion_items(kind, ctx),
+        "ats" => ats::completion_items(kind, ctx),
+        "awk" => awk::completion_items(kind, ctx),
+        "batch" => bat::completion_items(kind, ctx),
+        "b" => b::completion_items(kind, ctx),
+        "caddyfile" => caddyfile::completion_items(kind, ctx),
+        "cake" => cake::completion_items(kind, ctx),
+        "coffeescript" => coffeescript::completion_items(kind, ctx),
+        "conky" => conky::completion_items(kind, ctx),
+        "crontab" => crontab::completion_items(kind, ctx),
+        "crystal" => crystal::completion_items(kind, ctx),
+        "cuda" => cuda::completion_items(kind, ctx),
+        "cython" => cython::completion_items(kind, ctx),
+        "d" => d::completion_items(kind, ctx),
+        "dot" => dot::completion_items(kind, ctx),
+        "ebuild" => ebuild::completion_items(kind, ctx),
+        "elm" => elm::completion_items(kind, ctx),
+        "erb" => erb::completion_items(kind, ctx),
+        "etc-portage" => etcportage::completion_items(kind, ctx),
+        "fish" => fish::completion_items(kind, ctx),
+        "forth" => forth::completion_items(kind, ctx),
+        "fortran" => fortran::completion_items(kind, ctx),
+        "freebsd-kernel" => freebsd::completion_items(kind, ctx),
+        "fsharp" => fsharp::completion_items(kind, ctx),
+        "gdscript" => gdscript::completion_items(kind, ctx),
+        "gemini" => gemini::completion_items(kind, ctx),
+        "git-commit" => gitcommit::completion_items(kind, ctx),
+        "git-config" => gitconfig::completion_items(kind, ctx),
+        "git-rebase-todo" => gitrebase::completion_items(kind, ctx),
+        "gleam" => gleam::completion_items(kind, ctx),
+        "glsl" => glsl::completion_items(kind, ctx),
+        "gnuplot" => gnuplot::completion_items(kind, ctx),
+        "godoc" => godoc::completion_items(kind, ctx),
+        "golo" => golo::completion_items(kind, ctx),
+        "gomod" => gomod::completion_items(kind, ctx),
+        "groff" => groff::completion_items(kind, ctx),
+        "groovy" => groovy::completion_items(kind, ctx),
+        "haml" => haml::completion_items(kind, ctx),
+        "hare" => hare::completion_items(kind, ctx),
+        "hc" => hc::completion_items(kind, ctx),
+        "inputrc" => inputrc::completion_items(kind, ctx),
+        "jinja2" => jinja2::completion_items(kind, ctx),
+        "jsonnet" => jsonnet::completion_items(kind, ctx),
+        "justfile" => justfile::completion_items(kind, ctx),
+        "keymap" => keymap::completion_items(kind, ctx),
+        "kickstart" => kickstart::completion_items(kind, ctx),
+        "kvlang" => kvlang::completion_items(kind, ctx),
+        "ledger" => ledger::completion_items(kind, ctx),
+        "lfe" => lfe::completion_items(kind, ctx),
+        "lilypond" => lilypond::completion_items(kind, ctx),
+        "lisp" => lisp::completion_items(kind, ctx),
+        "mail" => mail::completion_items(kind, ctx),
+        "man" => man::completion_items(kind, ctx),
+        "mc" => mc::completion_items(kind, ctx),
+        "meson" => meson::completion_items(kind, ctx),
+        "micro" => micro::completion_items(kind, ctx),
+        "mpd" => mpd::completion_items(kind, ctx),
+        "msbuild" => msbuild::completion_items(kind, ctx),
+        "nanorc" => nanorc::completion_items(kind, ctx),
+        "nftables" => nftables::completion_items(kind, ctx),
+        "nim" => nim::completion_items(kind, ctx),
+        "nix" => nix::completion_items(kind, ctx),
+        "nu" => nu::completion_items(kind, ctx),
+        "ocaml" => ocaml::completion_items(kind, ctx),
+        "octave" => octave::completion_items(kind, ctx),
+        "odin" => odin::completion_items(kind, ctx),
+        "pascal" => pascal::completion_items(kind, ctx),
+        "patch" => patch::completion_items(kind, ctx),
+        "pc" => pkgconfig::completion_items(kind, ctx),
+        "peg" => peg::completion_items(kind, ctx),
+        "po" => po::completion_items(kind, ctx),
+        "pony" => pony::completion_items(kind, ctx),
+        "pov" => pov::completion_items(kind, ctx),
+        "privoxy" => privoxy::completion_items(kind, ctx),
+        "prql" => prql::completion_items(kind, ctx),
+        "puppet" => puppet::completion_items(kind, ctx),
+        "raku" => raku::completion_items(kind, ctx),
+        "renpy" => renpy::completion_items(kind, ctx),
+        "rpmspec" => rpmspec::completion_items(kind, ctx),
+        "rst" => rest::completion_items(kind, ctx),
+        "sage" => sage::completion_items(kind, ctx),
+        "salt" => salt::completion_items(kind, ctx),
+        "sed" => sed::completion_items(kind, ctx),
+        "smalltalk" => smalltalk::completion_items(kind, ctx),
+        "stata" => stata::completion_items(kind, ctx),
+        "tcl" => tcl::completion_items(kind, ctx),
+        "twig" => twig::completion_items(kind, ctx),
+        "v" => v::completion_items(kind, ctx),
+        "vala" => vala::completion_items(kind, ctx),
+        "verilog" => verilog::completion_items(kind, ctx),
+        "vhdl" => vhdl::completion_items(kind, ctx),
+        "vi" => vi::completion_items(kind, ctx),
+        "xresources" => xresources::completion_items(kind, ctx),
+        "yum" => yum::completion_items(kind, ctx),
+        "zscript" => zscript::completion_items(kind, ctx),
+        "openscad" => scad::completion_items(kind, ctx),
         "markdown" => markdown::completion_items(kind, ctx),
         "json" => json::completion_items(kind, ctx),
         "toml" => toml::completion_items(kind, ctx),
@@ -617,6 +1662,116 @@ pub(crate) fn extract_symbols(text: &str, syntax: SyntaxMode) -> Vec<(String, us
             SyntaxMode::Zig => out.extend(zig::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::Julia => out.extend(julia::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::Objc => out.extend(objc::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Makefile => out.extend(makefile::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Cmake => out.extend(cmake::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Powershell => out.extend(powershell::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Proto => out.extend(proto::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Graphql => out.extend(graphql::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Terraform => out.extend(terraform::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Vue => out.extend(vue::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Svelte => out.extend(svelte::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Asm => out.extend(asm::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Tex => out.extend(tex::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Erlang => out.extend(erlang::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Solidity => out.extend(solidity::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Ada => out.extend(ada::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Arduino => out.extend(arduino::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Asciidoc => out.extend(asciidoc::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Ats => out.extend(ats::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Awk => out.extend(awk::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Bat => out.extend(bat::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::B => out.extend(b::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Caddyfile => out.extend(caddyfile::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Cake => out.extend(cake::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Coffeescript => out.extend(coffeescript::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Conky => out.extend(conky::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Crontab => out.extend(crontab::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Crystal => out.extend(crystal::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Cuda => out.extend(cuda::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Cython => out.extend(cython::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::D => out.extend(d::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Dot => out.extend(dot::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Ebuild => out.extend(ebuild::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Elm => out.extend(elm::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Erb => out.extend(erb::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Etcportage => out.extend(etcportage::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Fish => out.extend(fish::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Forth => out.extend(forth::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Fortran => out.extend(fortran::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Freebsd => out.extend(freebsd::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Fsharp => out.extend(fsharp::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gdscript => out.extend(gdscript::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gemini => out.extend(gemini::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gitcommit => out.extend(gitcommit::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gitconfig => out.extend(gitconfig::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gitrebase => out.extend(gitrebase::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gleam => out.extend(gleam::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Glsl => out.extend(glsl::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gnuplot => out.extend(gnuplot::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Godoc => out.extend(godoc::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Golo => out.extend(golo::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Gomod => out.extend(gomod::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Groff => out.extend(groff::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Groovy => out.extend(groovy::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Haml => out.extend(haml::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Hare => out.extend(hare::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Hc => out.extend(hc::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Inputrc => out.extend(inputrc::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Jinja2 => out.extend(jinja2::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Jsonnet => out.extend(jsonnet::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Justfile => out.extend(justfile::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Keymap => out.extend(keymap::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Kickstart => out.extend(kickstart::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Kvlang => out.extend(kvlang::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Ledger => out.extend(ledger::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Lfe => out.extend(lfe::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Lilypond => out.extend(lilypond::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Lisp => out.extend(lisp::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Mail => out.extend(mail::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Man => out.extend(man::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Mc => out.extend(mc::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Meson => out.extend(meson::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Micro => out.extend(micro::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Mpd => out.extend(mpd::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Msbuild => out.extend(msbuild::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Nanorc => out.extend(nanorc::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Nftables => out.extend(nftables::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Nim => out.extend(nim::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Nix => out.extend(nix::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Nu => out.extend(nu::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Ocaml => out.extend(ocaml::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Octave => out.extend(octave::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Odin => out.extend(odin::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Pascal => out.extend(pascal::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Patch => out.extend(patch::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Pkgconfig => out.extend(pkgconfig::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Peg => out.extend(peg::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Po => out.extend(po::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Pony => out.extend(pony::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Pov => out.extend(pov::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Privoxy => out.extend(privoxy::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Prql => out.extend(prql::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Puppet => out.extend(puppet::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Raku => out.extend(raku::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Renpy => out.extend(renpy::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Rpmspec => out.extend(rpmspec::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Rest => out.extend(rest::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Sage => out.extend(sage::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Salt => out.extend(salt::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Sed => out.extend(sed::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Smalltalk => out.extend(smalltalk::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Stata => out.extend(stata::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Tcl => out.extend(tcl::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Twig => out.extend(twig::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::V => out.extend(v::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Vala => out.extend(vala::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Verilog => out.extend(verilog::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Vhdl => out.extend(vhdl::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Vi => out.extend(vi::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Xresources => out.extend(xresources::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Yum => out.extend(yum::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Zscript => out.extend(zscript::symbols(line).into_iter().map(|s| (s, no))),
+            SyntaxMode::Scad => out.extend(scad::symbols(line).into_iter().map(|s| (s, no))),
             SyntaxMode::Plain => {}
         }
     }

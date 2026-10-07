@@ -4,8 +4,8 @@
 </p>
 
 <p align="center">
-  <strong>A fast, lightweight terminal text editor built in Rust.<br>
-  Keyboard-first, zero-configuration, and designed to stay out of your way.</strong><br>
+  <strong>A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.</strong><br>
+  Keyboard-first, zero-configuration, and designed to stay out of your way<br>>With more than 150 language/syntax support.<br>
   <a href="USER_MANUAL.md">User Manual</a> |
   <a href="CHANGELOG.md">Changelog</a> |
   <a href="AGENTS.md">AI Agent Guide</a>
@@ -58,16 +58,16 @@ Linux packages can also be reproduced locally with `./dist/package.sh`.
 
 | Operating System | Package | Architecture |
 | ---------------- | ------- | ------------ |
-| Linux (generic) | [**az-4.0.0-linux-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.0/az-4.0.0-linux-amd64.tar.gz) | x86_64 |
-| Linux (generic) | `az-4.0.0-linux-arm64.tar.gz` | aarch64 |
-| Debian / Ubuntu / Mint / Pop!_OS | [**az_4.0.0_amd64.deb**](https://github.com/arazgray/az/releases/download/4.0/az_4.0.0_amd64.deb) | x86_64 |
-| Debian / Ubuntu (ARM) | `az_4.0.0_arm64.deb` | aarch64 |
-| Fedora / RHEL / openSUSE | `az-4.0.0-1.x86_64.rpm` | x86_64 |
-| Fedora / RHEL (ARM) | `az-4.0.0-1.aarch64.rpm` | aarch64 |
-| macOS Apple Silicon | `az-4.0.0-macos-arm64.tar.gz` | arm64 |
-| macOS Intel | `az-4.0.0-macos-amd64.tar.gz` | x86_64 |
-| Windows | [**az-4.0.0-windows-amd64.exe**](https://github.com/arazgray/az/releases/download/4.0/az-4.0.0-windows-amd64.exe) | x86_64 |
-| Windows (ARM) | `az-4.0.0-windows-arm64.exe` | aarch64 |
+| Linux (generic) | [**az-4.1.0-linux-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-linux-amd64.tar.gz) | x86_64 |
+| Linux (generic) | `az-4.1.0-linux-arm64.tar.gz` | aarch64 |
+| Debian / Ubuntu / Mint / Pop!_OS | [**az_4.1.0_amd64.deb**](https://github.com/arazgray/az/releases/download/4.1/az_4.1.0_amd64.deb) | x86_64 |
+| Debian / Ubuntu (ARM) | `az_4.1.0_arm64.deb` | aarch64 |
+| Fedora / RHEL / openSUSE | `az-4.1.0-1.x86_64.rpm` | x86_64 |
+| Fedora / RHEL (ARM) | `az-4.1.0-1.aarch64.rpm` | aarch64 |
+| macOS Apple Silicon | `az-4.1.0-macos-arm64.tar.gz` | arm64 |
+| macOS Intel | `az-4.1.0-macos-amd64.tar.gz` | x86_64 |
+| Windows | [**az-4.1.0-windows-amd64.exe**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-windows-amd64.exe) | x86_64 |
+| Windows (ARM) | `az-4.1.0-windows-arm64.exe` | aarch64 |
 
 > Rows without a link ship with the next tagged release (run `./dist/package.sh --all`
 > in CI). The one-line installer below already knows these names and picks the
@@ -76,13 +76,13 @@ Linux packages can also be reproduced locally with `./dist/package.sh`.
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i az_4.0.0_amd64.deb
+sudo dpkg -i az_4.1.0_amd64.deb
 ```
 
 ARM (Raspberry Pi, Ampere, AWS Graviton):
 
 ```sh
-sudo dpkg -i az_4.0.0_arm64.deb
+sudo dpkg -i az_4.1.0_arm64.deb
 ```
 
 ### Arch Linux (AUR)
@@ -100,17 +100,17 @@ account — steps are in `dist/aur/README.md`.
 
 ```sh
 # Fedora / RHEL / CentOS:
-sudo dnf install ./az-4.0.0-1.x86_64.rpm
+sudo dnf install ./az-4.1.0-1.x86_64.rpm
 # or, without a network solver:
-sudo rpm -i az-4.0.0-1.x86_64.rpm
+sudo rpm -i az-4.1.0-1.x86_64.rpm
 # openSUSE:
-sudo zypper install ./az-4.0.0-1.x86_64.rpm
+sudo zypper install ./az-4.1.0-1.x86_64.rpm
 ```
 
 ### Arch / Alpine / other Linux (generic tarball)
 
 ```sh
-tar -xzf az-4.0.0-linux-amd64.tar.gz
+tar -xzf az-4.1.0-linux-amd64.tar.gz
 sudo install -m755 az /usr/local/bin/az
 ```
 
@@ -123,8 +123,8 @@ brew install arazgray/tap/az
 Or manually from the release tarball:
 
 ```sh
-tar -xzf az-4.0.0-macos-arm64.tar.gz   # Apple Silicon
-# tar -xzf az-4.0.0-macos-amd64.tar.gz # Intel
+tar -xzf az-4.1.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.1.0-macos-amd64.tar.gz # Intel
 mkdir -p ~/.local/bin
 install -m755 az ~/.local/bin/az
 ```
@@ -280,7 +280,7 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 
 ## Language Support
 
-`az` currently includes syntax highlighting and language-aware features for **42 languages and formats**.
+`az` currently includes syntax highlighting and language-aware features for **152 languages and formats**.
 
 | Language    | Extensions / Files                |
 | ----------- | --------------------------------- |
@@ -324,6 +324,116 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 | Zig         | `*.zig`                           |
 | Julia       | `*.jl`                            |
 | Objective-C | `*.m`, `*.mm`                     |
+| Makefile    | `Makefile`, `*.mk`, `*.mak`         |
+| CMake       | `CMakeLists.txt`, `*.cmake`         |
+| PowerShell  | `*.ps1`, `*.psm1`, `*.psd1`        |
+| Proto       | `*.proto`                           |
+| GraphQL     | `*.graphql`, `*.gql`                |
+| Terraform   | `*.tf`, `*.hcl`                     |
+| Vue         | `*.vue`                             |
+| Svelte      | `*.svelte`                          |
+| Assembly    | `*.[sS]`, `*.asm`                   |
+| TeX         | `*.tex`, `*.bib`, `*.cls`, `*.sty`  |
+| Erlang      | `*.erl`, `*.hrl`                    |
+| Solidity    | `*.sol`                             |
+| Ada | `*.ads` `*.adb` `*.ada` |
+| Arduino | `*.ino` |
+| AsciiDoc | `*.asc` `*.asciidoc` `*.adoc` |
+| ATS | `*.dats` `*.hats` `*.sats` |
+| Awk | `*.awk` |
+| B | `*.b` |
+| Batch | `*.bat` `*.cmd` |
+| Caddyfile | `caddyfile` |
+| Cake | `*.cake` |
+| CoffeeScript | `*.coffee` |
+| Conky | `conky.conf` `*conkyrc*` |
+| Crontab | `crontab` `crontab.*` |
+| Crystal | `*.cr` |
+| CUDA | `*.cu` `*.cuh` |
+| Cython | `*.pyx` `*.pxd` |
+| D | `*.d` `*.di` `*.dd` |
+| Ebuild | `*.ebuild` `*.eclass` |
+| Elm | `*.elm` |
+| ERB | `*.erb` `*.rhtml` |
+| F# | `*.fs` `*.fsi` `*.fsx` |
+| Fish | `*.fish` |
+| Forth | `*.forth` `*.4th` `*.fs8` `*.ft` `*.fth` `*.frt` |
+| Fortran | `*.f` `*.f90` `*.f95` `*.for` |
+| FreeBSD kernel | `generic` |
+| GDScript | `*.gd` |
+| Gemini | `*.gmi` `*.gemini` |
+| Git commit | `commit_editmsg` `tag_editmsg` `merge_msg` |
+| Git config | `.gitconfig` `gitconfig` `gitmodules` `.git/config` |
+| Git rebase | `git-rebase-todo` |
+| Gleam | `*.gleam` |
+| GLSL | `*.frag` `*.vert` `*.fp` `*.vp` `*.glsl` |
+| Gnuplot | `*.gnu` `*.gpi` `*.plt` `*.gp` |
+| Go doc | `*.godoc` |
+| Go mod | `go.mod` |
+| Golo | `*.golo` |
+| Graphviz | `*.dot` `*.gv` |
+| Groff | `*.me` `*.ms` `*.rof` `*.tmac` `tmac.*` |
+| Groovy | `jenkinsfile` `*.groovy` `*.gy` `*.gvy` `*.gsh` `*.gradle` |
+| Haml | `*.haml` |
+| Hare | `*.ha` |
+| HolyC | `*.hc` |
+| Inputrc | `inputrc` `.inputrc` |
+| Jinja2 | `*.j2` `*.jinja` `*.jinja2` |
+| Jsonnet | `*.jsonnet` `*.libsonnet` |
+| Just | `justfile` `.justfile` `*.just` |
+| Keymap | `xmodmap` `*.map` `*.kmap` `*.keymap` |
+| Kickstart | `*.ks` `*.kickstart` |
+| Kvlang | `*.kv` |
+| Ledger | `ledger` `ldgr` `beancount` `bnct` `*.ledger` `*.ldgr` `*.beancount` `*.bnct` |
+| LFE | `*.lfe` |
+| LilyPond | `*.ly` `*.ily` `*.lly` |
+| Lisp | `emacs` `zile` `*.el` `*.lisp` `*.lsp` `*.scm` `*.ss` `*.rkt` |
+| Mail | `*.eml` `mutt-*` |
+| Man page | `*.1` `*.2` `*.3` `*.4` `*.5` `*.6` `*.7` `*.8` `*.9` |
+| MC (sendmail) | `*.mc` |
+| Meson | `meson.build` `meson_options.txt` `meson.options` |
+| Micro config | `*.micro` |
+| MPD config | `mpd.conf` |
+| MSBuild | `*.props` `*.targets` `*.tasks` `*proj` |
+| Nanorc | `nanorc` `.nanorc` |
+| nftables | `nftables.conf` `nftables.rules` |
+| Nim | `nim.cfg` `*.nim` `*.nims` |
+| Nix | `*.nix` |
+| Nushell | `*.nu` |
+| OCaml | `*.ml` `*.mli` |
+| Octave | (palette only) |
+| Odin | `*.odin` |
+| OpenSCAD | `*.scad` |
+| Pascal | `*.pas` |
+| Patch | `*.patch` `*.diff` |
+| PEG | `*.peg` `*.lpeg` |
+| pkg-config | `*.pc` |
+| PO file | `*.po` `*.pot` |
+| Pony | `*.pony` |
+| Portage | `*.keywords` `*.mask` `*.unmask` `*.use` |
+| POV-Ray | `*.pov` `*.povray` |
+| Privoxy | `*.action` `*.filter` `privoxy/config` |
+| PRQL | `*.prql` |
+| Puppet | `*.pp` |
+| Raku | `*.p6` `*.pl6` `*.pm6` `*.pod6` `*.raku` `*.rakumod` `*.rakudoc` `*.rakutest` `*.nqp` |
+| Ren'Py | `*.rpy` |
+| reST | `*.rest` `*.rst` |
+| RPM spec | `*.spec` `*.rpmspec` |
+| Sage | `*.sage` |
+| SaltStack | `*.sls` |
+| Sed | `*.sed` |
+| Smalltalk | `*.st` `*.sources` `*.changes` |
+| Stata | `*.do` `*.ado` |
+| Tcl | `*.tcl` |
+| Twig | `*.twig` |
+| V | (palette only) |
+| Vala | `*.vala` |
+| Verilog | `*.v` `*.vh` `*.sv` `*.svh` |
+| VHDL | `*.vhdl` `*.vhd` |
+| Vimscript | `vimrc` `.vimrc` `exrc` `.exrc` `gvimrc` `.gvimrc` `*.vim` |
+| Xresources | `xdefaults` `xresources` |
+| Yum repo | `yum.conf` `*.repo` |
+| ZScript | `*.zc` `*.zsc` |
 | Plain Text  | `*.txt` + fallback                |
 
 Language-aware completion is available for many supported languages, including variables, members, tags, attributes, keywords, directives, and structural symbols.
@@ -333,6 +443,22 @@ Change the active language through the command palette:
 ```text
 Ctrl+P → set [Language]
 ```
+
+---
+
+## What's New in 4.1
+
+### Full micro syntax parity (152 modes)
+
+`az` now highlights every language micro supports: 98 new one-file-per-language plugins (`ada.rs` … `zscript.rs`) join the existing set, covering Ada, Awk, Batch, Caddyfile, Crystal, D, Fish, Fortran, Nix, Pascal, Vimscript, and the rest (full table above). Each mode wires highlighting, word completion, symbol navigation, tree colors, and a `set-syntax-*` palette item. Overlapping detections keep their established owners (`.fs` → F#, `.m` → Objective-C, `.v` → Verilog, `.pyi` → Python).
+
+### Fixed RPM packaging
+
+The 4.0 CI builds failed on `cp .../*: No such file or directory` because `rpmbuild` wipes `%{buildroot}` before `%install`, deleting the pre-staged files. `dist/package.sh` now stages inputs under `SOURCES` and installs them inside `%install` with explicit paths (no globs), and always ships a desktop entry instead of depending on a hardcoded deb staging path.
+
+**4.1 test suite:** 70 tests, with 69 executed and 1 Wayland roundtrip test ignored.
+
+See the [Changelog](CHANGELOG.md) for previous releases.
 
 ---
 

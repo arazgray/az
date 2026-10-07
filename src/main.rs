@@ -106,6 +106,116 @@ pub(crate) enum SyntaxMode {
     Zig,
     Julia,
     Objc,
+    Makefile,
+    Cmake,
+    Powershell,
+    Proto,
+    Graphql,
+    Terraform,
+    Vue,
+    Svelte,
+    Asm,
+    Tex,
+    Erlang,
+    Solidity,
+    Ada,
+    Arduino,
+    Asciidoc,
+    Ats,
+    Awk,
+    B,
+    Bat,
+    Caddyfile,
+    Cake,
+    Coffeescript,
+    Conky,
+    Crontab,
+    Crystal,
+    Cuda,
+    Cython,
+    D,
+    Dot,
+    Ebuild,
+    Elm,
+    Erb,
+    Etcportage,
+    Fish,
+    Forth,
+    Fortran,
+    Freebsd,
+    Fsharp,
+    Gdscript,
+    Gemini,
+    Gitcommit,
+    Gitconfig,
+    Gitrebase,
+    Gleam,
+    Glsl,
+    Gnuplot,
+    Godoc,
+    Golo,
+    Gomod,
+    Groff,
+    Groovy,
+    Haml,
+    Hare,
+    Hc,
+    Inputrc,
+    Jinja2,
+    Jsonnet,
+    Justfile,
+    Keymap,
+    Kickstart,
+    Kvlang,
+    Ledger,
+    Lfe,
+    Lilypond,
+    Lisp,
+    Mail,
+    Man,
+    Mc,
+    Meson,
+    Micro,
+    Mpd,
+    Msbuild,
+    Nanorc,
+    Nftables,
+    Nim,
+    Nix,
+    Nu,
+    Ocaml,
+    Octave,
+    Odin,
+    Pascal,
+    Patch,
+    Peg,
+    Pkgconfig,
+    Po,
+    Pony,
+    Pov,
+    Privoxy,
+    Prql,
+    Puppet,
+    Raku,
+    Renpy,
+    Rest,
+    Rpmspec,
+    Sage,
+    Salt,
+    Scad,
+    Sed,
+    Smalltalk,
+    Stata,
+    Tcl,
+    Twig,
+    V,
+    Vala,
+    Verilog,
+    Vhdl,
+    Vi,
+    Xresources,
+    Yum,
+    Zscript,
     Plain,
 }
 
@@ -4403,6 +4513,116 @@ impl Editor {
             ("Set syntax Zig", "force current tab to Zig", "set-syntax-zig"),
             ("Set syntax Julia", "force current tab to Julia", "set-syntax-julia"),
             ("Set syntax Objective-C", "force current tab to Objective-C", "set-syntax-objc"),
+            ("Set syntax Makefile", "force current tab to Makefile", "set-syntax-makefile"),
+            ("Set syntax CMake", "force current tab to CMake", "set-syntax-cmake"),
+            ("Set syntax PowerShell", "force current tab to PowerShell", "set-syntax-powershell"),
+            ("Set syntax Proto", "force current tab to Protobuf", "set-syntax-proto"),
+            ("Set syntax GraphQL", "force current tab to GraphQL", "set-syntax-graphql"),
+            ("Set syntax Terraform", "force current tab to Terraform", "set-syntax-terraform"),
+            ("Set syntax Vue", "force current tab to Vue", "set-syntax-vue"),
+            ("Set syntax Svelte", "force current tab to Svelte", "set-syntax-svelte"),
+            ("Set syntax Asm", "force current tab to Assembly", "set-syntax-asm"),
+            ("Set syntax TeX", "force current tab to LaTeX", "set-syntax-tex"),
+            ("Set syntax Erlang", "force current tab to Erlang", "set-syntax-erlang"),
+            ("Set syntax Solidity", "force current tab to Solidity", "set-syntax-solidity"),
+            ("Set syntax Ada", "force current tab to Ada", "set-syntax-ada"),
+            ("Set syntax Arduino", "force current tab to Arduino", "set-syntax-arduino"),
+            ("Set syntax AsciiDoc", "force current tab to AsciiDoc", "set-syntax-asciidoc"),
+            ("Set syntax ATS", "force current tab to ATS", "set-syntax-ats"),
+            ("Set syntax Awk", "force current tab to Awk", "set-syntax-awk"),
+            ("Set syntax Batch", "force current tab to Batch", "set-syntax-batch"),
+            ("Set syntax B", "force current tab to B", "set-syntax-b"),
+            ("Set syntax Caddyfile", "force current tab to Caddyfile", "set-syntax-caddyfile"),
+            ("Set syntax Cake", "force current tab to Cake", "set-syntax-cake"),
+            ("Set syntax CoffeeScript", "force current tab to CoffeeScript", "set-syntax-coffeescript"),
+            ("Set syntax Conky", "force current tab to Conky", "set-syntax-conky"),
+            ("Set syntax Crontab", "force current tab to Crontab", "set-syntax-crontab"),
+            ("Set syntax Crystal", "force current tab to Crystal", "set-syntax-crystal"),
+            ("Set syntax CUDA", "force current tab to CUDA", "set-syntax-cuda"),
+            ("Set syntax Cython", "force current tab to Cython", "set-syntax-cython"),
+            ("Set syntax D", "force current tab to D", "set-syntax-d"),
+            ("Set syntax Graphviz", "force current tab to Graphviz", "set-syntax-dot"),
+            ("Set syntax Ebuild", "force current tab to Ebuild", "set-syntax-ebuild"),
+            ("Set syntax Elm", "force current tab to Elm", "set-syntax-elm"),
+            ("Set syntax ERB", "force current tab to ERB", "set-syntax-erb"),
+            ("Set syntax Portage", "force current tab to Portage", "set-syntax-portage"),
+            ("Set syntax Fish", "force current tab to Fish", "set-syntax-fish"),
+            ("Set syntax Forth", "force current tab to Forth", "set-syntax-forth"),
+            ("Set syntax Fortran", "force current tab to Fortran", "set-syntax-fortran"),
+            ("Set syntax FreeBSD kernel", "force current tab to FreeBSD kernel", "set-syntax-freebsd"),
+            ("Set syntax F#", "force current tab to F#", "set-syntax-fsharp"),
+            ("Set syntax GDScript", "force current tab to GDScript", "set-syntax-gdscript"),
+            ("Set syntax Gemini", "force current tab to Gemini", "set-syntax-gemini"),
+            ("Set syntax Git commit", "force current tab to Git commit", "set-syntax-git-commit"),
+            ("Set syntax Git config", "force current tab to Git config", "set-syntax-git-config"),
+            ("Set syntax Git rebase", "force current tab to Git rebase", "set-syntax-git-rebase"),
+            ("Set syntax Gleam", "force current tab to Gleam", "set-syntax-gleam"),
+            ("Set syntax GLSL", "force current tab to GLSL", "set-syntax-glsl"),
+            ("Set syntax Gnuplot", "force current tab to Gnuplot", "set-syntax-gnuplot"),
+            ("Set syntax Go doc", "force current tab to Go doc", "set-syntax-godoc"),
+            ("Set syntax Golo", "force current tab to Golo", "set-syntax-golo"),
+            ("Set syntax Go mod", "force current tab to Go mod", "set-syntax-gomod"),
+            ("Set syntax Groff", "force current tab to Groff", "set-syntax-groff"),
+            ("Set syntax Groovy", "force current tab to Groovy", "set-syntax-groovy"),
+            ("Set syntax Haml", "force current tab to Haml", "set-syntax-haml"),
+            ("Set syntax Hare", "force current tab to Hare", "set-syntax-hare"),
+            ("Set syntax HolyC", "force current tab to HolyC", "set-syntax-hc"),
+            ("Set syntax Inputrc", "force current tab to Inputrc", "set-syntax-inputrc"),
+            ("Set syntax Jinja2", "force current tab to Jinja2", "set-syntax-jinja2"),
+            ("Set syntax Jsonnet", "force current tab to Jsonnet", "set-syntax-jsonnet"),
+            ("Set syntax Just", "force current tab to Just", "set-syntax-just"),
+            ("Set syntax Keymap", "force current tab to Keymap", "set-syntax-keymap"),
+            ("Set syntax Kickstart", "force current tab to Kickstart", "set-syntax-kickstart"),
+            ("Set syntax Kvlang", "force current tab to Kvlang", "set-syntax-kvlang"),
+            ("Set syntax Ledger", "force current tab to Ledger", "set-syntax-ledger"),
+            ("Set syntax LFE", "force current tab to LFE", "set-syntax-lfe"),
+            ("Set syntax LilyPond", "force current tab to LilyPond", "set-syntax-lilypond"),
+            ("Set syntax Lisp", "force current tab to Lisp", "set-syntax-lisp"),
+            ("Set syntax Mail", "force current tab to Mail", "set-syntax-mail"),
+            ("Set syntax Man page", "force current tab to Man page", "set-syntax-man"),
+            ("Set syntax MC (sendmail)", "force current tab to MC (sendmail)", "set-syntax-mc"),
+            ("Set syntax Meson", "force current tab to Meson", "set-syntax-meson"),
+            ("Set syntax Micro config", "force current tab to Micro config", "set-syntax-micro"),
+            ("Set syntax MPD config", "force current tab to MPD config", "set-syntax-mpd"),
+            ("Set syntax MSBuild", "force current tab to MSBuild", "set-syntax-msbuild"),
+            ("Set syntax Nanorc", "force current tab to Nanorc", "set-syntax-nanorc"),
+            ("Set syntax nftables", "force current tab to nftables", "set-syntax-nftables"),
+            ("Set syntax Nim", "force current tab to Nim", "set-syntax-nim"),
+            ("Set syntax Nix", "force current tab to Nix", "set-syntax-nix"),
+            ("Set syntax Nushell", "force current tab to Nushell", "set-syntax-nu"),
+            ("Set syntax OCaml", "force current tab to OCaml", "set-syntax-ocaml"),
+            ("Set syntax Octave", "force current tab to Octave", "set-syntax-octave"),
+            ("Set syntax Odin", "force current tab to Odin", "set-syntax-odin"),
+            ("Set syntax Pascal", "force current tab to Pascal", "set-syntax-pascal"),
+            ("Set syntax Patch", "force current tab to Patch", "set-syntax-patch"),
+            ("Set syntax pkg-config", "force current tab to pkg-config", "set-syntax-pkg-config"),
+            ("Set syntax PEG", "force current tab to PEG", "set-syntax-peg"),
+            ("Set syntax PO file", "force current tab to PO file", "set-syntax-po"),
+            ("Set syntax Pony", "force current tab to Pony", "set-syntax-pony"),
+            ("Set syntax POV-Ray", "force current tab to POV-Ray", "set-syntax-pov"),
+            ("Set syntax Privoxy", "force current tab to Privoxy", "set-syntax-privoxy"),
+            ("Set syntax PRQL", "force current tab to PRQL", "set-syntax-prql"),
+            ("Set syntax Puppet", "force current tab to Puppet", "set-syntax-puppet"),
+            ("Set syntax Raku", "force current tab to Raku", "set-syntax-raku"),
+            ("Set syntax Ren'Py", "force current tab to Ren'Py", "set-syntax-renpy"),
+            ("Set syntax RPM spec", "force current tab to RPM spec", "set-syntax-rpmspec"),
+            ("Set syntax reST", "force current tab to reST", "set-syntax-rst"),
+            ("Set syntax Sage", "force current tab to Sage", "set-syntax-sage"),
+            ("Set syntax SaltStack", "force current tab to SaltStack", "set-syntax-salt"),
+            ("Set syntax Sed", "force current tab to Sed", "set-syntax-sed"),
+            ("Set syntax Smalltalk", "force current tab to Smalltalk", "set-syntax-smalltalk"),
+            ("Set syntax Stata", "force current tab to Stata", "set-syntax-stata"),
+            ("Set syntax Tcl", "force current tab to Tcl", "set-syntax-tcl"),
+            ("Set syntax Twig", "force current tab to Twig", "set-syntax-twig"),
+            ("Set syntax V", "force current tab to V", "set-syntax-v"),
+            ("Set syntax Vala", "force current tab to Vala", "set-syntax-vala"),
+            ("Set syntax Verilog", "force current tab to Verilog", "set-syntax-verilog"),
+            ("Set syntax VHDL", "force current tab to VHDL", "set-syntax-vhdl"),
+            ("Set syntax Vimscript", "force current tab to Vimscript", "set-syntax-vi"),
+            ("Set syntax Xresources", "force current tab to Xresources", "set-syntax-xresources"),
+            ("Set syntax Yum repo", "force current tab to Yum repo", "set-syntax-yum"),
+            ("Set syntax ZScript", "force current tab to ZScript", "set-syntax-zscript"),
+            ("Set syntax OpenSCAD", "force current tab to OpenSCAD", "set-syntax-openscad"),
             ("Set syntax Auto", "use file extension again", "set-syntax-auto"),
             ("Set syntax Plain", "punctuation highlight and striped rows", "set-syntax-plain"),
             ("Find in current file", "Ctrl+F", "find"),
@@ -4486,6 +4706,116 @@ impl Editor {
             "set-syntax-zig" => self.set_current_syntax(Some(SyntaxMode::Zig)),
             "set-syntax-julia" => self.set_current_syntax(Some(SyntaxMode::Julia)),
             "set-syntax-objc" => self.set_current_syntax(Some(SyntaxMode::Objc)),
+            "set-syntax-makefile" => self.set_current_syntax(Some(SyntaxMode::Makefile)),
+            "set-syntax-cmake" => self.set_current_syntax(Some(SyntaxMode::Cmake)),
+            "set-syntax-powershell" => self.set_current_syntax(Some(SyntaxMode::Powershell)),
+            "set-syntax-proto" => self.set_current_syntax(Some(SyntaxMode::Proto)),
+            "set-syntax-graphql" => self.set_current_syntax(Some(SyntaxMode::Graphql)),
+            "set-syntax-terraform" => self.set_current_syntax(Some(SyntaxMode::Terraform)),
+            "set-syntax-vue" => self.set_current_syntax(Some(SyntaxMode::Vue)),
+            "set-syntax-svelte" => self.set_current_syntax(Some(SyntaxMode::Svelte)),
+            "set-syntax-asm" => self.set_current_syntax(Some(SyntaxMode::Asm)),
+            "set-syntax-tex" => self.set_current_syntax(Some(SyntaxMode::Tex)),
+            "set-syntax-erlang" => self.set_current_syntax(Some(SyntaxMode::Erlang)),
+            "set-syntax-solidity" => self.set_current_syntax(Some(SyntaxMode::Solidity)),
+            "set-syntax-ada" => self.set_current_syntax(Some(SyntaxMode::Ada)),
+            "set-syntax-arduino" => self.set_current_syntax(Some(SyntaxMode::Arduino)),
+            "set-syntax-asciidoc" => self.set_current_syntax(Some(SyntaxMode::Asciidoc)),
+            "set-syntax-ats" => self.set_current_syntax(Some(SyntaxMode::Ats)),
+            "set-syntax-awk" => self.set_current_syntax(Some(SyntaxMode::Awk)),
+            "set-syntax-batch" => self.set_current_syntax(Some(SyntaxMode::Bat)),
+            "set-syntax-b" => self.set_current_syntax(Some(SyntaxMode::B)),
+            "set-syntax-caddyfile" => self.set_current_syntax(Some(SyntaxMode::Caddyfile)),
+            "set-syntax-cake" => self.set_current_syntax(Some(SyntaxMode::Cake)),
+            "set-syntax-coffeescript" => self.set_current_syntax(Some(SyntaxMode::Coffeescript)),
+            "set-syntax-conky" => self.set_current_syntax(Some(SyntaxMode::Conky)),
+            "set-syntax-crontab" => self.set_current_syntax(Some(SyntaxMode::Crontab)),
+            "set-syntax-crystal" => self.set_current_syntax(Some(SyntaxMode::Crystal)),
+            "set-syntax-cuda" => self.set_current_syntax(Some(SyntaxMode::Cuda)),
+            "set-syntax-cython" => self.set_current_syntax(Some(SyntaxMode::Cython)),
+            "set-syntax-d" => self.set_current_syntax(Some(SyntaxMode::D)),
+            "set-syntax-dot" => self.set_current_syntax(Some(SyntaxMode::Dot)),
+            "set-syntax-ebuild" => self.set_current_syntax(Some(SyntaxMode::Ebuild)),
+            "set-syntax-elm" => self.set_current_syntax(Some(SyntaxMode::Elm)),
+            "set-syntax-erb" => self.set_current_syntax(Some(SyntaxMode::Erb)),
+            "set-syntax-portage" => self.set_current_syntax(Some(SyntaxMode::Etcportage)),
+            "set-syntax-fish" => self.set_current_syntax(Some(SyntaxMode::Fish)),
+            "set-syntax-forth" => self.set_current_syntax(Some(SyntaxMode::Forth)),
+            "set-syntax-fortran" => self.set_current_syntax(Some(SyntaxMode::Fortran)),
+            "set-syntax-freebsd" => self.set_current_syntax(Some(SyntaxMode::Freebsd)),
+            "set-syntax-fsharp" => self.set_current_syntax(Some(SyntaxMode::Fsharp)),
+            "set-syntax-gdscript" => self.set_current_syntax(Some(SyntaxMode::Gdscript)),
+            "set-syntax-gemini" => self.set_current_syntax(Some(SyntaxMode::Gemini)),
+            "set-syntax-git-commit" => self.set_current_syntax(Some(SyntaxMode::Gitcommit)),
+            "set-syntax-git-config" => self.set_current_syntax(Some(SyntaxMode::Gitconfig)),
+            "set-syntax-git-rebase" => self.set_current_syntax(Some(SyntaxMode::Gitrebase)),
+            "set-syntax-gleam" => self.set_current_syntax(Some(SyntaxMode::Gleam)),
+            "set-syntax-glsl" => self.set_current_syntax(Some(SyntaxMode::Glsl)),
+            "set-syntax-gnuplot" => self.set_current_syntax(Some(SyntaxMode::Gnuplot)),
+            "set-syntax-godoc" => self.set_current_syntax(Some(SyntaxMode::Godoc)),
+            "set-syntax-golo" => self.set_current_syntax(Some(SyntaxMode::Golo)),
+            "set-syntax-gomod" => self.set_current_syntax(Some(SyntaxMode::Gomod)),
+            "set-syntax-groff" => self.set_current_syntax(Some(SyntaxMode::Groff)),
+            "set-syntax-groovy" => self.set_current_syntax(Some(SyntaxMode::Groovy)),
+            "set-syntax-haml" => self.set_current_syntax(Some(SyntaxMode::Haml)),
+            "set-syntax-hare" => self.set_current_syntax(Some(SyntaxMode::Hare)),
+            "set-syntax-hc" => self.set_current_syntax(Some(SyntaxMode::Hc)),
+            "set-syntax-inputrc" => self.set_current_syntax(Some(SyntaxMode::Inputrc)),
+            "set-syntax-jinja2" => self.set_current_syntax(Some(SyntaxMode::Jinja2)),
+            "set-syntax-jsonnet" => self.set_current_syntax(Some(SyntaxMode::Jsonnet)),
+            "set-syntax-just" => self.set_current_syntax(Some(SyntaxMode::Justfile)),
+            "set-syntax-keymap" => self.set_current_syntax(Some(SyntaxMode::Keymap)),
+            "set-syntax-kickstart" => self.set_current_syntax(Some(SyntaxMode::Kickstart)),
+            "set-syntax-kvlang" => self.set_current_syntax(Some(SyntaxMode::Kvlang)),
+            "set-syntax-ledger" => self.set_current_syntax(Some(SyntaxMode::Ledger)),
+            "set-syntax-lfe" => self.set_current_syntax(Some(SyntaxMode::Lfe)),
+            "set-syntax-lilypond" => self.set_current_syntax(Some(SyntaxMode::Lilypond)),
+            "set-syntax-lisp" => self.set_current_syntax(Some(SyntaxMode::Lisp)),
+            "set-syntax-mail" => self.set_current_syntax(Some(SyntaxMode::Mail)),
+            "set-syntax-man" => self.set_current_syntax(Some(SyntaxMode::Man)),
+            "set-syntax-mc" => self.set_current_syntax(Some(SyntaxMode::Mc)),
+            "set-syntax-meson" => self.set_current_syntax(Some(SyntaxMode::Meson)),
+            "set-syntax-micro" => self.set_current_syntax(Some(SyntaxMode::Micro)),
+            "set-syntax-mpd" => self.set_current_syntax(Some(SyntaxMode::Mpd)),
+            "set-syntax-msbuild" => self.set_current_syntax(Some(SyntaxMode::Msbuild)),
+            "set-syntax-nanorc" => self.set_current_syntax(Some(SyntaxMode::Nanorc)),
+            "set-syntax-nftables" => self.set_current_syntax(Some(SyntaxMode::Nftables)),
+            "set-syntax-nim" => self.set_current_syntax(Some(SyntaxMode::Nim)),
+            "set-syntax-nix" => self.set_current_syntax(Some(SyntaxMode::Nix)),
+            "set-syntax-nu" => self.set_current_syntax(Some(SyntaxMode::Nu)),
+            "set-syntax-ocaml" => self.set_current_syntax(Some(SyntaxMode::Ocaml)),
+            "set-syntax-octave" => self.set_current_syntax(Some(SyntaxMode::Octave)),
+            "set-syntax-odin" => self.set_current_syntax(Some(SyntaxMode::Odin)),
+            "set-syntax-pascal" => self.set_current_syntax(Some(SyntaxMode::Pascal)),
+            "set-syntax-patch" => self.set_current_syntax(Some(SyntaxMode::Patch)),
+            "set-syntax-pkg-config" => self.set_current_syntax(Some(SyntaxMode::Pkgconfig)),
+            "set-syntax-peg" => self.set_current_syntax(Some(SyntaxMode::Peg)),
+            "set-syntax-po" => self.set_current_syntax(Some(SyntaxMode::Po)),
+            "set-syntax-pony" => self.set_current_syntax(Some(SyntaxMode::Pony)),
+            "set-syntax-pov" => self.set_current_syntax(Some(SyntaxMode::Pov)),
+            "set-syntax-privoxy" => self.set_current_syntax(Some(SyntaxMode::Privoxy)),
+            "set-syntax-prql" => self.set_current_syntax(Some(SyntaxMode::Prql)),
+            "set-syntax-puppet" => self.set_current_syntax(Some(SyntaxMode::Puppet)),
+            "set-syntax-raku" => self.set_current_syntax(Some(SyntaxMode::Raku)),
+            "set-syntax-renpy" => self.set_current_syntax(Some(SyntaxMode::Renpy)),
+            "set-syntax-rpmspec" => self.set_current_syntax(Some(SyntaxMode::Rpmspec)),
+            "set-syntax-rst" => self.set_current_syntax(Some(SyntaxMode::Rest)),
+            "set-syntax-sage" => self.set_current_syntax(Some(SyntaxMode::Sage)),
+            "set-syntax-salt" => self.set_current_syntax(Some(SyntaxMode::Salt)),
+            "set-syntax-sed" => self.set_current_syntax(Some(SyntaxMode::Sed)),
+            "set-syntax-smalltalk" => self.set_current_syntax(Some(SyntaxMode::Smalltalk)),
+            "set-syntax-stata" => self.set_current_syntax(Some(SyntaxMode::Stata)),
+            "set-syntax-tcl" => self.set_current_syntax(Some(SyntaxMode::Tcl)),
+            "set-syntax-twig" => self.set_current_syntax(Some(SyntaxMode::Twig)),
+            "set-syntax-v" => self.set_current_syntax(Some(SyntaxMode::V)),
+            "set-syntax-vala" => self.set_current_syntax(Some(SyntaxMode::Vala)),
+            "set-syntax-verilog" => self.set_current_syntax(Some(SyntaxMode::Verilog)),
+            "set-syntax-vhdl" => self.set_current_syntax(Some(SyntaxMode::Vhdl)),
+            "set-syntax-vi" => self.set_current_syntax(Some(SyntaxMode::Vi)),
+            "set-syntax-xresources" => self.set_current_syntax(Some(SyntaxMode::Xresources)),
+            "set-syntax-yum" => self.set_current_syntax(Some(SyntaxMode::Yum)),
+            "set-syntax-zscript" => self.set_current_syntax(Some(SyntaxMode::Zscript)),
+            "set-syntax-openscad" => self.set_current_syntax(Some(SyntaxMode::Scad)),
             "set-syntax-plain" => self.set_current_syntax(Some(SyntaxMode::Plain)),
             "set-syntax-auto" => self.set_current_syntax(None),
             "find" => self.find_prompt(),
@@ -6961,6 +7291,116 @@ mod tests {
             ("zig", SyntaxMode::Zig),
             ("julia", SyntaxMode::Julia),
             ("objc", SyntaxMode::Objc),
+            ("makefile", SyntaxMode::Makefile),
+            ("cmake", SyntaxMode::Cmake),
+            ("powershell", SyntaxMode::Powershell),
+            ("proto", SyntaxMode::Proto),
+            ("graphql", SyntaxMode::Graphql),
+            ("terraform", SyntaxMode::Terraform),
+            ("vue", SyntaxMode::Vue),
+            ("svelte", SyntaxMode::Svelte),
+            ("asm", SyntaxMode::Asm),
+            ("tex", SyntaxMode::Tex),
+            ("erlang", SyntaxMode::Erlang),
+            ("solidity", SyntaxMode::Solidity),
+            ("ada", SyntaxMode::Ada),
+            ("arduino", SyntaxMode::Arduino),
+            ("asciidoc", SyntaxMode::Asciidoc),
+            ("ats", SyntaxMode::Ats),
+            ("awk", SyntaxMode::Awk),
+            ("batch", SyntaxMode::Bat),
+            ("b", SyntaxMode::B),
+            ("caddyfile", SyntaxMode::Caddyfile),
+            ("cake", SyntaxMode::Cake),
+            ("coffeescript", SyntaxMode::Coffeescript),
+            ("conky", SyntaxMode::Conky),
+            ("crontab", SyntaxMode::Crontab),
+            ("crystal", SyntaxMode::Crystal),
+            ("cuda", SyntaxMode::Cuda),
+            ("cython", SyntaxMode::Cython),
+            ("d", SyntaxMode::D),
+            ("dot", SyntaxMode::Dot),
+            ("ebuild", SyntaxMode::Ebuild),
+            ("elm", SyntaxMode::Elm),
+            ("erb", SyntaxMode::Erb),
+            ("portage", SyntaxMode::Etcportage),
+            ("fish", SyntaxMode::Fish),
+            ("forth", SyntaxMode::Forth),
+            ("fortran", SyntaxMode::Fortran),
+            ("freebsd", SyntaxMode::Freebsd),
+            ("fsharp", SyntaxMode::Fsharp),
+            ("gdscript", SyntaxMode::Gdscript),
+            ("gemini", SyntaxMode::Gemini),
+            ("git-commit", SyntaxMode::Gitcommit),
+            ("git-config", SyntaxMode::Gitconfig),
+            ("git-rebase", SyntaxMode::Gitrebase),
+            ("gleam", SyntaxMode::Gleam),
+            ("glsl", SyntaxMode::Glsl),
+            ("gnuplot", SyntaxMode::Gnuplot),
+            ("godoc", SyntaxMode::Godoc),
+            ("golo", SyntaxMode::Golo),
+            ("gomod", SyntaxMode::Gomod),
+            ("groff", SyntaxMode::Groff),
+            ("groovy", SyntaxMode::Groovy),
+            ("haml", SyntaxMode::Haml),
+            ("hare", SyntaxMode::Hare),
+            ("hc", SyntaxMode::Hc),
+            ("inputrc", SyntaxMode::Inputrc),
+            ("jinja2", SyntaxMode::Jinja2),
+            ("jsonnet", SyntaxMode::Jsonnet),
+            ("just", SyntaxMode::Justfile),
+            ("keymap", SyntaxMode::Keymap),
+            ("kickstart", SyntaxMode::Kickstart),
+            ("kvlang", SyntaxMode::Kvlang),
+            ("ledger", SyntaxMode::Ledger),
+            ("lfe", SyntaxMode::Lfe),
+            ("lilypond", SyntaxMode::Lilypond),
+            ("lisp", SyntaxMode::Lisp),
+            ("mail", SyntaxMode::Mail),
+            ("man", SyntaxMode::Man),
+            ("mc", SyntaxMode::Mc),
+            ("meson", SyntaxMode::Meson),
+            ("micro", SyntaxMode::Micro),
+            ("mpd", SyntaxMode::Mpd),
+            ("msbuild", SyntaxMode::Msbuild),
+            ("nanorc", SyntaxMode::Nanorc),
+            ("nftables", SyntaxMode::Nftables),
+            ("nim", SyntaxMode::Nim),
+            ("nix", SyntaxMode::Nix),
+            ("nu", SyntaxMode::Nu),
+            ("ocaml", SyntaxMode::Ocaml),
+            ("octave", SyntaxMode::Octave),
+            ("odin", SyntaxMode::Odin),
+            ("pascal", SyntaxMode::Pascal),
+            ("patch", SyntaxMode::Patch),
+            ("pkg-config", SyntaxMode::Pkgconfig),
+            ("peg", SyntaxMode::Peg),
+            ("po", SyntaxMode::Po),
+            ("pony", SyntaxMode::Pony),
+            ("pov", SyntaxMode::Pov),
+            ("privoxy", SyntaxMode::Privoxy),
+            ("prql", SyntaxMode::Prql),
+            ("puppet", SyntaxMode::Puppet),
+            ("raku", SyntaxMode::Raku),
+            ("renpy", SyntaxMode::Renpy),
+            ("rpmspec", SyntaxMode::Rpmspec),
+            ("rst", SyntaxMode::Rest),
+            ("sage", SyntaxMode::Sage),
+            ("salt", SyntaxMode::Salt),
+            ("sed", SyntaxMode::Sed),
+            ("smalltalk", SyntaxMode::Smalltalk),
+            ("stata", SyntaxMode::Stata),
+            ("tcl", SyntaxMode::Tcl),
+            ("twig", SyntaxMode::Twig),
+            ("v", SyntaxMode::V),
+            ("vala", SyntaxMode::Vala),
+            ("verilog", SyntaxMode::Verilog),
+            ("vhdl", SyntaxMode::Vhdl),
+            ("vi", SyntaxMode::Vi),
+            ("xresources", SyntaxMode::Xresources),
+            ("yum", SyntaxMode::Yum),
+            ("zscript", SyntaxMode::Zscript),
+            ("openscad", SyntaxMode::Scad),
             ("ts", SyntaxMode::TypeScript),
             ("xml", SyntaxMode::Xml),
         ];
@@ -7004,13 +7444,154 @@ mod tests {
         assert_eq!(SyntaxMode::from_path(Some(Path::new("a.zig"))), SyntaxMode::Zig);
         assert_eq!(SyntaxMode::from_path(Some(Path::new("a.jl"))), SyntaxMode::Julia);
         assert_eq!(SyntaxMode::from_path(Some(Path::new("a.m"))), SyntaxMode::Objc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Makefile"))), SyntaxMode::Makefile);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("build.mk"))), SyntaxMode::Makefile);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("CMakeLists.txt"))), SyntaxMode::Cmake);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("run.ps1"))), SyntaxMode::Powershell);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.proto"))), SyntaxMode::Proto);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.graphql"))), SyntaxMode::Graphql);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("main.tf"))), SyntaxMode::Terraform);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("App.vue"))), SyntaxMode::Vue);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("App.svelte"))), SyntaxMode::Svelte);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("boot.s"))), SyntaxMode::Asm);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("paper.tex"))), SyntaxMode::Tex);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("server.erl"))), SyntaxMode::Erlang);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Token.sol"))), SyntaxMode::Solidity);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ads"))), SyntaxMode::Ada);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ino"))), SyntaxMode::Arduino);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.asc"))), SyntaxMode::Asciidoc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.dats"))), SyntaxMode::Ats);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.awk"))), SyntaxMode::Awk);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.bat"))), SyntaxMode::Bat);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.b"))), SyntaxMode::B);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("caddyfile"))), SyntaxMode::Caddyfile);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.cake"))), SyntaxMode::Cake);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.coffee"))), SyntaxMode::Coffeescript);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("conky.conf"))), SyntaxMode::Conky);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("crontab"))), SyntaxMode::Crontab);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.cr"))), SyntaxMode::Crystal);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.cu"))), SyntaxMode::Cuda);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.pyx"))), SyntaxMode::Cython);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.d"))), SyntaxMode::D);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.dot"))), SyntaxMode::Dot);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ebuild"))), SyntaxMode::Ebuild);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.elm"))), SyntaxMode::Elm);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.erb"))), SyntaxMode::Erb);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.keywords"))), SyntaxMode::Etcportage);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.fish"))), SyntaxMode::Fish);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.forth"))), SyntaxMode::Forth);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.f"))), SyntaxMode::Fortran);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("generic"))), SyntaxMode::Freebsd);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.fs"))), SyntaxMode::Fsharp);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.gd"))), SyntaxMode::Gdscript);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.gmi"))), SyntaxMode::Gemini);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("commit_editmsg"))), SyntaxMode::Gitcommit);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new(".gitconfig"))), SyntaxMode::Gitconfig);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("git-rebase-todo"))), SyntaxMode::Gitrebase);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.gleam"))), SyntaxMode::Gleam);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.frag"))), SyntaxMode::Glsl);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.gnu"))), SyntaxMode::Gnuplot);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.godoc"))), SyntaxMode::Godoc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.golo"))), SyntaxMode::Golo);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("go.mod"))), SyntaxMode::Gomod);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.me"))), SyntaxMode::Groff);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.groovy"))), SyntaxMode::Groovy);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.haml"))), SyntaxMode::Haml);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ha"))), SyntaxMode::Hare);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.hc"))), SyntaxMode::Hc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("inputrc"))), SyntaxMode::Inputrc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.j2"))), SyntaxMode::Jinja2);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.jsonnet"))), SyntaxMode::Jsonnet);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.just"))), SyntaxMode::Justfile);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.map"))), SyntaxMode::Keymap);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ks"))), SyntaxMode::Kickstart);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.kv"))), SyntaxMode::Kvlang);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ledger"))), SyntaxMode::Ledger);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.lfe"))), SyntaxMode::Lfe);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ly"))), SyntaxMode::Lilypond);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.el"))), SyntaxMode::Lisp);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.eml"))), SyntaxMode::Mail);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.1"))), SyntaxMode::Man);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.mc"))), SyntaxMode::Mc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("meson.build"))), SyntaxMode::Meson);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.micro"))), SyntaxMode::Micro);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("mpd.conf"))), SyntaxMode::Mpd);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.props"))), SyntaxMode::Msbuild);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("nanorc"))), SyntaxMode::Nanorc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("nftables.conf"))), SyntaxMode::Nftables);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.nim"))), SyntaxMode::Nim);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.nix"))), SyntaxMode::Nix);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.nu"))), SyntaxMode::Nu);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.ml"))), SyntaxMode::Ocaml);
+        assert_eq!(SyntaxMode::from_word("octave"), Some(SyntaxMode::Octave));
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.odin"))), SyntaxMode::Odin);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.pas"))), SyntaxMode::Pascal);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.patch"))), SyntaxMode::Patch);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.pc"))), SyntaxMode::Pkgconfig);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.peg"))), SyntaxMode::Peg);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.po"))), SyntaxMode::Po);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.pony"))), SyntaxMode::Pony);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.pov"))), SyntaxMode::Pov);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.action"))), SyntaxMode::Privoxy);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.prql"))), SyntaxMode::Prql);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.pp"))), SyntaxMode::Puppet);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.p6"))), SyntaxMode::Raku);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.rpy"))), SyntaxMode::Renpy);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.spec"))), SyntaxMode::Rpmspec);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.rest"))), SyntaxMode::Rest);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.sage"))), SyntaxMode::Sage);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.sls"))), SyntaxMode::Salt);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.sed"))), SyntaxMode::Sed);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.st"))), SyntaxMode::Smalltalk);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.do"))), SyntaxMode::Stata);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.tcl"))), SyntaxMode::Tcl);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.twig"))), SyntaxMode::Twig);
+        assert_eq!(SyntaxMode::from_word("v"), Some(SyntaxMode::V));
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.vala"))), SyntaxMode::Vala);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.v"))), SyntaxMode::Verilog);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.vhdl"))), SyntaxMode::Vhdl);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.vim"))), SyntaxMode::Vi);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("xdefaults"))), SyntaxMode::Xresources);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.repo"))), SyntaxMode::Yum);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.zc"))), SyntaxMode::Zscript);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("a.scad"))), SyntaxMode::Scad);
+    }
+
+    #[test]
+    fn parity_conflicts_keep_existing_modes() {
+        use std::path::Path;
+        // Overlapping extensions stay with the established mode.
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.fs"))), SyntaxMode::Fsharp);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.f"))), SyntaxMode::Fortran);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.pyi"))), SyntaxMode::Python);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.m"))), SyntaxMode::Objc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.v"))), SyntaxMode::Verilog);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.hh"))), SyntaxMode::Cpp);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.mm"))), SyntaxMode::Objc);
+        // Special filenames and paths resolve to the new modes.
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("COMMIT_EDITMSG"))), SyntaxMode::Gitcommit);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("go.mod"))), SyntaxMode::Gomod);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Jenkinsfile"))), SyntaxMode::Groovy);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("meson.build"))), SyntaxMode::Meson);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Xmodmap"))), SyntaxMode::Keymap);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new(".vimrc"))), SyntaxMode::Vi);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("x.repo"))), SyntaxMode::Yum);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Justfile"))), SyntaxMode::Justfile);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Caddyfile"))), SyntaxMode::Caddyfile);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("crontab"))), SyntaxMode::Crontab);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("conky.conf"))), SyntaxMode::Conky);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("mpd.conf"))), SyntaxMode::Mpd);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("nim.cfg"))), SyntaxMode::Nim);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("Xdefaults"))), SyntaxMode::Xresources);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new(".inputrc"))), SyntaxMode::Inputrc);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new("nftables.conf"))), SyntaxMode::Nftables);
+        assert_eq!(SyntaxMode::from_path(Some(Path::new(".git/config"))), SyntaxMode::Gitconfig);
     }
 
     #[test]
     fn plain_text_marks_symbols_and_stripes_rows() {
         use std::path::Path;
         assert_eq!(SyntaxMode::from_path(Some(Path::new("notes.txt"))), SyntaxMode::Plain);
-        assert_eq!(SyntaxMode::from_path(Some(Path::new("Makefile"))), SyntaxMode::Plain);
         let line = "Hello ~!@#$%^&*()[]";
         let segs = crate::plugins::highlight_segments(line, SyntaxMode::Plain);
         assert_eq!(segs.len(), 1);
@@ -7115,6 +7696,116 @@ mod tests {
             ("fn main() // c", SyntaxMode::Zig),
             ("function f() # c", SyntaxMode::Julia),
             ("@interface App // c", SyntaxMode::Objc),
+            ("build: # c", SyntaxMode::Makefile),
+            ("project(foo) # c", SyntaxMode::Cmake),
+            ("Get-ChildItem # c", SyntaxMode::Powershell),
+            ("message Foo // c", SyntaxMode::Proto),
+            ("type Query # c", SyntaxMode::Graphql),
+            ("resource aws_x # c", SyntaxMode::Terraform),
+            ("<template> # c", SyntaxMode::Vue),
+            ("<script> // c", SyntaxMode::Svelte),
+            ("mov eax, 1 ; c", SyntaxMode::Asm),
+            ("\\section{Intro} % c", SyntaxMode::Tex),
+            ("hello() -> % c", SyntaxMode::Erlang),
+            ("contract Token // c", SyntaxMode::Solidity),
+            ("-- comment", SyntaxMode::Ada),
+            ("void setup() // c", SyntaxMode::Arduino),
+            ("// comment", SyntaxMode::Asciidoc),
+            ("// comment", SyntaxMode::Ats),
+            ("# comment", SyntaxMode::Awk),
+            ("REM hello", SyntaxMode::Bat),
+            ("// comment", SyntaxMode::B),
+            ("# comment", SyntaxMode::Caddyfile),
+            ("Task(\"Build\"); // c", SyntaxMode::Cake),
+            ("# comment", SyntaxMode::Coffeescript),
+            ("# comment", SyntaxMode::Conky),
+            ("# comment", SyntaxMode::Crontab),
+            ("# comment", SyntaxMode::Crystal),
+            ("// comment", SyntaxMode::Cuda),
+            ("# comment", SyntaxMode::Cython),
+            ("// comment", SyntaxMode::D),
+            ("// comment", SyntaxMode::Dot),
+            ("# comment", SyntaxMode::Ebuild),
+            ("-- comment", SyntaxMode::Elm),
+            ("<%# comment %>", SyntaxMode::Erb),
+            ("# comment", SyntaxMode::Etcportage),
+            ("# comment", SyntaxMode::Fish),
+            ("\\ comment", SyntaxMode::Forth),
+            ("! comment", SyntaxMode::Fortran),
+            ("# comment", SyntaxMode::Freebsd),
+            ("// comment", SyntaxMode::Fsharp),
+            ("# comment", SyntaxMode::Gdscript),
+            ("# Title", SyntaxMode::Gemini),
+            ("# comment", SyntaxMode::Gitcommit),
+            ("[core]", SyntaxMode::Gitconfig),
+            ("pick abc1234 subject", SyntaxMode::Gitrebase),
+            ("// comment", SyntaxMode::Gleam),
+            ("// comment", SyntaxMode::Glsl),
+            ("# comment", SyntaxMode::Gnuplot),
+            ("// doc", SyntaxMode::Godoc),
+            ("# comment", SyntaxMode::Golo),
+            ("module example.com/foo // c", SyntaxMode::Gomod),
+            (".TH FOO 1", SyntaxMode::Groff),
+            ("// comment", SyntaxMode::Groovy),
+            ("-# comment", SyntaxMode::Haml),
+            ("// comment", SyntaxMode::Hare),
+            ("U0 Main() // c", SyntaxMode::Hc),
+            ("# comment", SyntaxMode::Inputrc),
+            ("{# comment #}", SyntaxMode::Jinja2),
+            ("// comment", SyntaxMode::Jsonnet),
+            ("build: # c", SyntaxMode::Justfile),
+            ("! comment", SyntaxMode::Keymap),
+            ("%packages", SyntaxMode::Kickstart),
+            ("# comment", SyntaxMode::Kvlang),
+            ("2024-01-02 payee", SyntaxMode::Ledger),
+            ("; comment", SyntaxMode::Lfe),
+            ("% comment", SyntaxMode::Lilypond),
+            ("; comment", SyntaxMode::Lisp),
+            ("> quoted", SyntaxMode::Mail),
+            (".TH FOO 1", SyntaxMode::Man),
+            ("dnl comment", SyntaxMode::Mc),
+            ("# comment", SyntaxMode::Meson),
+            ("# comment", SyntaxMode::Micro),
+            ("# comment", SyntaxMode::Mpd),
+            ("<!-- comment -->", SyntaxMode::Msbuild),
+            ("# comment", SyntaxMode::Nanorc),
+            ("# comment", SyntaxMode::Nftables),
+            ("# comment", SyntaxMode::Nim),
+            ("# comment", SyntaxMode::Nix),
+            ("# comment", SyntaxMode::Nu),
+            ("(* comment *)", SyntaxMode::Ocaml),
+            ("% comment", SyntaxMode::Octave),
+            ("// comment", SyntaxMode::Odin),
+            ("// comment", SyntaxMode::Pascal),
+            ("+++ b/file", SyntaxMode::Patch),
+            ("# comment", SyntaxMode::Pkgconfig),
+            ("-- comment", SyntaxMode::Peg),
+            ("# comment", SyntaxMode::Po),
+            ("// comment", SyntaxMode::Pony),
+            ("// comment", SyntaxMode::Pov),
+            ("# comment", SyntaxMode::Privoxy),
+            ("# comment", SyntaxMode::Prql),
+            ("# comment", SyntaxMode::Puppet),
+            ("# comment", SyntaxMode::Raku),
+            ("label start: # c", SyntaxMode::Renpy),
+            ("%description", SyntaxMode::Rpmspec),
+            (".. comment", SyntaxMode::Rest),
+            ("# comment", SyntaxMode::Sage),
+            ("# comment", SyntaxMode::Salt),
+            ("# comment", SyntaxMode::Sed),
+            ("\" comment \"", SyntaxMode::Smalltalk),
+            ("* comment", SyntaxMode::Stata),
+            ("# comment", SyntaxMode::Tcl),
+            ("{# comment #}", SyntaxMode::Twig),
+            ("fn main() // c", SyntaxMode::V),
+            ("// comment", SyntaxMode::Vala),
+            ("// comment", SyntaxMode::Verilog),
+            ("-- comment", SyntaxMode::Vhdl),
+            ("\" comment", SyntaxMode::Vi),
+            ("! comment", SyntaxMode::Xresources),
+            ("[main]", SyntaxMode::Yum),
+            ("// comment", SyntaxMode::Zscript),
+            ("// comment", SyntaxMode::Scad),
         ];
         for (line, mode) in cases {
             let segs = crate::plugins::highlight_segments(line, mode);

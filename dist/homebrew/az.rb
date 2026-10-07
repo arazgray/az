@@ -3,10 +3,11 @@
 class Az < Formula
   desc "Fast, small & sane terminal text editor"
   homepage "https://github.com/arazgray/az"
-  # Release tags are short ("4.0"); the Cargo version is fuller ("4.0.0").
-  url "https://github.com/arazgray/az/archive/refs/tags/4.0.tar.gz"
-  version "4.0.0"
-  sha256 "b6bbf759b180708a4adc40f8812cd631bb10a2f0e5e982e3145dd05f59cbd998"
+  # Release tags are short ("4.1"); the Cargo version is fuller ("4.1.0").
+  url "https://github.com/arazgray/az/archive/refs/tags/4.1.tar.gz"
+  version "4.1.0"
+  # TODO(4.1): refresh with: curl -sL <url above> | sha256sum (tag does not exist yet)
+  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license "WTFPL"
 
   depends_on "rust" => :build

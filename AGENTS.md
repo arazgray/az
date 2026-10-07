@@ -1,12 +1,12 @@
-# AGENTS.md — AI Agent Guide for `az` 4.0
+# AGENTS.md — AI Agent Guide for `az` 4.1
 
 > Read this before editing. `az` is a single-binary Rust TUI editor (zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
 ## 1. Quick Facts
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
-- Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (43 files: 41 languages + `plain.rs` + `example.rs` skeleton). Plain (`.txt` and the fallback) colors ASCII punctuation and stripes rows with `BG` / `BG_FLOAT`. Other modes stay on `BG`.
-- Build: `cargo check` (fast), `cargo test` (67 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
+- Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (153 files: 151 languages + `plain.rs` + `example.rs` skeleton). Plain (`.txt` and the fallback) colors ASCII punctuation and stripes rows with `BG` / `BG_FLOAT`. Other modes stay on `BG`.
+- Build: `cargo check` (fast), `cargo test` (70 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -114,7 +114,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 67 tests (66 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF, welcome logo, dialog chrome, plain stripes, rtl tree isolate, wrap/rtl toggles + rendering
+cargo test    # 70 tests (69 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF, welcome logo, dialog chrome, plain stripes, rtl tree isolate, wrap/rtl toggles + rendering
 cargo build   # debug binary ./target/debug/az
 ```
 

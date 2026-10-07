@@ -100,7 +100,7 @@ jobs:
           cp logo.png stage/ 2>/dev/null || true
           cp README.md stage/ 2>/dev/null || true
           cp USER_MANUAL.md stage/ 2>/dev/null || true
-          cp dist/deb/az_4.0.0_amd64/usr/share/applications/az.desktop stage/az.desktop 2>/dev/null || true
+          cp "dist/deb/az_${{ steps.ver.outputs.version }}_amd64/usr/share/applications/az.desktop" stage/az.desktop 2>/dev/null || true
           tar -czf "az-${{ steps.ver.outputs.version }}-${{ matrix.family }}-${{ matrix.arch }}.tar.gz" -C stage az logo.png README.md USER_MANUAL.md az.desktop 2>/dev/null \
             || tar -czf "az-${{ steps.ver.outputs.version }}-${{ matrix.family }}-${{ matrix.arch }}.tar.gz" -C stage az
 
