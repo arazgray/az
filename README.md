@@ -5,7 +5,7 @@
 
 <p align="center">
   <strong>A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.</strong><br>
-  Keyboard-first, zero-configuration, and designed to stay out of your way<br>>With more than 150 language/syntax support.<br>
+  Keyboard-first, zero-configuration, and designed to stay out of your way<br><i>With more than 150 language/syntax support.</i><br>
   <a href="USER_MANUAL.md">User Manual</a> |
   <a href="CHANGELOG.md">Changelog</a> |
   <a href="AGENTS.md">AI Agent Guide</a>
