@@ -59,18 +59,18 @@ Linux packages can also be reproduced locally with `./dist/package.sh`.
 | Operating System | Package | Architecture |
 | ---------------- | ------- | ------------ |
 | Linux (generic) | [**az-4.1.0-linux-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-linux-amd64.tar.gz) | x86_64 |
-| Linux (generic) | `az-4.1.0-linux-arm64.tar.gz` | aarch64 |
+| Linux (generic) | [**az-4.1.0-linux-arm64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-linux-arm64.tar.gz) | aarch64 |
 | Debian / Ubuntu / Mint / Pop!_OS | [**az_4.1.0_amd64.deb**](https://github.com/arazgray/az/releases/download/4.1/az_4.1.0_amd64.deb) | x86_64 |
-| Debian / Ubuntu (ARM) | `az_4.1.0_arm64.deb` | aarch64 |
-| Fedora / RHEL / openSUSE | `az-4.1.0-1.x86_64.rpm` | x86_64 |
-| Fedora / RHEL (ARM) | `az-4.1.0-1.aarch64.rpm` | aarch64 |
-| macOS Apple Silicon | `az-4.1.0-macos-arm64.tar.gz` | arm64 |
-| macOS Intel | `az-4.1.0-macos-amd64.tar.gz` | x86_64 |
+| Debian / Ubuntu (ARM) | [**az_4.1.0_arm64.deb**](https://github.com/arazgray/az/releases/download/4.1/az_4.1.0_arm64.deb) | aarch64 |
+| Fedora / RHEL / openSUSE | [**az-4.1.0-1.x86_64.rpm**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-1.x86_64.rpm) | x86_64 |
+| Fedora / RHEL (ARM) | [**az-4.1.0-1.aarch64.rpm**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-1.aarch64.rpm) | aarch64 |
+| macOS Apple Silicon | [**az-4.1.0-macos-arm64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-macos-arm64.tar.gz) | arm64 |
+| macOS Intel | [**az-4.1.0-macos-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-macos-amd64.tar.gz) | x86_64 |
 | Windows | [**az-4.1.0-windows-amd64.exe**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-windows-amd64.exe) | x86_64 |
-| Windows (ARM) | `az-4.1.0-windows-arm64.exe` | aarch64 |
+| Windows (ARM) | [**az-4.1.0-windows-arm64.exe**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-windows-arm64.exe) | aarch64 |
 
-> Rows without a link ship with the next tagged release (run `./dist/package.sh --all`
-> in CI). The one-line installer below already knows these names and picks the
+> All packages are built from the `4.1` tag by [`.github/workflows/release.yml`](.github/workflows/release.yml).
+> The one-line installer below already knows these names and picks the
 > right one for your OS + CPU.
 
 ### Debian / Ubuntu

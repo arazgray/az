@@ -108,7 +108,7 @@ jobs:
         if: matrix.family == 'linux'
         shell: bash
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q dpkg-dev
+          sudo apt-get update -q && sudo apt-get install -y -q dpkg-dev rpm
           chmod +x dist/package.sh
           cp "target/${{ matrix.target }}/release/az" "dist/az-${{ steps.ver.outputs.version }}-linux-${{ matrix.arch }}"
           VERSION="${{ steps.ver.outputs.version }}" ./dist/package.sh --arch "${{ matrix.arch }}"
@@ -121,7 +121,6 @@ jobs:
             az-*.tar.gz
             dist/*.deb
             dist/*.rpm
-            dist/*.tar.gz
             stage/az.exe
           if-no-files-found: warn
 
@@ -141,13 +140,16 @@ jobs:
         run: |
           cd artifacts
           ls -la
-          sha256sum az-* 2>/dev/null > SHA256SUMS.txt || true
+          sha256sum az-*.tar.gz az_*.deb az-*.rpm az.exe 2>/dev/null > SHA256SUMS.txt || true
           cat SHA256SUMS.txt || true
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/az-*
+            artifacts/az-*.tar.gz
+            artifacts/az_*.deb
+            artifacts/az-*.rpm
+            artifacts/az.exe
             artifacts/SHA256SUMS.txt
           generate_release_notes: true
