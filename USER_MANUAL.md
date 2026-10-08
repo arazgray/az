@@ -1,17 +1,17 @@
-# az 4.3 — User Manual
+# az 4.4 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.3.0 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.4.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.3.0_amd64.deb`, `az-4.3.0-linux-amd64`, `az-4.3.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.4.0_amd64.deb`, `az-4.4.0-linux-amd64`, `az-4.4.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -19,7 +19,7 @@ Remote install (also upgrades an existing install in place):
 curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
 ```
 
-On every launch `az` checks GitHub for a newer release (short timeout, silent when offline). When one exists, a dialog offers `Update and restart` (Enter) or `Later` (Esc) — no command to retype. Updating runs the installer with the terminal restored, so progress and password prompts stay visible, then shows `Updated <old> → <new>` with `Restart now` (Enter) or `Stay in editor` (Esc). Restart replaces the process in place; the saved session restores your tabs. Set `AZ_NO_UPDATE_CHECK=1` to skip the check.
+On every launch `az` checks GitHub for a newer release (short timeout, silent when offline). When one exists, a dialog offers `Update and restart` (Enter) or `Later` (Esc) — no command to retype. Updating runs the installer with the terminal restored, so progress and password prompts stay visible, then shows `Updated <old> → <new>` with `Restart now` (Enter) or `Stay in editor` (Esc). Restart replaces the process in place; the saved session restores your tabs. `Ctrl+P` → `Check for update` runs the same check on demand at any time (an explicit request beats the `AZ_NO_UPDATE_CHECK` startup opt-out). Set `AZ_NO_UPDATE_CHECK=1` to skip the automatic check.
 
 ## 2. Opening Things
 
@@ -139,7 +139,7 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Check for update, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
 
 ### Find
 `Ctrl+F` opens the Find dialog for the current file:

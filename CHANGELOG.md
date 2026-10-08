@@ -1,5 +1,9 @@
 # az — Changelog
 
+## 4.4
+
+- **Check for update command.** `Ctrl+P` → `Check for update` runs the startup update check on demand (an explicit request beats the `AZ_NO_UPDATE_CHECK` opt-out). Shows the update dialog when a newer release exists, otherwise a status note.
+
 ## 4.3
 
 - **Welcome dialog refresh.** Logo is followed by the tagline, a short description, and the current version number (pulled from `Cargo.toml` so it never goes stale).

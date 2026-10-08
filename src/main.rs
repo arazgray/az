@@ -2361,6 +2361,26 @@ impl Editor {
         }
     }
 
+    /// Palette command: run the update check on demand. An explicit request
+    /// beats the `AZ_NO_UPDATE_CHECK` startup opt-out. Shows the update
+    /// dialog when a newer release exists, otherwise a status note.
+    fn check_for_update_now(&mut self) {
+        self.message = "Checking for updates...".to_string();
+        let _ = self.render();
+        match fetch_remote_version_now() {
+            Some(remote) if is_newer_version(&remote, env!("CARGO_PKG_VERSION")) => {
+                self.update_flow(&remote);
+            }
+            Some(_) => {
+                self.message = format!("az {} is up to date", env!("CARGO_PKG_VERSION"));
+            }
+            None => {
+                self.message = "Update check failed (offline?)".to_string();
+                self.message_is_error = true;
+            }
+        }
+    }
+
     /// Run the installer outside raw mode so progress and sudo prompts show.
     /// Raw mode is restored before returning; stale typeahead is dropped.
     fn run_updater(&mut self, remote: &str) -> Result<(), String> {
@@ -4547,6 +4567,7 @@ impl Editor {
             ("Go to Start of File", "Ctrl+Home / Alt+Up", "go-file-top"),
             ("Go to End of File", "Ctrl+End / Alt+Down", "go-file-bottom"),
             ("Welcome", "show the welcome dialog", "welcome"),
+            ("Check for update", "check GitHub for a newer release", "check-update"),
             ("Undo", "Ctrl+Z", "undo"),
             ("Redo", "Ctrl+Y / Ctrl+Shift+Z", "redo"),
             ("Select all", "Ctrl+A", "select-all"),
@@ -4906,6 +4927,7 @@ impl Editor {
             "toggle-rtl" => self.toggle_rtl(),
             "close-tab" => self.close_current_tab(),
             "welcome" => self.show_welcome_command(),
+            "check-update" => self.check_for_update_now(),
             "undo" => self.undo(),
             "redo" => self.redo(),
             "select-all" => self.select_all(),
@@ -6969,6 +6991,12 @@ fn fetch_remote_version() -> Option<String> {
     if env::var("AZ_NO_UPDATE_CHECK").is_ok() {
         return None;
     }
+    fetch_remote_version_now()
+}
+
+/// Raw version fetch without the opt-out check, for the explicit palette
+/// command (short curl timeout, silent on any failure like the caller).
+fn fetch_remote_version_now() -> Option<String> {
     let out = Command::new("curl")
         .args(["-fsSL", "--max-time", "5", UPDATE_CHECK_URL])
         .output()
@@ -7926,6 +7954,14 @@ mod tests {
         assert_eq!(parse_remote_version("[dependencies]\nfoo = \"1\"\n"), None);
         // Malformed entries are skipped, not fatal.
         assert_eq!(parse_remote_version("[package]\nname = \"az\"\n"), None);
+    }
+
+    #[test]
+    fn palette_has_check_for_update() {
+        let ed = Editor::new(vec!["az".into()]);
+        let items = ed.command_items();
+        assert!(items.iter().any(|i| i.action.as_deref() == Some("check-update")
+            && i.label == "Check for update"));
     }
 
     #[test]

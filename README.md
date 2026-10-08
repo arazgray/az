@@ -70,13 +70,13 @@ right one for your OS + CPU.
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i az_4.3.0_amd64.deb
+sudo dpkg -i az_4.4.0_amd64.deb
 ```
 
 ARM (Raspberry Pi, Ampere, AWS Graviton):
 
 ```sh
-sudo dpkg -i az_4.3.0_arm64.deb
+sudo dpkg -i az_4.4.0_arm64.deb
 ```
 
 ### Arch Linux (AUR)
@@ -94,17 +94,17 @@ account — steps are in `dist/aur/README.md`.
 
 ```sh
 # Fedora / RHEL / CentOS:
-sudo dnf install ./az-4.3.0-1.x86_64.rpm
+sudo dnf install ./az-4.4.0-1.x86_64.rpm
 # or, without a network solver:
-sudo rpm -i az-4.3.0-1.x86_64.rpm
+sudo rpm -i az-4.4.0-1.x86_64.rpm
 # openSUSE:
-sudo zypper install ./az-4.3.0-1.x86_64.rpm
+sudo zypper install ./az-4.4.0-1.x86_64.rpm
 ```
 
 ### Arch / Alpine / other Linux (generic tarball)
 
 ```sh
-tar -xzf az-4.3.0-linux-amd64.tar.gz
+tar -xzf az-4.4.0-linux-amd64.tar.gz
 sudo install -m755 az /usr/local/bin/az
 ```
 
@@ -117,8 +117,8 @@ brew install arazgray/tap/az
 Or manually from the release tarball:
 
 ```sh
-tar -xzf az-4.3.0-macos-arm64.tar.gz   # Apple Silicon
-# tar -xzf az-4.3.0-macos-amd64.tar.gz # Intel
+tar -xzf az-4.4.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.4.0-macos-amd64.tar.gz # Intel
 mkdir -p ~/.local/bin
 install -m755 az ~/.local/bin/az
 ```
@@ -437,6 +437,21 @@ Change the active language through the command palette:
 ```text
 Ctrl+P → set [Language]
 ```
+
+---
+
+## What's New in 4.4
+
+### Check for update command
+
+`Ctrl+P` → `Check for update` runs the startup update check on demand, without
+waiting for the next launch. An explicit request beats the `AZ_NO_UPDATE_CHECK`
+startup opt-out. Shows the update dialog when a newer release exists, otherwise
+a status note.
+
+**4.4 test suite:** 74 tests, with 73 executed and 1 Wayland roundtrip test ignored.
+
+See the [Changelog](CHANGELOG.md) for previous releases.
 
 ---
 
