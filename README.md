@@ -1,12 +1,12 @@
 <p align="center">
   <img src="logo.png" alt="az Logo" height="64"/>
-  <h1 align="center">az | The TUI text editor you've always wanted</h1>
-  <small>A perfect alternative to Vim and Nano</small>
+  <h1 align="center">az</h1>
+  <h3 align="center">The TUI text editor you've always wanted</h3>
 </p>
 
 <p align="center">
   <strong>A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.</strong><br>
-  Keyboard-first, zero-configuration, and designed to stay out of your way<br><i>With more than 150 language/syntax support.</i><br>
+  Keyboard-first but <strong>mouse-supported</strong>, zero-configuration, and designed to stay out of your way<br>A perfect alternative to Vim and Nano<br>With more than <strong>150 language/syntax</strong> support.</i><br>
   <a href="USER_MANUAL.md">User Manual</a> |
   <a href="CHANGELOG.md">Changelog</a> |
   <a href="AGENTS.md">AI Agent Guide</a>
