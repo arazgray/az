@@ -11,6 +11,10 @@ set -eu
 # To build from source instead, run ./compile-and-install.sh.
 AZ_VERSION="4.4.0"
 REPO_RAW="${AZ_REPO_URL_RAW:-https://raw.githubusercontent.com/arazgray/az/refs/heads/main}"
+# Release tag carrying this version's packages. Tags are usually short
+# ("4.4.0" -> "4.4"); override with AZ_RELEASE_TAG when they are not.
+RELEASE_TAG="${AZ_RELEASE_TAG:-${AZ_VERSION%.0}}"
+RELEASE_BASE="https://github.com/arazgray/az/releases/download/${RELEASE_TAG}"
 BIN_DIR="${AZ_BIN_DIR:-$HOME/.local/bin}"
 TMP_DIR=""
 
@@ -142,6 +146,13 @@ download() {
   fi
 }
 
+# Fetch a versioned dist/ artifact: the GitHub release first (source of
+# truth published by CI), then raw main as fallback for older layouts.
+fetch_dist() {
+  if download "$RELEASE_BASE/$1" "$2"; then return 0; fi
+  download "$REPO_RAW/dist/$1" "$2"
+}
+
 # First local file that exists, else "".
 first_existing() {
   for p in "$@"; do
@@ -168,7 +179,7 @@ install_windows() {
   if [ -z "$exe_src" ]; then
     TMP_DIR="$(mktemp -d)"
     info "Downloading az-${AZ_VERSION}-windows-${ARCH}.exe..."
-    if ! download "$REPO_RAW/dist/az-${AZ_VERSION}-windows-${ARCH}.exe" "$TMP_DIR/az.exe"; then
+    if ! fetch_dist "az-${AZ_VERSION}-windows-${ARCH}.exe" "$TMP_DIR/az.exe"; then
       err "Download failed. Clone the repo (which has dist/) or run ./compile-and-install.sh."
       exit 1
     fi
@@ -227,7 +238,7 @@ install_macos() {
   if [ -z "$tar_src" ]; then
     TMP_DIR="$(mktemp -d)"
     info "No local dist/ package; downloading az-${AZ_VERSION}-macos-${ARCH}.tar.gz..."
-    if download "$REPO_RAW/dist/az-${AZ_VERSION}-macos-${ARCH}.tar.gz" "$TMP_DIR/az.tar.gz"; then
+    if fetch_dist "az-${AZ_VERSION}-macos-${ARCH}.tar.gz" "$TMP_DIR/az.tar.gz"; then
       tar_src="$TMP_DIR/az.tar.gz"
     else
       err "Download failed. Building from source instead..."
@@ -305,19 +316,19 @@ install_linux() {
     TMP_DIR="$(mktemp -d)"
     info "No local dist/ package; downloading..."
     if [ -f /etc/debian_version ] || command -v dpkg >/dev/null 2>&1; then
-      if download "$REPO_RAW/dist/az_${AZ_VERSION}_${DEB_ARCH}.deb" "$TMP_DIR/az.deb"; then
+      if fetch_dist "az_${AZ_VERSION}_${DEB_ARCH}.deb" "$TMP_DIR/az.deb"; then
         deb_src="$TMP_DIR/az.deb"
       fi
     fi
     if [ -z "$deb_src" ] && { [ -f /etc/redhat-release ] || [ -f /etc/SuSE-release ] || command -v rpm >/dev/null 2>&1; }; then
-      if download "$REPO_RAW/dist/az-${AZ_VERSION}-1.${RPM_ARCH}.rpm" "$TMP_DIR/az.rpm"; then
+      if fetch_dist "az-${AZ_VERSION}-1.${RPM_ARCH}.rpm" "$TMP_DIR/az.rpm"; then
         rpm_src="$TMP_DIR/az.rpm"
       fi
     fi
     if [ -z "$deb_src" ] && [ -z "$rpm_src" ]; then
-      if download "$REPO_RAW/dist/az-${AZ_VERSION}-linux-${ARCH}.tar.gz" "$TMP_DIR/az.tar.gz"; then
+      if fetch_dist "az-${AZ_VERSION}-linux-${ARCH}.tar.gz" "$TMP_DIR/az.tar.gz"; then
         tar_src="$TMP_DIR/az.tar.gz"
-      elif download "$REPO_RAW/dist/az-${AZ_VERSION}-linux-${ARCH}" "$TMP_DIR/az"; then
+      elif fetch_dist "az-${AZ_VERSION}-linux-${ARCH}" "$TMP_DIR/az"; then
         bin_src="$TMP_DIR/az"
         download "$REPO_RAW/logo.png" "$TMP_DIR/logo.png" || true
       else

@@ -1,5 +1,9 @@
 # az — Changelog
 
+## Unreleased
+
+- **Installer downloads from the GitHub release.** `install.sh` fetches versioned packages from the release assets first (`AZ_RELEASE_TAG` defaults to the short tag, e.g. `4.3.0` → `4.3`) and only falls back to raw `dist/` on `main`. Previously every download 404'd whenever `dist/` hadn't been refreshed for the new version yet.
+
 ## 4.4
 
 - **Check for update command.** `Ctrl+P` → `Check for update` runs the startup update check on demand (an explicit request beats the `AZ_NO_UPDATE_CHECK` opt-out). Shows the update dialog when a newer release exists, otherwise a status note.
