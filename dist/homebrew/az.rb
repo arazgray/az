@@ -3,9 +3,9 @@
 class Az < Formula
   desc "Fast, small & sane terminal text editor"
   homepage "https://github.com/arazgray/az"
-  # Patch tags carry the full version ("4.2.1"); same for Cargo.
-  url "https://github.com/arazgray/az/archive/refs/tags/4.2.1.tar.gz"
-  version "4.2.1"
+  # Patch tags carry the full version ("4.3"); same for Cargo.
+  url "https://github.com/arazgray/az/archive/refs/tags/4.3.tar.gz"
+  version "4.3.0"
   # TODO(4.1): refresh with: curl -sL <url above> | sha256sum (tag does not exist yet)
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license "WTFPL"

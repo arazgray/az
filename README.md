@@ -70,13 +70,13 @@ right one for your OS + CPU.
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i az_4.2.1_amd64.deb
+sudo dpkg -i az_4.3.0_amd64.deb
 ```
 
 ARM (Raspberry Pi, Ampere, AWS Graviton):
 
 ```sh
-sudo dpkg -i az_4.2.1_arm64.deb
+sudo dpkg -i az_4.3.0_arm64.deb
 ```
 
 ### Arch Linux (AUR)
@@ -94,17 +94,17 @@ account — steps are in `dist/aur/README.md`.
 
 ```sh
 # Fedora / RHEL / CentOS:
-sudo dnf install ./az-4.2.1-1.x86_64.rpm
+sudo dnf install ./az-4.3.0-1.x86_64.rpm
 # or, without a network solver:
-sudo rpm -i az-4.2.1-1.x86_64.rpm
+sudo rpm -i az-4.3.0-1.x86_64.rpm
 # openSUSE:
-sudo zypper install ./az-4.2.1-1.x86_64.rpm
+sudo zypper install ./az-4.3.0-1.x86_64.rpm
 ```
 
 ### Arch / Alpine / other Linux (generic tarball)
 
 ```sh
-tar -xzf az-4.2.1-linux-amd64.tar.gz
+tar -xzf az-4.3.0-linux-amd64.tar.gz
 sudo install -m755 az /usr/local/bin/az
 ```
 
@@ -117,8 +117,8 @@ brew install arazgray/tap/az
 Or manually from the release tarball:
 
 ```sh
-tar -xzf az-4.2.1-macos-arm64.tar.gz   # Apple Silicon
-# tar -xzf az-4.2.1-macos-amd64.tar.gz # Intel
+tar -xzf az-4.3.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.3.0-macos-amd64.tar.gz # Intel
 mkdir -p ~/.local/bin
 install -m755 az ~/.local/bin/az
 ```
@@ -437,6 +437,21 @@ Change the active language through the command palette:
 ```text
 Ctrl+P → set [Language]
 ```
+
+---
+
+## What's New in 4.3
+
+### Welcome dialog refresh
+
+The welcome screen now shows the tagline, a short description, and the current
+version number after the logo. Dismissing it with Enter no longer collapses
+the folder under the tree cursor (or inserts a blank line) — the dismissing
+keypress belongs to the dialog.
+
+**4.3 test suite:** 73 tests, with 72 executed and 1 Wayland roundtrip test ignored.
+
+See the [Changelog](CHANGELOG.md) for previous releases.
 
 ---
 

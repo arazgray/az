@@ -12,7 +12,7 @@ git clone ssh://aur@aur.archlinux.org/az-bin.git /tmp/opencode/aur-az-bin
 cp dist/aur/az-bin/PKGBUILD dist/aur/az-bin/.SRCINFO /tmp/opencode/aur-az-bin/
 cd /tmp/opencode/aur-az-bin
 git add PKGBUILD .SRCINFO
-git commit -m 'az-bin 4.2.1-1'
+git commit -m 'az-bin 4.3.0-1'
 git push
 ```
 

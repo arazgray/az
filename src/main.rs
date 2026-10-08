@@ -637,7 +637,7 @@ impl Editor {
             self.render_welcome_screen()?;
             self.show_welcome = false;
             if let Ok(key) = self.read_key_blocking() {
-                self.handle_key(key);
+                self.dismiss_welcome_key(key);
             }
         }
 
@@ -2291,21 +2291,26 @@ impl Editor {
 
     fn welcome_dialog(&self) -> String {
         let hint = "  Ctrl+K for all shortcuts (searchable) ".to_string();
+        let tagline = "  The TUI text editor you've always wanted".to_string();
+        let version = format!("  Version: {}", env!("CARGO_PKG_VERSION"));
         let lines = vec![
             String::new(),
-            "  A fast, small & sane text editor.".to_string(),
+            tagline.clone(),
             String::new(),
-            "    Ctrl+O  Quick open file/symbol".to_string(),
-            "    Ctrl+P  Command palette".to_string(),
-            "    Ctrl+S  Save".to_string(),
-            "    Ctrl+Q  Quit".to_string(),
+            "  A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.".to_string(),
+            "  Keyboard-first but mouse-supported, zero-configuration, and designed to stay out of your way".to_string(),
+            "  A perfect alternative to Vim and Nano".to_string(),
+            "  With more than 150 language/syntax support.".to_string(),
+            String::new(),
+            version.clone(),
             String::new(),
             hint.clone(),
             String::new(),
             "  Press any key to continue ...".to_string(),
         ];
         let hint_idx = lines.iter().position(|l| *l == hint).unwrap_or(0);
-        self.popup_box(" Welcome ", &lines, &[hint_idx], &welcome_logo())
+        let tag_idx = lines.iter().position(|l| *l == tagline).unwrap_or(0);
+        self.popup_box(" Welcome ", &lines, &[hint_idx], &[tag_idx], &welcome_logo())
     }
 
     fn render_update_notice(&mut self, remote: &str) -> io::Result<()> {
@@ -2398,7 +2403,7 @@ impl Editor {
         }
     }
 
-    fn popup_box(&self, title: &str, lines: &[String], highlight_lines: &[usize], logo: &[(String, usize)]) -> String {
+    fn popup_box(&self, title: &str, lines: &[String], highlight_lines: &[usize], accent_lines: &[usize], logo: &[(String, usize)]) -> String {
         let content_w = lines.iter().map(|l| visual_width(l)).max().unwrap_or(20);
         let logo_w = logo.iter().map(|(_, w)| *w).max().unwrap_or(0);
         let need = max(56, max(content_w, max(logo_w, visual_width(title))) + 4);
@@ -2445,7 +2450,13 @@ impl Editor {
         while slot < inner_rows {
             let row = start_row + 1 + slot;
             let raw = lines.get(line_i).map(String::as_str).unwrap_or("");
-            let style = if line_i < lines.len() && highlight_lines.contains(&line_i) { &selected } else { &body };
+            let style = if line_i < lines.len() && accent_lines.contains(&line_i) {
+                &title_style
+            } else if line_i < lines.len() && highlight_lines.contains(&line_i) {
+                &selected
+            } else {
+                &body
+            };
             out.push_str(&format!("\x1b[{row};{start_col}H{border}║\x1b[0m{BIDI_LRI}{style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m", fit_plain(raw, inner)));
             slot += 1;
             line_i += 1;
@@ -5356,8 +5367,19 @@ impl Editor {
             return;
         }
         if let Ok(key) = self.read_key_blocking() {
-            self.handle_key(key);
+            self.dismiss_welcome_key(key);
         }
+    }
+
+    /// Feed the welcome screen's dismissing key back into the editor, except
+    /// for Enter/Return: that keypress dismissed the dialog, and routing it
+    /// on would toggle the folder under the tree cursor (or insert a blank
+    /// line in the editor). Everything else passes through untouched.
+    fn dismiss_welcome_key(&mut self, key: String) {
+        if key == "\r" || key == "\n" {
+            return;
+        }
+        self.handle_key(key);
     }
 
     fn handle_autocomplete_key(&mut self, key: &str) -> bool {
@@ -8356,6 +8378,42 @@ mod tests {
     }
 
     #[test]
+    fn welcome_enter_does_not_toggle_tree() {
+        let dir = std::env::temp_dir().join(format!("az-welcome-enter-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let mut ed = Editor::new(vec!["az".into(), dir.to_str().unwrap().into()]);
+        assert!(matches!(ed.focus, Focus::Tree));
+        assert!(ed.expanded.contains(&ed.root));
+        // The dismissing Enter belongs to the dialog: the folder stays open.
+        ed.dismiss_welcome_key("\r".to_string());
+        assert!(ed.expanded.contains(&ed.root));
+        // Without the guard, the same keypress collapses it (the bug).
+        ed.handle_key("\r".to_string());
+        assert!(!ed.expanded.contains(&ed.root));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn welcome_dialog_shows_tagline_and_version() {
+        let dir = std::env::temp_dir().join(format!("az-welcome-copy-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("w.txt");
+        std::fs::write(&file, "x").unwrap();
+        let mut ed = Editor::new(vec!["az".into(), file.to_str().unwrap().into()]);
+        ed.cols = 120;
+        ed.rows = 40;
+        let welcome = ed.welcome_dialog();
+        assert!(welcome.contains("The TUI text editor you've always wanted"));
+        assert!(welcome.contains("Batteries included."));
+        assert!(welcome.contains("A perfect alternative to Vim and Nano"));
+        assert!(welcome.contains("With more than 150 language/syntax support."));
+        assert!(welcome.contains(&format!("Version: {}", env!("CARGO_PKG_VERSION"))));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn welcome_dialog_is_centered_in_the_viewport() {
         let dir = std::env::temp_dir().join(format!("az-welcome-pos-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -8366,8 +8424,8 @@ mod tests {
         ed.cols = 120;
         ed.rows = 40;
         let welcome = ed.welcome_dialog();
-        let (col, row) = centered_box(120, 40, 56, 20);
-        assert_eq!((col, row), (33, 11));
+        let (col, row) = centered_box(120, 40, 101, 22);
+        assert_eq!((col, row), (10, 10));
         assert!(welcome.contains(&format!("\x1b[{row};{col}H")));
         let _ = std::fs::remove_dir_all(&dir);
     }

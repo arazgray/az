@@ -110,7 +110,7 @@ make_deb() {
     cat > "$work/usr/share/applications/az.desktop" <<EOF
 [Desktop Entry]
 Name=az
-Comment=A fast, small & sane text editor
+Comment=The TUI text editor you've always wanted
 Exec=az
 Icon=az
 Terminal=true
@@ -172,7 +172,7 @@ make_rpm() {
     cat > "$top/SOURCES/az.desktop" <<EOF
 [Desktop Entry]
 Name=az
-Comment=A fast, small & sane text editor
+Comment=The TUI text editor you've always wanted
 Exec=az
 Icon=az
 Terminal=true

@@ -1,4 +1,4 @@
-# AGENTS.md — AI Agent Guide for `az` 4.2
+# AGENTS.md — AI Agent Guide for `az` 4.3
 
 > Read this before editing. `az` is a single-binary Rust TUI editor (zero crates). Keep changes small, test with `cargo test`, never break raw-mode cleanup.
 
@@ -6,7 +6,7 @@
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
 - Entry: `src/main.rs` (~4900 lines) + `src/plugins/*.rs` (153 files: 151 languages + `plain.rs` + `example.rs` skeleton). Plain (`.txt` and the fallback) colors brackets (`()` blue, `[]` yellow, `{}` magenta) plus orange digits/punctuation, and stripes rows with `BG` / `BG_FLOAT`. Other modes stay on `BG`.
-- Build: `cargo check` (fast), `cargo test` (71 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
+- Build: `cargo check` (fast), `cargo test` (73 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `recovery/*.rec`).
@@ -114,7 +114,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 
 ```sh
 cargo check   # fast gate
-cargo test    # 71 tests (70 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF, welcome logo, dialog chrome, plain stripes, rtl tree isolate, wrap/rtl toggles + rendering
+cargo test    # 73 tests (72 run, 1 ignored Wayland roundtrip): cli_path, absolute, quick_open parse, html auto-close, find, escape, search %, navigation keys, plugins, bashrc/shebang, mouse SGR + click-col, replace counting, menu geometry, Ctrl+Shift+H, word range, Ctrl+K + shortcuts, OSC52, legacy mouse, wheel pan, paste, sudo message, wayland socketpair, tab window, visual scroll, vertical scrollbar, wrap, dirty-hash, CRLF, welcome logo, dialog chrome, plain stripes, rtl tree isolate, wrap/rtl toggles + rendering
 cargo build   # debug binary ./target/debug/az
 ```
 
@@ -149,7 +149,7 @@ Unreleased (vertical scrollbars):
 - Copy/cut of an unselected line uses `line_as_clipboard` (newline unless it is the last line). `(` `{` `[` `"` `'` on a selection call `wrap_selection`. Empty pairs are `(` `{` `[` only.
 - Paste burst: `pending_is_paste_burst` is 16+ bytes, or a newline AND length >= 8. A lone Enter must stay auto-indent.
 - Prompts: `apply_line_edit` (Left/Right/Home/End, Ctrl+U). Up/Down walk `prompt_history` (cap 50, skip secrets).
-- Resize: `terminal_resized()` in the input loop. Status flash uses `was_flashing` for one clear frame. Welcome passes the dismissing key to `handle_key`; the update notice runs its own `centered_menu` loop instead (update/restart consume their keys, never globals).
+- Resize: `terminal_resized()` in the input loop. Status flash uses `was_flashing` for one clear frame. Welcome passes the dismissing key to `handle_key` via `dismiss_welcome_key`, except Enter/Return (which would toggle the tree folder or insert a blank line); the update notice runs its own `centered_menu` loop instead (update/restart consume their keys, never globals).
 - `./build.sh` `install_system_wide` copies `/usr/local/bin/az` (directly when root or the dir is writable, otherwise `sudo cp`). Failure must not fail the `~/.local/bin` install. `sudo` `secure_path` does not include `~/.local/bin`.
 - Permission-denied save (`ErrorKind::PermissionDenied`, and not already root): status blinks red (`message_is_error`), `prompt_secret` (RED, `*` masking), then `write_file_with_sudo` (`sudo -k -S -p ''`, password + newline on stdin only, payload staged in a temp file). Other status flashes stay cyan.
 - Tests: 56 (55 run). Ignored `wayland_clipboard_roundtrip` restores the previous clipboard. Do not run it.

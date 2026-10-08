@@ -1,5 +1,11 @@
 # az — Changelog
 
+## 4.3
+
+- **Welcome dialog refresh.** Logo is followed by the tagline, a short description, and the current version number (pulled from `Cargo.toml` so it never goes stale).
+- **Welcome Enter no longer toggles the tree.** Dismissing the welcome screen with Enter/Return used to fire the keypress into the editor as well, collapsing the folder under the tree cursor (or inserting a blank line). The dismissing Enter is now consumed by the dialog.
+- **Installer banners.** `install.sh` and `compile-and-install.sh` show the same tagline, description, and version; desktop entries use the tagline.
+
 ## 4.2.1
 
 - **Release pipeline fixes (no editor changes).** Windows binaries are now named per architecture before upload (previously both jobs overwrote a single `az.exe` and one arch was lost), artifact uploads and the publish filter use version-precise globs so stale packages can never leak into a release, and Linux jobs install `rpmbuild` so `.rpm`s are actually built.
@@ -7,6 +13,7 @@
 ## 4.2
 
 - **One-click update and restart.** The startup update notice is now a real choice (`Update and restart` / `Later`) instead of a command to retype. Updating runs the installer with the terminal restored, then shows `Updated <old> → <new>` with `Restart now` / `Stay in editor`. Restart replaces the process in place and the saved session restores tabs.
+- **Richer welcome dialog.** Logo is followed by the tagline, a short description, and the current version number.
 
 ## 4.1
 

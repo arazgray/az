@@ -1,17 +1,17 @@
-# az 4.2 — User Manual
+# az 4.3 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.2.1 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.3.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.2.1_amd64.deb`, `az-4.2.1-linux-amd64`, `az-4.2.1-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.3.0_amd64.deb`, `az-4.3.0-linux-amd64`, `az-4.3.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 

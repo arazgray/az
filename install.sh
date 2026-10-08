@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-# az 4.2.1 — prebuilt package installer.
+# az 4.3.0 — prebuilt package installer.
 # Detects OS + CPU arch and installs the ready package instead of building:
 #   Debian/Ubuntu/Mint/Pop!_OS -> dist/az_<ver>_<debarch>.deb
 #   Fedora/RHEL/openSUSE       -> dist/az-<ver>-1.<rpmarch>.rpm
@@ -9,7 +9,7 @@ set -eu
 #   macOS (Intel + Apple Silicon) -> dist/az-<ver>-macos-<arch>.tar.gz
 #   Windows (x86_64 + ARM64)   -> dist/az-<ver>-windows-<arch>.exe
 # To build from source instead, run ./compile-and-install.sh.
-AZ_VERSION="4.2.1"
+AZ_VERSION="4.3.0"
 REPO_RAW="${AZ_REPO_URL_RAW:-https://raw.githubusercontent.com/arazgray/az/refs/heads/main}"
 BIN_DIR="${AZ_BIN_DIR:-$HOME/.local/bin}"
 TMP_DIR=""
@@ -61,7 +61,12 @@ print_banner() {
   print_logo
   printf '\n'
   printf '  %s%sWelcome!%s\n' "$BOLD" "$BLUE" "$RESET"
-  printf '  %saz is a fast, small & sane text editor.%s\n' "$DIM" "$RESET"
+  printf '  %s%sThe TUI text editor you'"'"'ve always wanted%s\n' "$BOLD" "$BLUE" "$RESET"
+  printf '  %sA ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.%s\n' "$DIM" "$RESET"
+  printf '  %sKeyboard-first but mouse-supported, zero-configuration, and designed to stay out of your way%s\n' "$DIM" "$RESET"
+  printf '  %sA perfect alternative to Vim and Nano%s\n' "$DIM" "$RESET"
+  printf '  %sWith more than 150 language/syntax support.%s\n' "$DIM" "$RESET"
+  printf '  %sVersion: v%s%s\n' "$DIM" "$AZ_VERSION" "$RESET"
   printf '  %sThis script installs the prebuilt v%s package for your OS.%s\n' "$DIM" "$AZ_VERSION" "$RESET"
   printf '  %s(No compilation. To build instead: ./compile-and-install.sh.)%s\n' "$DIM" "$RESET"
   printf '\n'
@@ -262,7 +267,7 @@ install_linux_binary_fallback() {
     cat > "$HOME/.local/share/applications/az.desktop" <<EOF
 [Desktop Entry]
 Name=az
-Comment=A fast, small & sane text editor
+Comment=The TUI text editor you've always wanted
 Exec=$BIN_DIR/az
 Icon=az
 Terminal=true
@@ -371,7 +376,7 @@ install_linux() {
       cat > "$HOME/.local/share/applications/az.desktop" <<EOF
 [Desktop Entry]
 Name=az
-Comment=A fast, small & sane text editor
+Comment=The TUI text editor you've always wanted
 Exec=$BIN_DIR/az
 Icon=az
 Terminal=true

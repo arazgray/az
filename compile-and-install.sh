@@ -55,7 +55,15 @@ print_banner() {
   print_logo
   printf '\n'
   printf '  %s%sWelcome!%s\n' "$BOLD" "$BLUE" "$RESET"
-  printf '  %saz is a fast, small & sane text editor.%s\n' "$DIM" "$RESET"
+  printf '  %s%sThe TUI text editor you'"'"'ve always wanted%s\n' "$BOLD" "$BLUE" "$RESET"
+  printf '  %sA ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.%s\n' "$DIM" "$RESET"
+  printf '  %sKeyboard-first but mouse-supported, zero-configuration, and designed to stay out of your way%s\n' "$DIM" "$RESET"
+  printf '  %sA perfect alternative to Vim and Nano%s\n' "$DIM" "$RESET"
+  printf '  %sWith more than 150 language/syntax support.%s\n' "$DIM" "$RESET"
+  AZ_VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml 2>/dev/null | head -n1 || true)"
+  if [ -n "$AZ_VERSION" ]; then
+    printf '  %sVersion: v%s%s\n' "$DIM" "$AZ_VERSION" "$RESET"
+  fi
   printf '  %sThis script builds it from source and installs it%s\n' "$DIM" "$RESET"
   printf '  %s(%s/az, and /usr/local/bin/az when it can).%s\n' "$DIM" "$BIN_DIR" "$RESET"
   printf '  %sPrefer a prebuilt package? Use ./install.sh instead.%s\n' "$DIM" "$RESET"
