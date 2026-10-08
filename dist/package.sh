@@ -10,7 +10,7 @@
 #                                     # binary already exists at
 #                                     # dist/az-<ver>-linux-<arm64|amd64>
 #   ./dist/package.sh --all           # package every binary present in dist/
-#   VERSION=4.1.0 ./dist/package.sh
+#   VERSION=4.2.0 ./dist/package.sh
 set -eu
 
 cd "$(dirname "$0")/.."

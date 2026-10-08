@@ -1,17 +1,17 @@
-# az 4.1 — User Manual
+# az 4.2 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.1.0 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.2.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.1.0_amd64.deb`, `az-4.1.0-linux-amd64`, `az-4.1.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.2.0_amd64.deb`, `az-4.2.0-linux-amd64`, `az-4.2.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -19,7 +19,7 @@ Remote install (also upgrades an existing install in place):
 curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh
 ```
 
-On every launch `az` checks GitHub for a newer release (short timeout, silent when offline). When one exists, a modal shows the version and the upgrade command above. Set `AZ_NO_UPDATE_CHECK=1` to skip the check.
+On every launch `az` checks GitHub for a newer release (short timeout, silent when offline). When one exists, a dialog offers `Update and restart` (Enter) or `Later` (Esc) — no command to retype. Updating runs the installer with the terminal restored, so progress and password prompts stay visible, then shows `Updated <old> → <new>` with `Restart now` (Enter) or `Stay in editor` (Esc). Restart replaces the process in place; the saved session restores your tabs. Set `AZ_NO_UPDATE_CHECK=1` to skip the check.
 
 ## 2. Opening Things
 
@@ -176,7 +176,7 @@ Context-aware per language + document words. `Tab`/`Enter` accept, `Esc` close. 
 - All other languages: keywords (+types/builtins where relevant) and file symbols (`def`/`class`/`func`/`fn`/…)
 
 ### Syntax Modes
-Auto by extension (`.blade.php` -> Blade, `.php/.phtml` -> PHP, `.html/.htm` -> HTML, `.css` -> CSS, `.js/.mjs/.cjs/.jsx` -> JS, `.ts/.tsx/.mts/.cts` -> TS, `.xml/.svg` -> XML, `.py` -> Python, `.java` -> Java, `.cs` -> C#, `.cpp/.hpp` -> C++, `.c/.h` -> C, `.go` -> Go, `.kt` -> Kotlin, `.swift` -> Swift, `.rb` (+`Gemfile`) -> Ruby, `.dart` -> Dart, `.scala` -> Scala, `.r` -> R, `.lua` -> Lua, `.pl` -> Perl, `.hs` -> Haskell, `.ex` -> Elixir, `.clj` -> Clojure, `.zig` -> Zig, `.jl` -> Julia, `.m/.mm` -> Objective-C, `.proto` -> Proto, `.graphql/.gql` -> GraphQL, `.tf/.hcl` -> Terraform, `.vue` -> Vue, `.svelte` -> Svelte, `.[sS]/.asm` -> Asm, `.tex/.bib/.cls/.sty` -> TeX, `.erl/.hrl` -> Erlang, `.sol` -> Solidity, `.ps1/.psm1/.psd1` -> PowerShell, plus Markdown/JSON/TOML/YAML/Bash/Dotenv/INI/Log/Rust/Nginx/Apache/Dockerfile/systemd/SQL, `Makefile`/`*.mk` -> Makefile, `CMakeLists.txt`/`*.cmake` -> CMake, else Plain; the 98 micro-parity modes (Ada, Awk, Batch, Caddyfile, Crystal, D, Erlang-family extras, Fish, Fortran, GraphQL-adjacent configs, Nix, Pascal, PowerShell-adjacent scripts, Terraform-adjacent IaC, V, VHDL, Vimscript, and the rest — full list in README) detect by their own extensions and stay selectable via `Set syntax …`, else Plain). Bash also matches `.bashrc`, `.bash_profile`, `.zshrc`, `.profile`, and the other shell startup names, and a `#!/bin/bash` or `#!/usr/bin/env sh` first line when the filename itself is plain (that is why `~/.bashrc` highlights). A `.py` file keeps Python even if the shebang says bash. Override via palette `Set syntax …` or `Set syntax Auto` to revert. Status shows `PHP manual` when forced. A manual mode wins over the filename and the shebang. Plain (`.txt` and any other unrecognized file) colors punctuation such as `~!@#$%^&*()[]` orange, and paints alternate rows in `#1a1b26` and `#1f2335`. Other languages keep a single background.
+Auto by extension (`.blade.php` -> Blade, `.php/.phtml` -> PHP, `.html/.htm` -> HTML, `.css` -> CSS, `.js/.mjs/.cjs/.jsx` -> JS, `.ts/.tsx/.mts/.cts` -> TS, `.xml/.svg` -> XML, `.py` -> Python, `.java` -> Java, `.cs` -> C#, `.cpp/.hpp` -> C++, `.c/.h` -> C, `.go` -> Go, `.kt` -> Kotlin, `.swift` -> Swift, `.rb` (+`Gemfile`) -> Ruby, `.dart` -> Dart, `.scala` -> Scala, `.r` -> R, `.lua` -> Lua, `.pl` -> Perl, `.hs` -> Haskell, `.ex` -> Elixir, `.clj` -> Clojure, `.zig` -> Zig, `.jl` -> Julia, `.m/.mm` -> Objective-C, `.proto` -> Proto, `.graphql/.gql` -> GraphQL, `.tf/.hcl` -> Terraform, `.vue` -> Vue, `.svelte` -> Svelte, `.[sS]/.asm` -> Asm, `.tex/.bib/.cls/.sty` -> TeX, `.erl/.hrl` -> Erlang, `.sol` -> Solidity, `.ps1/.psm1/.psd1` -> PowerShell, plus Markdown/JSON/TOML/YAML/Bash/Dotenv/INI/Log/Rust/Nginx/Apache/Dockerfile/systemd/SQL, `Makefile`/`*.mk` -> Makefile, `CMakeLists.txt`/`*.cmake` -> CMake, else Plain; the 98 micro-parity modes (Ada, Awk, Batch, Caddyfile, Crystal, D, Erlang-family extras, Fish, Fortran, GraphQL-adjacent configs, Nix, Pascal, PowerShell-adjacent scripts, Terraform-adjacent IaC, V, VHDL, Vimscript, and the rest — full list in README) detect by their own extensions and stay selectable via `Set syntax …`, else Plain). Bash also matches `.bashrc`, `.bash_profile`, `.zshrc`, `.profile`, and the other shell startup names, and a `#!/bin/bash` or `#!/usr/bin/env sh` first line when the filename itself is plain (that is why `~/.bashrc` highlights). A `.py` file keeps Python even if the shebang says bash. Override via palette `Set syntax …` or `Set syntax Auto` to revert. Status shows `PHP manual` when forced. A manual mode wins over the filename and the shebang. Plain (`.txt` and any other unrecognized file) colors `()` blue, `[]` yellow, `{}` magenta, and digits plus the rest of the ASCII punctuation orange, and paints alternate rows in `#1a1b26` and `#1f2335`. Other languages keep a single background.
 
 ### Tree File Ops
 Select dir or file, then `n/N/r/Del` or palette equivalents. Create auto-makes parent dirs. Rename updates open tabs (including children if dir renamed). Delete removes tabs pointing inside.

@@ -1,6 +1,6 @@
 [package]
 name = "az"
-version = "4.1.0"
+version = "4.2.0"
 edition = "2021"
 authors = ["Araz Gray"]
 description = "A fast, small & sane text editor."

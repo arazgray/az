@@ -1,6 +1,7 @@
 <p align="center">
   <img src="logo.png" alt="az Logo" height="64"/>
-  <h1 align="center">az</h1>
+  <h1 align="center">az | The TUI text editor you've always wanted</h1>
+  <small>A perfect alternative to Vim and Nano</small>
 </p>
 
 <p align="center">
@@ -46,7 +47,7 @@ After installation:
 az
 ```
 
-> **Update checks:** `az` automatically checks the main repository for newer releases when it starts. Checks are skipped when offline. Set `AZ_NO_UPDATE_CHECK=1` to disable update checks.
+> **Update checks:** `az` automatically checks the main repository for newer releases when it starts. When one is found, a dialog offers a one-click **Update and restart** (with a success notice and restart button) instead of a command to retype. Checks are skipped when offline. Set `AZ_NO_UPDATE_CHECK=1` to disable update checks.
 
 ---
 
@@ -58,31 +59,31 @@ Linux packages can also be reproduced locally with `./dist/package.sh`.
 
 | Operating System | Package | Architecture |
 | ---------------- | ------- | ------------ |
-| Linux (generic) | [**az-4.1.0-linux-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-linux-amd64.tar.gz) | x86_64 |
-| Linux (generic) | [**az-4.1.0-linux-arm64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-linux-arm64.tar.gz) | aarch64 |
-| Debian / Ubuntu / Mint / Pop!_OS | [**az_4.1.0_amd64.deb**](https://github.com/arazgray/az/releases/download/4.1/az_4.1.0_amd64.deb) | x86_64 |
-| Debian / Ubuntu (ARM) | [**az_4.1.0_arm64.deb**](https://github.com/arazgray/az/releases/download/4.1/az_4.1.0_arm64.deb) | aarch64 |
-| Fedora / RHEL / openSUSE | [**az-4.1.0-1.x86_64.rpm**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-1.x86_64.rpm) | x86_64 |
-| Fedora / RHEL (ARM) | [**az-4.1.0-1.aarch64.rpm**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-1.aarch64.rpm) | aarch64 |
-| macOS Apple Silicon | [**az-4.1.0-macos-arm64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-macos-arm64.tar.gz) | arm64 |
-| macOS Intel | [**az-4.1.0-macos-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-macos-amd64.tar.gz) | x86_64 |
-| Windows | [**az-4.1.0-windows-amd64.exe**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-windows-amd64.exe) | x86_64 |
-| Windows (ARM) | [**az-4.1.0-windows-arm64.exe**](https://github.com/arazgray/az/releases/download/4.1/az-4.1.0-windows-arm64.exe) | aarch64 |
+| Linux (generic) | [**az-4.2.0-linux-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-linux-amd64.tar.gz) | x86_64 |
+| Linux (generic) | [**az-4.2.0-linux-arm64.tar.gz**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-linux-arm64.tar.gz) | aarch64 |
+| Debian / Ubuntu / Mint / Pop!_OS | [**az_4.2.0_amd64.deb**](https://github.com/arazgray/az/releases/download/4.2/az_4.2.0_amd64.deb) | x86_64 |
+| Debian / Ubuntu (ARM) | [**az_4.2.0_arm64.deb**](https://github.com/arazgray/az/releases/download/4.2/az_4.2.0_arm64.deb) | aarch64 |
+| Fedora / RHEL / openSUSE | [**az-4.2.0-1.x86_64.rpm**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-1.x86_64.rpm) | x86_64 |
+| Fedora / RHEL (ARM) | [**az-4.2.0-1.aarch64.rpm**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-1.aarch64.rpm) | aarch64 |
+| macOS Apple Silicon | [**az-4.2.0-macos-arm64.tar.gz**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-macos-arm64.tar.gz) | arm64 |
+| macOS Intel | [**az-4.2.0-macos-amd64.tar.gz**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-macos-amd64.tar.gz) | x86_64 |
+| Windows | [**az-4.2.0-windows-amd64.exe**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-windows-amd64.exe) | x86_64 |
+| Windows (ARM) | [**az-4.2.0-windows-arm64.exe**](https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-windows-arm64.exe) | aarch64 |
 
-> All packages are built from the `4.1` tag by [`.github/workflows/release.yml`](.github/workflows/release.yml).
+> All packages are built from the `4.2` tag by [`.github/workflows/release.yml`](.github/workflows/release.yml).
 > The one-line installer below already knows these names and picks the
 > right one for your OS + CPU.
 
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i az_4.1.0_amd64.deb
+sudo dpkg -i az_4.2.0_amd64.deb
 ```
 
 ARM (Raspberry Pi, Ampere, AWS Graviton):
 
 ```sh
-sudo dpkg -i az_4.1.0_arm64.deb
+sudo dpkg -i az_4.2.0_arm64.deb
 ```
 
 ### Arch Linux (AUR)
@@ -100,17 +101,17 @@ account — steps are in `dist/aur/README.md`.
 
 ```sh
 # Fedora / RHEL / CentOS:
-sudo dnf install ./az-4.1.0-1.x86_64.rpm
+sudo dnf install ./az-4.2.0-1.x86_64.rpm
 # or, without a network solver:
-sudo rpm -i az-4.1.0-1.x86_64.rpm
+sudo rpm -i az-4.2.0-1.x86_64.rpm
 # openSUSE:
-sudo zypper install ./az-4.1.0-1.x86_64.rpm
+sudo zypper install ./az-4.2.0-1.x86_64.rpm
 ```
 
 ### Arch / Alpine / other Linux (generic tarball)
 
 ```sh
-tar -xzf az-4.1.0-linux-amd64.tar.gz
+tar -xzf az-4.2.0-linux-amd64.tar.gz
 sudo install -m755 az /usr/local/bin/az
 ```
 
@@ -123,8 +124,8 @@ brew install arazgray/tap/az
 Or manually from the release tarball:
 
 ```sh
-tar -xzf az-4.1.0-macos-arm64.tar.gz   # Apple Silicon
-# tar -xzf az-4.1.0-macos-amd64.tar.gz # Intel
+tar -xzf az-4.2.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.2.0-macos-amd64.tar.gz # Intel
 mkdir -p ~/.local/bin
 install -m755 az ~/.local/bin/az
 ```
@@ -443,6 +444,22 @@ Change the active language through the command palette:
 ```text
 Ctrl+P → set [Language]
 ```
+
+---
+
+## What's New in 4.2
+
+### One-click update and restart
+
+The startup update notice is now a real choice — `Update and restart` or `Later` — instead of a command to retype. Updating runs the installer with the terminal restored (progress and password prompts stay visible), then shows `Updated <old> → <new>` with `Restart now` / `Stay in editor`. Restart replaces the process in place and the saved session restores your tabs.
+
+### Multi-color Plain mode
+
+The `.txt`/fallback mode now colors `()` blue, `[]` yellow, `{}` magenta, and digits plus the remaining ASCII punctuation orange (previously everything was orange). Row striping is unchanged.
+
+**4.2 test suite:** 71 tests, with 70 executed and 1 Wayland roundtrip test ignored.
+
+See the [Changelog](CHANGELOG.md) for previous releases.
 
 ---
 

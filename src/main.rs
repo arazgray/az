@@ -643,10 +643,8 @@ impl Editor {
 
         if self.running {
             if let Some(remote) = self.pending_update.take() {
+                // The notice runs its own menu loop; no extra key is consumed here.
                 self.render_update_notice(&remote)?;
-                if let Ok(key) = self.read_key_blocking() {
-                    self.handle_key(key);
-                }
             }
         }
 
@@ -2311,22 +2309,93 @@ impl Editor {
     }
 
     fn render_update_notice(&mut self, remote: &str) -> io::Result<()> {
-        self.read_terminal_size();
-        let dialog = self.update_dialog(remote);
-        self.present_overlay(&dialog, true)
+        self.update_flow(remote);
+        Ok(())
     }
 
-    fn update_dialog(&self, remote: &str) -> String {
-        let title = format!("  A new version of az is available: {remote} (you have {}).", env!("CARGO_PKG_VERSION"));
-        let lines = vec![
-            title,
-            String::new(),
-            "  Upgrade with:".to_string(),
-            "  curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh".to_string(),
-            String::new(),
-            "  Press any key to continue ...".to_string(),
-        ];
-        self.popup_box(" Update ", &lines, &[0], &[])
+    /// Update available at startup: a real choice, not a command to retype.
+    /// Enter/`1` runs the installer and offers restart; Esc/`2`/click-away
+    /// keeps editing. Never routes menu keys through global shortcuts.
+    fn update_flow(&mut self, remote: &str) {
+        let title = format!(" Update available: {remote} (you have {}) ", env!("CARGO_PKG_VERSION"));
+        let items = vec!["Update and restart".to_string(), "Later".to_string()];
+        match self.centered_menu(&title, &items) {
+            Some(0) => self.finish_update(remote),
+            _ => {}
+        }
+    }
+
+    /// Centered single-choice menu reusing the context-menu loop (keyboard,
+    /// mouse click, click-away cancel) instead of new hit-testing.
+    fn centered_menu(&mut self, title: &str, items: &[String]) -> Option<usize> {
+        self.read_terminal_size();
+        let max_w = items.iter().map(|s| visual_width(s)).max().unwrap_or(0).max(visual_width(title)) + 4;
+        let width = min(max_w + 6, self.cols.saturating_sub(2)).max(12);
+        let height = min(items.len() + 4, self.rows.saturating_sub(1)).max(5);
+        let (sc, sr) = centered_box(self.cols, self.rows, width, height);
+        self.context_menu(title, items, sc, sr)
+    }
+
+    fn finish_update(&mut self, remote: &str) {
+        match self.run_updater(remote) {
+            Ok(()) => {
+                let title = format!(" Updated {} → {} ", env!("CARGO_PKG_VERSION"), remote);
+                let items = vec!["Restart now".to_string(), "Stay in editor".to_string()];
+                match self.centered_menu(&title, &items) {
+                    Some(0) => self.restart_now(),
+                    _ => {
+                        self.message = format!("Updated to {remote} — restart az to use it");
+                    }
+                }
+            }
+            Err(msg) => {
+                self.message = format!("Update failed: {msg}");
+                self.message_is_error = true;
+                let _ = self.centered_menu(" Update failed ", &["OK".to_string()]);
+            }
+        }
+    }
+
+    /// Run the installer outside raw mode so progress and sudo prompts show.
+    /// Raw mode is restored before returning; stale typeahead is dropped.
+    fn run_updater(&mut self, remote: &str) -> Result<(), String> {
+        let curl_ok = Command::new("curl")
+            .arg("--version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !curl_ok {
+            return Err("curl not found — run the installer command manually".to_string());
+        }
+        let _ = self.cleanup();
+        println!("Updating az to {remote}...\r");
+        let status = Command::new("sh").arg("-c").arg(UPDATE_INSTALL_CMD).status();
+        self.pending_input.clear();
+        let _ = self.enable_raw_mode();
+        match status {
+            Ok(s) if s.success() => Ok(()),
+            Ok(s) => Err(format!("installer exited ({})", s.code().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string()))),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// Replace this process with a fresh one (cleanup saved the session, so
+    /// tabs restore). Only returns when the new process cannot start.
+    fn restart_now(&mut self) {
+        let exe = env::current_exe().unwrap_or_else(|_| PathBuf::from("az"));
+        let args: Vec<String> = env::args().skip(1).collect();
+        let _ = self.cleanup();
+        match Command::new(&exe).args(&args).status() {
+            Ok(s) => std::process::exit(s.code().unwrap_or(0)),
+            Err(e) => {
+                let _ = self.enable_raw_mode();
+                self.pending_input.clear();
+                self.message = format!("Restart failed ({e}) — continuing");
+                self.message_is_error = true;
+            }
+        }
     }
 
     fn popup_box(&self, title: &str, lines: &[String], highlight_lines: &[usize], logo: &[(String, usize)]) -> String {
@@ -6830,6 +6899,11 @@ fn base64_encode(data: &[u8]) -> String {
 /// `AZ_NO_UPDATE_CHECK=1` to skip.
 const UPDATE_CHECK_URL: &str = "https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/Cargo.toml";
 
+/// The one command the update button runs: same repo the version was
+/// checked against, executed with the terminal restored so progress and
+/// password prompts are visible.
+const UPDATE_INSTALL_CMD: &str = "curl -fsSL https://raw.githubusercontent.com/arazgholami/az/refs/heads/main/install.sh | sh";
+
 /// Reads the `[package] version` from Cargo.toml text.
 fn parse_remote_version(text: &str) -> Option<String> {
     let mut in_package = false;
@@ -7594,10 +7668,18 @@ mod tests {
         assert_eq!(SyntaxMode::from_path(Some(Path::new("notes.txt"))), SyntaxMode::Plain);
         let line = "Hello ~!@#$%^&*()[]";
         let segs = crate::plugins::highlight_segments(line, SyntaxMode::Plain);
-        assert_eq!(segs.len(), 1);
-        assert_eq!(&line[segs[0].start..segs[0].end], "~!@#$%^&*()[]");
+        assert_eq!(segs.len(), 3);
+        assert_eq!(&line[segs[0].start..segs[0].end], "~!@#$%^&*");
         assert_eq!(segs[0].color, ORANGE);
-        assert!(crate::plugins::highlight_segments("abc 123", SyntaxMode::Plain).is_empty());
+        assert_eq!(&line[segs[1].start..segs[1].end], "()");
+        assert_eq!(segs[1].color, BLUE);
+        assert_eq!(&line[segs[2].start..segs[2].end], "[]");
+        assert_eq!(segs[2].color, YELLOW);
+        assert!(crate::plugins::highlight_segments("abc", SyntaxMode::Plain).is_empty());
+        let digits = crate::plugins::highlight_segments("abc 123", SyntaxMode::Plain);
+        assert_eq!(digits.len(), 1);
+        assert_eq!(&"abc 123"[digits[0].start..digits[0].end], "123");
+        assert_eq!(digits[0].color, ORANGE);
         assert_eq!(editor_row_bg(SyntaxMode::Plain, 0), BG);
         assert_eq!(editor_row_bg(SyntaxMode::Plain, 1), BG_FLOAT);
         assert_eq!(editor_row_bg(SyntaxMode::Php, 1), BG);
@@ -7825,8 +7907,16 @@ mod tests {
     }
 
     #[test]
-    fn newer_version_comparison() {
-        assert!(is_newer_version("2.6.0", "2.5.0"));
+    fn updater_runs_checked_repo_installer() {
+        // The button must install from the same repo the version was
+        // checked against — never a different remote.
+        assert!(UPDATE_INSTALL_CMD.contains("raw.githubusercontent.com/arazgholami/az"));
+        assert!(UPDATE_CHECK_URL.starts_with("https://raw.githubusercontent.com/arazgholami/az/"));
+        assert!(UPDATE_INSTALL_CMD.starts_with("curl -fsSL "));
+    }
+
+    #[test]
+    fn newer_version_comparison() {        assert!(is_newer_version("2.6.0", "2.5.0"));
         assert!(is_newer_version("2.6", "2.5.0"));
         assert!(is_newer_version("3.0.0", "2.9.9"));
         assert!(is_newer_version("2.5.1", "2.5.0"));

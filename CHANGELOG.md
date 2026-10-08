@@ -1,5 +1,9 @@
 # az — Changelog
 
+## 4.2
+
+- **One-click update and restart.** The startup update notice is now a real choice (`Update and restart` / `Later`) instead of a command to retype. Updating runs the installer with the terminal restored, then shows `Updated <old> → <new>` with `Restart now` / `Stay in editor`. Restart replaces the process in place and the saved session restores tabs.
+
 ## 4.1
 
 - **Full micro syntax parity (152 modes).** 98 new one-file-per-language plugins (`ada.rs` … `zscript.rs`, same shape as the hand-written ones: highlighting, word completion, `def`/`class`-style symbols, tree colors, `set-syntax-*` palette items). Keyword data extracted from micro's own `runtime/syntax/*.yaml`; detection mirrors micro's `filename:` patterns. Aliases folded into existing modes: `python2/3` → Python, `html4/5` → HTML, `csx` → C#, `Pkgfile` → Bash.
