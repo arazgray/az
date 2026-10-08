@@ -82,6 +82,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path stage | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/az.exe" "stage/az.exe"
+          Copy-Item "stage/az.exe" "az-${{ steps.ver.outputs.version }}-windows-${{ matrix.arch }}.exe"
 
       - name: Smoke test (unix)
         if: matrix.family != 'windows'
@@ -117,11 +118,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: az-${{ matrix.family }}-${{ matrix.arch }}
+          # Version-precise globs: dist/ also holds older committed
+          # packages, which must never leak into a new release.
           path: |
-            az-*.tar.gz
-            dist/*.deb
-            dist/*.rpm
-            stage/az.exe
+            az-${{ steps.ver.outputs.version }}-*.tar.gz
+            dist/az_${{ steps.ver.outputs.version }}_*.deb
+            dist/az-${{ steps.ver.outputs.version }}-*.rpm
+            az-${{ steps.ver.outputs.version }}-*.exe
           if-no-files-found: warn
 
   release:
@@ -142,7 +145,7 @@ jobs:
           ls -la
           # Uploaded artifacts keep their subdirectories (dist/*.deb lands
           # in artifacts/dist/), so collect by basename from any depth.
-          find . -type f \( -name 'az-*.tar.gz' -o -name 'az_*.deb' -o -name 'az-*.rpm' -o -name 'az.exe' \) -execdir sha256sum {} + > SHA256SUMS.txt || true
+          find . -type f \( -name 'az-*.tar.gz' -o -name 'az_*.deb' -o -name 'az-*.rpm' -o -name 'az-*.exe' \) -execdir sha256sum {} + > SHA256SUMS.txt || true
           cat SHA256SUMS.txt || true
 
       - name: GitHub Release
@@ -152,6 +155,6 @@ jobs:
             artifacts/**/az-*.tar.gz
             artifacts/**/az_*.deb
             artifacts/**/az-*.rpm
-            artifacts/**/az.exe
+            artifacts/**/az-*.exe
             artifacts/SHA256SUMS.txt
           generate_release_notes: true
