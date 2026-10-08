@@ -1,6 +1,8 @@
 # az — Changelog
 
-## 4.6
+## 4.6.1
+
+- **Restart after update works when the binary was replaced.** `Restart now` used `current_exe()` (`/proc/self/exe`), which reads as `/path/az (deleted)` once dpkg/`cp` swaps the file — spawning it failed with `No such file or directory (os error 2)`. Restart now prefers the live binary, falls back to the reinstalled path, then to `az` on PATH.
 
 - **Shortcuts for every palette command.** Every row shows its shortcut in parantes (`Save (Ctrl+S)`); the 150+ language rows show their `set <name>` filter. 12 new bindings: `Alt+S` save as, `Alt+N`/`Alt+M` new file/folder, `F2` rename, `Alt+D` delete, `Alt+U` check for update, `Alt+A` autosave, `Alt+T`/`Alt+I` indent tabs/spaces, `Alt+F` format, `Alt+W` welcome, `Alt+L` syntax menu (palette prefilled with `set `). All listed in `Ctrl+K` and `--help`.
 - **Launch flags.** `az --autosave=1 --indent=spaces` (aliases `--as=1`, `--tabs`/`--spaces`, plus `--wrap`/`--no-wrap`, `--rtl`/`--no-rtl`). CLI beats `settings.txt` and is persisted to it. Unknown `--flags` ignored; `--` ends flag parsing.

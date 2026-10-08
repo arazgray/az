@@ -474,7 +474,7 @@ cryptic linker error; a binary outside PATH prints the exact `export` for the
 same terminal and appends it to `~/.bashrc`/`~/.zshrc`. Linux release builds
 moved to Ubuntu 22.04 so the prebuilt runs on 22.04+.
 
-**4.6 test suite:** 86 tests, with 85 executed and 1 Wayland roundtrip test ignored.
+**4.6 test suite:** 88 tests, with 87 executed and 1 Wayland roundtrip test ignored.
 
 See the [Changelog](CHANGELOG.md) for previous releases.
 

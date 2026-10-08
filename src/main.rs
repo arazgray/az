@@ -2471,10 +2471,46 @@ impl Editor {
         }
     }
 
+    /// Binary to exec for `Restart now`: the live file while it still exists,
+    /// the reinstalled path once an update has replaced the running inode, else
+    /// the first `az` on PATH, else a bare `az` for PATH resolution at spawn.
+    /// `current_exe()` reads `/proc/self/exe` on Linux, which becomes
+    /// `/path/az (deleted)` after dpkg/`rm -f`+`cp` swaps the file — spawning
+    /// that literal path fails with `No such file or directory (os error 2)`.
+    fn restart_exe() -> PathBuf {
+        if let Ok(exe) = env::current_exe() {
+            if exe.exists() {
+                return exe;
+            }
+            let stripped = Self::strip_deleted_suffix(&exe);
+            if stripped.exists() {
+                return stripped;
+            }
+        }
+        if let Some(found) = env::split_paths(&env::var("PATH").unwrap_or_default())
+            .map(|dir| dir.join("az"))
+            .find(|p| p.is_file())
+        {
+            return found;
+        }
+        PathBuf::from("az")
+    }
+
+    /// Drop Linux's ` (deleted)` marker from a `/proc/self/exe` path so the
+    /// reinstalled file at the original location can be used.
+    fn strip_deleted_suffix(path: &Path) -> PathBuf {
+        let s = path.to_string_lossy();
+        if let Some(stripped) = s.strip_suffix(" (deleted)") {
+            PathBuf::from(stripped)
+        } else {
+            path.to_path_buf()
+        }
+}
+
     /// Replace this process with a fresh one (cleanup saved the session, so
     /// tabs restore). Only returns when the new process cannot start.
     fn restart_now(&mut self) {
-        let exe = env::current_exe().unwrap_or_else(|_| PathBuf::from("az"));
+        let exe = Self::restart_exe();
         let args: Vec<String> = env::args().skip(1).collect();
         let _ = self.cleanup();
         match Command::new(&exe).args(&args).status() {
@@ -8483,6 +8519,29 @@ mod tests {
         let ed = Editor::new(vec!["az".into(), "--as=1".into(), "--indent=tab".into()]);
         assert_eq!(ed.cli_flags.autosave, Some(true));
         assert_eq!(ed.cli_flags.spaces, Some(false));
+    }
+
+    #[test]
+    fn restart_exe_prefers_live_binary() {
+        // In the test harness the binary exists, so restart resolves to it
+        // instead of falling back to PATH search.
+        let exe = env::current_exe().unwrap();
+        assert!(exe.exists());
+        assert_eq!(Editor::restart_exe(), exe);
+    }
+
+    #[test]
+    fn strip_deleted_suffix_recovers_reinstalled_path() {
+        // After dpkg/rm+cp swaps the file, /proc/self/exe reads as deleted;
+        // stripping recovers the path the installer just wrote.
+        assert_eq!(
+            Editor::strip_deleted_suffix(Path::new("/usr/bin/az (deleted)")),
+            PathBuf::from("/usr/bin/az")
+        );
+        assert_eq!(
+            Editor::strip_deleted_suffix(Path::new("/usr/bin/az")),
+            PathBuf::from("/usr/bin/az")
+        );
     }
 
     #[test]
