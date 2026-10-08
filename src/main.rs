@@ -449,6 +449,9 @@ struct Editor {
     /// Indent style for `Tab` + auto-indent, all languages. `false` = `\t`,
     /// `true` = 4 spaces.
     use_spaces: bool,
+    /// Launch-flag overrides (`--autosave=1 --indent=spaces …`), applied over
+    /// `settings.txt` in `run()` and persisted back to it.
+    cli_flags: CliFlags,
     /// Last autosave write per file path (throttles one write/sec per file).
     last_autosave_write: HashMap<String, Instant>,
 }
@@ -485,10 +488,17 @@ fn print_help() {
     println!();
     println!("ARGS:");
     println!("  [PATH]  File, folder, file:line (e.g. main.rs:20), or :line for current file");
+    println!("          Use `--` before a path starting with `-` (e.g. `az -- --weird`).");
     println!();
     println!("OPTIONS:");
     println!("  -h, --help     Show this help");
     println!("  -V, --version  Show version");
+    println!("  --autosave / --no-autosave    Autosave on/off (Alt+A)");
+    println!("  --as=1 / --as=0               Alias for --autosave");
+    println!("  --indent=tabs|spaces          Tab or 4-space indent (Alt+T / Alt+I)");
+    println!("  --tabs / --spaces             Aliases for --indent");
+    println!("  --wrap / --no-wrap            Word wrap on/off (Alt+Z)");
+    println!("  --rtl / --no-rtl              RTL mode on/off (Alt+R)");
     println!();
     println!("KEYS:");
     println!("  Ctrl+S save, Ctrl+O quick open, Ctrl+P commands, Ctrl+F find dialog, Ctrl+L find next,");
@@ -496,7 +506,9 @@ fn print_help() {
     println!("  Ctrl+Shift+H replace in files, Ctrl+E end of line, Ctrl+Home/End or Alt+Up/Down top/bottom,");
     println!("  Ctrl+T tree focus, Ctrl+H tree hide (tree), Ctrl+D close tab, Ctrl+N new empty tab,");
     println!("  Ctrl+Q quit, Ctrl+K shortcuts, Alt+1-9 visible tabs, Ctrl+Tab cycle tabs,");
-    println!("  Alt+Z word wrap, Alt+R enable/disable RTL mode");
+    println!("  Alt+Z word wrap, Alt+R enable/disable RTL mode, Alt+A autosave,");
+    println!("  Alt+T/I indent tabs/spaces, Alt+F format, Alt+W welcome, Alt+L syntax menu,");
+    println!("  Alt+S save as, Alt+N new file, Alt+M new folder, F2 rename, Alt+D delete, Alt+U update");
     println!("MOUSE:");
     println!("  Click sidebar: expand dir / open file, double-click file: rename, wheel: scroll one row;");
     println!("  Click editor: move cursor, drag: select, double-click: word, triple-click: line;");
@@ -507,7 +519,8 @@ fn print_help() {
 
 impl Editor {
     fn new(args: Vec<String>) -> Self {
-        let raw_target = args.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let (cli_flags, positional) = parse_cli_args(&args);
+        let raw_target = positional.first().cloned().unwrap_or_else(|| ".".to_string());
         // Support `file:line` and `:line` CLI forms. `:line` alone opens CWD.
         let (target_str, cli_line) = parse_cli_path(&raw_target);
         let target = PathBuf::from(&target_str);
@@ -633,6 +646,7 @@ impl Editor {
             rtl: false,
             autosave: false,
             use_spaces: false,
+            cli_flags,
             last_autosave_write: HashMap::new(),
         }
     }
@@ -640,6 +654,19 @@ impl Editor {
     fn run(&mut self) -> io::Result<()> {
         self.try_restore_session();
         self.load_settings();
+        // Launch flags beat the settings file and are kept for next time.
+        if self.cli_flags.any() {
+            if let Some(v) = self.cli_flags.autosave { self.autosave = v; }
+            if let Some(v) = self.cli_flags.spaces { self.use_spaces = v; }
+            if let Some(v) = self.cli_flags.wrap {
+                self.word_wrap = v;
+                self.follow_cursor = true;
+                self.line_width_cache = None;
+                self.refresh_hscroll();
+            }
+            if let Some(v) = self.cli_flags.rtl { self.rtl = v; }
+            self.save_settings();
+        }
         self.enable_raw_mode()?;
         print!("\x1b[2J\x1b[H");
         io::stdout().flush()?;
@@ -987,6 +1014,18 @@ impl Editor {
                 if is_ctrl_backspace(key) { self.delete_current_line(); return true; }
                 if is_alt_z(key) { self.toggle_word_wrap(); return true; }
                 if is_alt_r(key) { self.toggle_rtl(); return true; }
+                if is_alt_key(key, b's') { self.save_current_tab_as(); return true; }
+                if is_alt_key(key, b'n') { self.create_file_prompt(None); return true; }
+                if is_alt_key(key, b'm') { self.create_folder_prompt(None); return true; }
+                if is_alt_key(key, b'd') { self.delete_tree_path_prompt(true); return true; }
+                if is_alt_key(key, b'u') { self.check_for_update_now(); return true; }
+                if is_alt_key(key, b'a') { self.toggle_autosave(); return true; }
+                if is_alt_key(key, b't') { self.set_indent_tabs(); return true; }
+                if is_alt_key(key, b'i') { self.set_indent_spaces(); return true; }
+                if is_alt_key(key, b'f') { self.format_indent(); return true; }
+                if is_alt_key(key, b'w') { self.show_welcome_command(); return true; }
+                if is_alt_key(key, b'l') { self.command_palette_query("set "); return true; }
+                if is_f2(key) { self.rename_tree_path_prompt(true); return true; }
                 if let Some(n) = tab_number(key) { self.switch_to_tab_number(n); return true; }
                 if is_ctrl_tab(key) { self.cycle_tab(1); return true; }
                 if is_ctrl_shift_tab(key) { self.cycle_tab(-1); return true; }
@@ -4499,8 +4538,14 @@ impl Editor {
     }
 
     fn command_palette(&mut self) {
+        self.command_palette_query("");
+    }
+
+    /// Palette with an initial filter (e.g. `Alt+L` opens it prefilled with
+    /// `set ` so every language is one keypress away).
+    fn command_palette_query(&mut self, initial: &str) {
         let commands = self.command_items();
-        let mut query = String::new();
+        let mut query = initial.to_string();
         let mut selected = 0usize;
         self.message = "Command palette".to_string();
         loop {
@@ -4581,25 +4626,30 @@ impl Editor {
     }
 
     fn command_items(&self) -> Vec<PickerItem> {
+        // Every label carries its shortcut in parantes: direct keys for all
+        // action commands, and the `set <name>` palette query for the 150+
+        // language leaves (one command each would need 150 keys). `Alt+L`
+        // opens this palette prefilled with `set `.
         let defs = [
-            ("Save", "Ctrl+S", "save"),
-            ("Save as", "save current tab to a new path", "save-as"),
-            ("New file", "create file in project", "new-file"),
-            ("New folder", "create folder in project", "new-folder"),
-            ("Rename selected file or folder", "tree/current file", "rename-path"),
-            ("Delete selected file or folder", "asks first", "delete-path"),
-            ("Go to line", "Ctrl+G", "go-line"),
-            ("Go to Start of Line", "Home", "go-line-start"),
-            ("Go to End of Line", "End / Ctrl+E", "go-line-end"),
-            ("Go to Start of File", "Ctrl+Home / Alt+Up", "go-file-top"),
-            ("Go to End of File", "Ctrl+End / Alt+Down", "go-file-bottom"),
-            ("Welcome", "show the welcome dialog", "welcome"),
-            ("Check for update", "check GitHub for a newer release", "check-update"),
-            ("Undo", "Ctrl+Z", "undo"),
-            ("Redo", "Ctrl+Y / Ctrl+Shift+Z", "redo"),
-            ("Select all", "Ctrl+A", "select-all"),
-            ("Find in files", "search project files (Ctrl+Shift+O, %term = case-sensitive)", "project-search"),
-            ("Replace in files", "search & replace across project (Ctrl+Shift+H, %term = case-sensitive)", "replace-in-files"),
+            ("Save (Ctrl+S)", "save current tab", "save"),
+            ("Save as (Alt+S)", "save current tab to a new path", "save-as"),
+            ("New file (Alt+N)", "create file in project", "new-file"),
+            ("New folder (Alt+M)", "create folder in project", "new-folder"),
+            ("Rename (F2)", "rename selected file or folder", "rename-path"),
+            ("Delete (Alt+D)", "delete selected file or folder, asks first", "delete-path"),
+            ("Go to line (Ctrl+G)", "jump to a line number", "go-line"),
+            ("Go to Start of Line (Home)", "caret to first character", "go-line-start"),
+            ("Go to End of Line (End)", "caret past last character", "go-line-end"),
+            ("Go to Start of File (Ctrl+Home)", "first line, Alt+Up also works", "go-file-top"),
+            ("Go to End of File (Ctrl+End)", "last line, Alt+Down also works", "go-file-bottom"),
+            ("Welcome (Alt+W)", "show the welcome dialog", "welcome"),
+            ("Check for update (Alt+U)", "check GitHub for a newer release", "check-update"),
+            ("Undo (Ctrl+Z)", "undo last edit", "undo"),
+            ("Redo (Ctrl+Y)", "redo, Ctrl+Shift+Z also works", "redo"),
+            ("Select all (Ctrl+A)", "select whole file", "select-all"),
+            ("Find in files (Ctrl+Shift+O)", "search project files, %term = case-sensitive", "project-search"),
+            ("Replace in files (Ctrl+Shift+H)", "search and replace across project", "replace-in-files"),
+            ("Set syntax … (Alt+L)", "menu: filter to a language, then Enter", "set-syntax-menu"),
             ("Set syntax PHP", "force current tab to PHP", "set-syntax-php"),
             ("Set syntax Blade", "force current tab to Blade", "set-syntax-blade"),
             ("Set syntax HTML", "force current tab to HTML", "set-syntax-html"),
@@ -4753,20 +4803,38 @@ impl Editor {
             ("Set syntax OpenSCAD", "force current tab to OpenSCAD", "set-syntax-openscad"),
             ("Set syntax Auto", "use file extension again", "set-syntax-auto"),
             ("Set syntax Plain", "punctuation highlight and striped rows", "set-syntax-plain"),
-            ("Find in current file", "Ctrl+F", "find"),
-            ("Replace in current file", "Ctrl+R", "replace"),
-            ("Toggle sidebar", "Ctrl+H", "toggle-tree"),
-            ("Focus tree/editor", "Ctrl+T", "focus-tree"),
-            ("Toggle word wrap", "Alt+Z", "toggle-wrap"),
-            (if self.rtl { "Disable RTL Mode" } else { "Enable RTL Mode" }, "Alt+R", "toggle-rtl"),
-            (if self.autosave { "Disable autosave" } else { "Enable autosave" }, "save open files automatically", "toggle-autosave"),
-            ("Indent with Tabs", "Tab + auto-indent insert tab (all languages)", "indent-tabs"),
-            ("Indent with Spaces (4)", "Tab + auto-indent insert 4 spaces (all languages)", "indent-spaces"),
-            ("Close tab", "Ctrl+D", "close-tab"),
-            ("Keyboard shortcuts", "searchable list (Ctrl+K)", "help"),
-            ("Quit", "Ctrl+Q", "quit"),
+            ("Find in current file (Ctrl+F)", "find dialog, %term = case-sensitive", "find"),
+            ("Replace in current file (Ctrl+R)", "search and replace dialog", "replace"),
+            ("Toggle sidebar (Ctrl+H)", "hide/show tree, tree focus", "toggle-tree"),
+            ("Focus tree/editor (Ctrl+T)", "switch focus", "focus-tree"),
+            ("Toggle word wrap (Alt+Z)", "soft-fold long lines", "toggle-wrap"),
+            ("RTL Mode", "right-align editor text, Alt+R", "toggle-rtl"),
+            ("Autosave", "save open files automatically, Alt+A", "toggle-autosave"),
+            ("Indent with Tabs (Alt+T)", "Tab + auto-indent insert tab, all languages", "indent-tabs"),
+            ("Indent with Spaces, 4 (Alt+I)", "Tab + auto-indent insert 4 spaces, all languages", "indent-spaces"),
+            ("Format selection or file (Alt+F)", "re-indent with Tabs/Spaces setting", "format-indent"),
+            ("Close tab (Ctrl+D)", "close, asks if modified", "close-tab"),
+            ("Keyboard shortcuts (Ctrl+K)", "searchable list", "help"),
+            ("Quit (Ctrl+Q)", "quit, asks if any tab modified", "quit"),
         ];
-        defs.iter().map(|(l, d, a)| PickerItem { label: (*l).to_string(), detail: (*d).to_string(), path: None, line: None, action: Some((*a).to_string()) }).collect()
+        defs.iter().map(|(l, d, a)| {
+            // Dynamic on/off labels plus the `set <name>` filter hint for the
+            // language leaves, so every row shows its keyboard path.
+            let label = if *a == "toggle-rtl" {
+                (if self.rtl { "Disable RTL Mode (Alt+R)" } else { "Enable RTL Mode (Alt+R)" }).to_string()
+            } else if *a == "toggle-autosave" {
+                (if self.autosave { "Disable autosave (Alt+A)" } else { "Enable autosave (Alt+A)" }).to_string()
+            } else if *a != "set-syntax-menu" {
+                if let Some(rest) = a.strip_prefix("set-syntax-") {
+                    format!("{l} (set {rest})")
+                } else {
+                    l.to_string()
+                }
+            } else {
+                l.to_string()
+            };
+            PickerItem { label, detail: (*d).to_string(), path: None, line: None, action: Some((*a).to_string()) }
+        }).collect()
     }
 
     fn filter_command_items(&self, commands: &[PickerItem], query: &str) -> Vec<PickerItem> {
@@ -4795,6 +4863,7 @@ impl Editor {
             "go-file-top" => self.go_to_file_top(false),
             "go-file-bottom" => self.go_to_file_bottom(false),
             "project-search" => self.project_search_prompt(),
+            "set-syntax-menu" => self.command_palette_query("set "),
             "replace-in-files" => self.replace_in_files_prompt(),
             "set-syntax-php" => self.set_current_syntax(Some(SyntaxMode::Php)),
             "set-syntax-blade" => self.set_current_syntax(Some(SyntaxMode::Blade)),
@@ -4958,6 +5027,7 @@ impl Editor {
             "toggle-autosave" => self.toggle_autosave(),
             "indent-tabs" => self.set_indent_tabs(),
             "indent-spaces" => self.set_indent_spaces(),
+            "format-indent" => self.format_indent(),
             "close-tab" => self.close_current_tab(),
             "welcome" => self.show_welcome_command(),
             "check-update" => self.check_for_update_now(),
@@ -5412,6 +5482,46 @@ impl Editor {
         self.message = "Indent: 4 spaces (all languages)".to_string();
     }
 
+    /// Re-indent with the configured Tabs/Spaces unit. Formats the selected
+    /// lines when there is a selection (levels still count from the top of
+    /// the file so nesting stays right), otherwise the whole file. One undo
+    /// entry; the cursor is clamped back onto its line afterwards.
+    fn format_indent(&mut self) {
+        let unit = indent_unit(self.use_spaces);
+        let (start_line, end_line) = match self.selection_range() {
+            Some((a, b)) => (min(a.line, b.line), max(a.line, b.line)),
+            None => (0, self.tab().lines.len().saturating_sub(1)),
+        };
+        let new_lines = reindent_lines(&self.tab().lines, unit);
+        let before = self.tab().cursor;
+        let mut ops = Vec::new();
+        let mut count = 0usize;
+        for ln in start_line..=end_line {
+            if self.tab().lines[ln] != new_lines[ln] {
+                let old = self.tab().lines[ln].clone();
+                let start = Pos { line: ln, col: 0 };
+                let end = Pos { line: ln, col: old.len() };
+                self.apply_delete_range(start, end);
+                self.apply_insert_at(start, &new_lines[ln]);
+                ops.push(TextOp::Delete { pos: start, text: old });
+                ops.push(TextOp::Insert { pos: start, text: new_lines[ln].clone() });
+                count += 1;
+            }
+        }
+        if count > 0 {
+            let cur = self.tab().cursor;
+            let clamped = clamp_char_boundary(&self.tab().lines[cur.line], min(cur.col, self.tab().lines[cur.line].len()));
+            self.tab_mut().cursor = Pos { line: cur.line, col: clamped };
+            let after = self.tab().cursor;
+            self.push_history(HistoryEntry { ops, before, after });
+            self.mark_edited();
+            self.message = format!("Formatted {count} line(s)");
+        } else {
+            self.message = "Already formatted".to_string();
+        }
+        self.clear_selection();
+    }
+
     fn settings_file(&self) -> PathBuf { self.state_dir().join("settings.txt") }
 
     /// Load global toggles (`settings.txt`). Missing/corrupt file keeps the
@@ -5823,8 +5933,7 @@ fn absolute_path(path: &Path, base: Option<&Path>) -> PathBuf {
     out
 }
 
-fn parse_cli_path(raw: &str) -> (String, Option<usize>) {
-    // Returns (path, line). Supports `file:line`, `:line`, and plain paths.
+fn parse_cli_path(raw: &str) -> (String, Option<usize>) {    // Returns (path, line). Supports `file:line`, `:line`, and plain paths.
     // Windows drive `C:\...` is not specially handled (Linux-first editor).
     let t = raw.trim();
     if let Some(rest) = t.strip_prefix(':') {
@@ -5842,6 +5951,52 @@ fn parse_cli_path(raw: &str) -> (String, Option<usize>) {
         }
     }
     (t.to_string(), None)
+}
+
+/// Launch-time option overrides (`az --autosave=1 --indent=spaces file`).
+/// Every field is `None` unless the flag was passed; CLI beats `settings.txt`
+/// and is persisted back to it by `run()`.
+#[derive(Default, Clone, Copy)]
+struct CliFlags {
+    autosave: Option<bool>,
+    spaces: Option<bool>,
+    wrap: Option<bool>,
+    rtl: Option<bool>,
+}
+
+impl CliFlags {
+    fn any(&self) -> bool {
+        self.autosave.is_some() || self.spaces.is_some() || self.wrap.is_some() || self.rtl.is_some()
+    }
+}
+
+/// Split launch args into known `--flags` and positional paths. Unknown
+/// `--flags` are ignored (never mistaken for filenames); `--` ends flag
+/// parsing so `az -- --weird-name` still opens that file.
+fn parse_cli_args(args: &[String]) -> (CliFlags, Vec<String>) {
+    let mut flags = CliFlags::default();
+    let mut positional = Vec::new();
+    let mut rest_is_path = false;
+    for a in args.iter().skip(1) {
+        if rest_is_path {
+            positional.push(a.clone());
+            continue;
+        }
+        match a.as_str() {
+            "--" => rest_is_path = true,
+            "--autosave" | "--autosave=1" | "--autosave=true" | "--autosave=on" | "--as" | "--as=1" => flags.autosave = Some(true),
+            "--no-autosave" | "--autosave=0" | "--autosave=false" | "--autosave=off" | "--as=0" => flags.autosave = Some(false),
+            "--indent=tabs" | "--indent=tab" | "--tabs" => flags.spaces = Some(false),
+            "--indent=spaces" | "--indent=space" | "--indent=4" | "--indent=spaces:4" | "--spaces" => flags.spaces = Some(true),
+            "--wrap" => flags.wrap = Some(true),
+            "--no-wrap" => flags.wrap = Some(false),
+            "--rtl" => flags.rtl = Some(true),
+            "--no-rtl" | "--ltr" => flags.rtl = Some(false),
+            s if s.starts_with("--") => {}
+            _ => positional.push(a.clone()),
+        }
+    }
+    (flags, positional)
 }
 
 fn relative_path(root: &Path, path: &Path) -> String {
@@ -6235,6 +6390,24 @@ fn is_ctrl_shift_o(k: &str) -> bool { k == "\x1b[79;6u" || k == "\x1b[111;6u" }
 fn is_ctrl_shift_h(k: &str) -> bool { k == "\x1b[72;6u" || k == "\x1b[104;6u" }
 fn is_alt_z(k: &str) -> bool { matches!(k, "\x1bz" | "\x1bZ" | "\x1b[90;3u" | "\x1b[122;3u") }
 fn is_alt_r(k: &str) -> bool { matches!(k, "\x1br" | "\x1bR" | "\x1b[82;3u" | "\x1b[114;3u") }
+/// Alt+letter: `Esc`+letter in either case, or Kitty `CSI-u` (`ESC [ code ; 3 u`)
+/// with the letter's codepoint. `letter` is matched case-insensitively.
+fn is_alt_key(k: &str, letter: u8) -> bool {
+    let lo = letter.to_ascii_lowercase();
+    let hi = letter.to_ascii_uppercase();
+    let b = k.as_bytes();
+    if b.len() == 2 && b[0] == 0x1b && (b[1] == lo || b[1] == hi) {
+        return true;
+    }
+    if k.len() > 4 && k.starts_with("\x1b[") && k.ends_with(";3u") {
+        if let Ok(code) = k[2..k.len() - 3].parse::<u8>() {
+            return code == lo || code == hi;
+        }
+    }
+    false
+}
+/// F2: xterm `ESC O Q` or the `ESC [ 12 ~` form.
+fn is_f2(k: &str) -> bool { matches!(k, "\x1bOQ" | "\x1b[12~") }
 /// Shared `%` convention: `%Foo` = case-sensitive, otherwise case-insensitive.
 /// Used by both in-file find and Find in Files so behaviour stays in sync.
 fn parse_search_query(query: &str) -> (String, bool) {
@@ -6393,6 +6566,18 @@ fn shortcut_defs() -> Vec<(&'static str, &'static str)> {
         ("+ / -", "Tree width (tree focus only)"),
         ("Alt+Z", "Toggle word wrap"),
         ("Alt+R", "Enable/disable RTL mode (right-aligns editor text)"),
+        ("Alt+S", "Save as"),
+        ("Alt+N", "New file in project"),
+        ("Alt+M", "New folder in project"),
+        ("F2", "Rename file/folder"),
+        ("Alt+D", "Delete file/folder"),
+        ("Alt+U", "Check for update"),
+        ("Alt+A", "Toggle autosave"),
+        ("Alt+T", "Indent with Tabs"),
+        ("Alt+I", "Indent with Spaces (4)"),
+        ("Alt+F", "Format selection or file"),
+        ("Alt+W", "Welcome dialog"),
+        ("Alt+L", "Set syntax menu"),
         ("Ctrl+N", "New empty tab"),
         ("+ on the tab bar", "New empty tab"),
         ("Ctrl+D", "Close tab (asks if modified)"),
@@ -6904,6 +7089,68 @@ fn parse_settings_text(data: &str) -> (bool, bool) {
 
 fn format_settings_text(autosave: bool, use_spaces: bool) -> String {
     format!("autosave={}\nindent={}\n", if autosave { 1 } else { 0 }, if use_spaces { "spaces" } else { "tabs" })
+}
+
+/// Net `{[(` minus `}])` on one line, ignoring brackets inside
+/// `"`, `'`, `` ` `` strings (with `\` escapes) and anything after a
+/// `//` comment start outside strings. Other comment styles are left in:
+/// a full-line comment is skipped by the caller, an inline `#`/`--`
+/// comment is miscounted only if it holds unbalanced brackets.
+fn bracket_delta(line: &str) -> i32 {
+    let mut depth = 0i32;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if let Some(q) = quote {
+            if escaped { escaped = false; }
+            else if c == '\\' { escaped = true; }
+            else if c == q { quote = None; }
+            continue;
+        }
+        match c {
+            '"' | '\'' | '`' => quote = Some(c),
+            '/' if chars.peek() == Some(&'/') => break,
+            '{' | '[' | '(' => depth += 1,
+            '}' | ']' | ')' => depth -= 1,
+            _ => {}
+        }
+    }
+    depth
+}
+
+/// Re-indent every line: leading `}])/ ` dedents one level first, then the
+/// line is prefixed with `unit` x level. Blank lines become empty. A line
+/// ending in `:` (same rule as auto-indent) adds a level, like `{` does.
+/// Full-line `//`, `#`, `--` comments keep the current level. Heuristic —
+/// continuation lines and switch `case:` bodies may need a manual nudge.
+fn reindent_lines(lines: &[String], unit: &str) -> Vec<String> {
+    let mut out = Vec::with_capacity(lines.len());
+    let mut level = 0i32;
+    for line in lines {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() {
+            out.push(String::new());
+            continue;
+        }
+        let is_comment = trimmed.starts_with("//") || trimmed.starts_with('#') || trimmed.starts_with("--");
+        let eff = if matches!(trimmed.chars().next(), Some('}' | ']' | ')')) {
+            (level - 1).max(0)
+        } else {
+            level
+        };
+        out.push(format!("{}{trimmed}", unit.repeat(eff as usize)));
+        if !is_comment {
+            level += bracket_delta(trimmed);
+            if trimmed.ends_with(':') {
+                level += 1;
+            }
+        }
+        if level < 0 {
+            level = 0;
+        }
+    }
+    out
 }
 
 fn find_in_line(line: &str, needle: &str, offset: usize, ignore_case: bool) -> Option<usize> {
@@ -8101,7 +8348,7 @@ mod tests {
         let ed = Editor::new(vec!["az".into()]);
         let items = ed.command_items();
         assert!(items.iter().any(|i| i.action.as_deref() == Some("check-update")
-            && i.label == "Check for update"));
+            && i.label == "Check for update (Alt+U)"));
     }
 
     #[test]
@@ -8109,14 +8356,133 @@ mod tests {
         let ed = Editor::new(vec!["az".into()]);
         let items = ed.command_items();
         assert!(items.iter().any(|i| i.action.as_deref() == Some("toggle-autosave")
-            && i.label == "Enable autosave"));
+            && i.label == "Enable autosave (Alt+A)"));
         assert!(items.iter().any(|i| i.action.as_deref() == Some("indent-tabs")));
         assert!(items.iter().any(|i| i.action.as_deref() == Some("indent-spaces")));
         let mut on = Editor::new(vec!["az".into()]);
         on.autosave = true;
         let items_on = on.command_items();
         assert!(items_on.iter().any(|i| i.action.as_deref() == Some("toggle-autosave")
-            && i.label == "Disable autosave"));
+            && i.label == "Disable autosave (Alt+A)"));
+    }
+
+    #[test]
+    fn reindent_braces_with_tabs() {
+        let lines = vec![
+            "fn f() {".to_string(),
+            "let x = 1;".to_string(),
+            "if x {".to_string(),
+            "y();".to_string(),
+            "}".to_string(),
+            "}".to_string(),
+        ];
+        assert_eq!(
+            reindent_lines(&lines, "\t"),
+            vec!["fn f() {", "\tlet x = 1;", "\tif x {", "\t\ty();", "\t}", "}"]
+        );
+    }
+
+    #[test]
+    fn reindent_spaces_strings_comments_and_blanks() {
+        let lines = vec![
+            "def f():".to_string(),
+            "s = \"{\";".to_string(),
+            "x = 1; // }".to_string(),
+            "".to_string(),
+            "   ".to_string(),
+            "# comment {".to_string(),
+            "return x".to_string(),
+        ];
+        assert_eq!(
+            reindent_lines(&lines, "    "),
+            vec![
+                "def f():",
+                "    s = \"{\";",
+                "    x = 1; // }",
+                "",
+                "",
+                "    # comment {",
+                "    return x",
+            ]
+        );
+    }
+
+    #[test]
+    fn reindent_never_negative_and_keeps_level() {
+        let lines = vec!["}".to_string(), "x();".to_string()];
+        assert_eq!(reindent_lines(&lines, "\t"), vec!["}", "x();"]);
+    }
+
+    #[test]
+    fn palette_has_format_indent() {
+        let ed = Editor::new(vec!["az".into()]);
+        let items = ed.command_items();
+        assert!(items.iter().any(|i| i.action.as_deref() == Some("format-indent")));
+        assert!(items.iter().any(|i| i.action.as_deref() == Some("set-syntax-menu")));
+    }
+
+    #[test]
+    fn palette_every_row_shows_its_shortcut() {
+        // Each row is `Name (Key)` for actions, `Name (set <name>)` for the
+        // language leaves (all reachable keyboard-only via Alt+L).
+        let ed = Editor::new(vec!["az".into()]);
+        for item in ed.command_items() {
+            assert!(item.action.is_some(), "palette row without action: {}", item.label);
+            assert!(
+                item.label.ends_with(')') && item.label.contains('('),
+                "palette row without shortcut: {}",
+                item.label
+            );
+        }
+    }
+
+    #[test]
+    fn shortcuts_dialog_lists_new_keys() {
+        for want in [
+            "Alt+S", "Alt+N", "Alt+M", "F2", "Alt+D", "Alt+U", "Alt+A",
+            "Alt+T", "Alt+I", "Alt+F", "Alt+W", "Alt+L",
+        ] {
+            assert!(shortcut_defs().iter().any(|(l, _)| *l == want), "missing {want}");
+        }
+    }
+
+    #[test]
+    fn alt_letter_keys() {
+        assert!(is_alt_key("\x1ba", b'a'));
+        assert!(is_alt_key("\x1bA", b'a'));
+        assert!(is_alt_key("\x1b[97;3u", b'a'));
+        assert!(is_alt_key("\x1b[65;3u", b'a'));
+        assert!(!is_alt_key("\x1bb", b'a'));
+        assert!(!is_alt_key("a", b'a'));
+        assert!(!is_alt_key("\x1b", b'a'));
+        assert!(is_f2("\x1bOQ"));
+        assert!(is_f2("\x1b[12~"));
+        assert!(!is_f2("\x1bOR"));
+    }
+
+    #[test]
+    fn cli_flags_parsing() {
+        let args = vec!["az".to_string(), "--autosave=1".to_string(), "--indent=spaces".to_string(), "f.rs:10".to_string()];
+        let (flags, pos) = parse_cli_args(&args);
+        assert_eq!(flags.autosave, Some(true));
+        assert_eq!(flags.spaces, Some(true));
+        assert_eq!(pos, vec!["f.rs:10".to_string()]);
+        let args = vec!["az".to_string(), "--no-autosave".to_string(), "--tabs".to_string(), "--wrap".to_string(), "--rtl".to_string()];
+        let (flags, pos) = parse_cli_args(&args);
+        assert_eq!(flags.autosave, Some(false));
+        assert_eq!(flags.spaces, Some(false));
+        assert_eq!(flags.wrap, Some(true));
+        assert_eq!(flags.rtl, Some(true));
+        assert!(pos.is_empty());
+        // Unknown flags never become filenames; `--` quotes dashy paths.
+        let args = vec!["az".to_string(), "--bogus".to_string(), "--".to_string(), "--weird".to_string()];
+        let (flags, pos) = parse_cli_args(&args);
+        assert!(!flags.any());
+        assert_eq!(pos, vec!["--weird".to_string()]);
+        // Flags ride along in Editor::new without touching the target.
+        let ed = Editor::new(vec!["az".into(), "--as=1".into(), "--indent=tab".into()]);
+        assert_eq!(ed.cli_flags.autosave, Some(true));
+        assert_eq!(ed.cli_flags.spaces, Some(false));
     }
 
     #[test]
@@ -8979,9 +9345,9 @@ mod tests {
         ed.cols = 80;
         ed.rows = 24;
         // Palette offers "Enable RTL Mode" while off, "Disable" while on.
-        assert!(ed.command_items().iter().any(|c| c.label == "Enable RTL Mode" && c.action.as_deref() == Some("toggle-rtl")));
+        assert!(ed.command_items().iter().any(|c| c.label == "Enable RTL Mode (Alt+R)" && c.action.as_deref() == Some("toggle-rtl")));
         ed.toggle_rtl();
-        assert!(ed.command_items().iter().any(|c| c.label == "Disable RTL Mode" && c.action.as_deref() == Some("toggle-rtl")));
+        assert!(ed.command_items().iter().any(|c| c.label == "Disable RTL Mode (Alt+R)" && c.action.as_deref() == Some("toggle-rtl")));
         // RTL mode right-aligns menu text (padding moves to the left).
         let menu = ed.context_menu_string(" Edit ", &["Cut".into()], 0, 0, 10, 6, 20, 6);
         let row = menu.find("1 Cut").expect("item");

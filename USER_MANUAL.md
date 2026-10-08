@@ -1,17 +1,17 @@
-# az 4.5 — User Manual
+# az 4.6 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.5.0 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.6.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.5.0_amd64.deb`, `az-4.5.0-linux-amd64`, `az-4.5.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.6.0_amd64.deb`, `az-4.6.0-linux-amd64`, `az-4.6.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -29,9 +29,15 @@ az project/          # open folder (tree focused, welcome screen)
 az file.php:20       # open file at line 20
 az :20               # open CWD, same as `az .` (line arg ignored for folders)
 az newfile.txt       # non-existent path -> new file tab with that path
+az --autosave --indent=spaces file.php   # launch flags (persisted to settings.txt)
 az -h / --help
 az -V / --version
 ```
+
+Launch flags (all persisted to `settings.txt`, CLI beats the file):
+`--autosave` / `--no-autosave` (`--as=1` / `--as=0`), `--indent=tabs|spaces`
+(`--tabs` / `--spaces`), `--wrap` / `--no-wrap`, `--rtl` / `--no-rtl`.
+Unknown `--flags` are ignored; `--` ends flag parsing (`az -- --weird`).
 
 If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or `Ctrl+O` to quick-open.
 
@@ -82,6 +88,16 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Alt+1`..`Alt+9` (`Esc` then `1..9`) | Switch a tab in the visible window |
 | `Alt+Z` | Toggle word wrap (soft-fold long lines) |
 | `Alt+R` | Enable/disable RTL mode (right-aligns editor text) |
+| `Alt+A` | Enable/disable autosave |
+| `Alt+T` / `Alt+I` | Indent with Tabs / Spaces (4) |
+| `Alt+F` | Format selection or file (re-indent) |
+| `Alt+S` | Save as |
+| `Alt+N` / `Alt+M` | New file / New folder in project |
+| `F2` | Rename selected file or folder |
+| `Alt+D` | Delete selected file or folder (asks) |
+| `Alt+U` | Check for update |
+| `Alt+W` | Welcome dialog |
+| `Alt+L` | Set syntax menu (palette prefilled with `set `) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous open tab |
 | Click tab | Switch tab (inactive tabs shaded lighter) |
 | Middle-click tab | Close tab (asks if modified) |
@@ -139,10 +155,12 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Check for update, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Enable/Disable autosave, Indent with Tabs / Indent with Spaces (4), Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Check for update, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Enable/Disable autosave, Indent with Tabs / Spaces, Format selection or file, Close tab, Keyboard shortcuts, Quit`. Every row shows its shortcut in parantes (`Name (Key)`); the 150+ language rows show their `set <name>` filter instead — `Alt+L` jumps straight there. Type `set php` to force language. `Welcome` opens the welcome dialog again. The same keys are listed in `Ctrl+K`.
 
 ### Autosave & Indent (`Ctrl+P`)
 `Enable autosave` / `Disable autosave` saves every open file that has a path automatically after edits (at most one write per second per file, silent — it never asks for a password and skips files it cannot write). Turning autosave on saves all dirty tabs immediately; quitting with autosave on saves them too. `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab` key and the auto-indent unit for all languages. Both choices persist in `settings.txt` under the state dir (`$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust`). The status bar shows an `autosave` chip while autosave is on, plus a `tabs` / `spaces:4` chip for the indent style.
+
+`Format selection or file` re-indents with the configured Tabs/Spaces unit: the selected lines when there is a selection, otherwise the whole file. One undo entry.
 
 ### Find
 `Ctrl+F` opens the Find dialog for the current file:

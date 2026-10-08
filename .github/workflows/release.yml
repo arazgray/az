@@ -19,12 +19,14 @@ jobs:
       matrix:
         include:
           # Linux x86_64 — native runner, glibc.
-          - os: ubuntu-24.04
+          # Built on 22.04 so the binary runs on 22.04+ (24.04's glibc
+          # 2.39 refuses to load on 22.04's 2.35).
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             arch: amd64
             family: linux
           # Linux ARM64 — native ARM runner.
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             arch: arm64
             family: linux

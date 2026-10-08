@@ -1,10 +1,17 @@
 # az — Changelog
 
-## 4.5
+## 4.6
+
+- **Shortcuts for every palette command.** Every row shows its shortcut in parantes (`Save (Ctrl+S)`); the 150+ language rows show their `set <name>` filter. 12 new bindings: `Alt+S` save as, `Alt+N`/`Alt+M` new file/folder, `F2` rename, `Alt+D` delete, `Alt+U` check for update, `Alt+A` autosave, `Alt+T`/`Alt+I` indent tabs/spaces, `Alt+F` format, `Alt+W` welcome, `Alt+L` syntax menu (palette prefilled with `set `). All listed in `Ctrl+K` and `--help`.
+- **Launch flags.** `az --autosave=1 --indent=spaces` (aliases `--as=1`, `--tabs`/`--spaces`, plus `--wrap`/`--no-wrap`, `--rtl`/`--no-rtl`). CLI beats `settings.txt` and is persisted to it. Unknown `--flags` ignored; `--` ends flag parsing.
+- **Installer verifies `az` runs.** `install.sh` smoke-tests the binary, diagnoses glibc mismatches with the source-build fix, and prints/persists the PATH export when the binary lands outside PATH. Linux release builds moved to Ubuntu 22.04 (glibc 2.35 baseline) so the prebuilt runs on 22.04+.
 
 - **Installer downloads from the GitHub release.** `install.sh` fetches versioned packages from the release assets first (`AZ_RELEASE_TAG` defaults to the short tag, e.g. `4.5.0` → `4.5`) and only falls back to raw `dist/` on `main`.
 - **Autosave toggle.** `Ctrl+P` → `Enable autosave` / `Disable autosave` saves open files automatically after edits (throttled to one write/sec per file, silent, never prompts for a password). Toggling on flushes all dirty tabs; exiting with autosave on saves them too. Persisted in `settings.txt` in the state dir.
 - **Indent style: Tabs or 4 spaces.** `Ctrl+P` → `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab` key and auto-indent unit for all languages. Persisted in `settings.txt`. Status bar shows `tabs` / `spaces:4` plus an `autosave` chip when on.
+- **Format selection or file.** `Ctrl+P` → `Format selection or file` re-indents with the configured Tabs/Spaces unit (selection, else whole file). One undo entry. Heuristic: strings and `//` comments skipped; continuation lines and switch `case:` may need a nudge.
+
+## 4.4
 
 - **Check for update command.** `Ctrl+P` → `Check for update` runs the startup update check on demand (an explicit request beats the `AZ_NO_UPDATE_CHECK` opt-out). Shows the update dialog when a newer release exists, otherwise a status note.
 

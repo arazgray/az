@@ -197,6 +197,7 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 
 * 400-step undo / redo
 * Automatic indentation (Tabs or 4 spaces, all languages)
+* Format selection or file (re-indent, command palette)
 * Autosave toggle (command palette)
 * Automatic bracket and tag closing
 * Selection wrapping with brackets and quotes
@@ -269,6 +270,11 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 | Switch Tabs        | `Alt+1–9`            | Quit             | `Ctrl+Q`       |
 | Focus Project Tree | `Ctrl+T`             | Toggle Tree      | `Ctrl+H`       |
 | Word Wrap          | `Alt+Z`              | RTL Mode         | `Alt+R`        |
+| Autosave           | `Alt+A`              | Format           | `Alt+F`        |
+| Indent Tabs/Spaces | `Alt+T` / `Alt+I`    | Syntax Menu      | `Alt+L`        |
+| Save As            | `Alt+S`              | New File/Folder  | `Alt+N`/`Alt+M`|
+| Rename             | `F2`                 | Delete File      | `Alt+D`        |
+| Welcome            | `Alt+W`              | Check Update     | `Alt+U`        |
 | Adjust Tree Width  | `+` / `-`            |                  |                |
 
 ---
@@ -441,6 +447,39 @@ Ctrl+P → set [Language]
 
 ---
 
+## What's New in 4.6
+
+### Shortcuts for every palette command
+
+Every command-palette row now shows its keyboard shortcut in parantes:
+`Save (Ctrl+S)`, `Format selection or file (Alt+F)`, and so on. Twelve new
+bindings cover the previously key-less commands — `Alt+S` save as, `Alt+N` /
+`Alt+M` new file/folder, `F2` rename, `Alt+D` delete, `Alt+U` check for update,
+`Alt+A` autosave, `Alt+T` / `Alt+I` indent tabs/spaces, `Alt+F` format, `Alt+W`
+welcome, `Alt+L` syntax menu (palette prefilled with `set `). The 150+
+language rows show their `set <name>` filter instead. All keys are listed in
+`Ctrl+K`, `--help`, and the manual.
+
+### Launch flags
+
+`az --autosave=1 --indent=spaces file` (also `--as=1`, `--tabs`/`--spaces`,
+`--wrap`/`--no-wrap`, `--rtl`/`--no-rtl`). CLI beats `settings.txt` and is
+persisted back to it. Unknown `--flags` are ignored; `--` ends flag parsing.
+
+### Installer verifies `az` runs
+
+`install.sh` now smoke-tests the installed binary (`az --version`). A glibc
+mismatch (prebuilt vs old distro) prints the source-build fix instead of a
+cryptic linker error; a binary outside PATH prints the exact `export` for the
+same terminal and appends it to `~/.bashrc`/`~/.zshrc`. Linux release builds
+moved to Ubuntu 22.04 so the prebuilt runs on 22.04+.
+
+**4.6 test suite:** 86 tests, with 85 executed and 1 Wayland roundtrip test ignored.
+
+See the [Changelog](CHANGELOG.md) for previous releases.
+
+---
+
 ## What's New in 4.5
 
 ### Autosave toggle
@@ -456,6 +495,13 @@ the status bar shows an `autosave` chip while it is on.
 `Ctrl+P` → `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab`
 key and the auto-indent unit for all languages. The choice persists in
 `settings.txt`, and the status bar shows `tabs` or `spaces:4`.
+
+### Format selection or file
+
+`Ctrl+P` → `Format selection or file` re-indents with the configured
+Tabs/Spaces unit: the selected lines when there is a selection, otherwise the
+whole file. One undo entry. Bracket-aware (strings and `//` comments skipped);
+continuation lines and switch `case:` bodies may need a manual nudge.
 
 **4.5 test suite:** 78 tests, with 77 executed and 1 Wayland roundtrip test ignored.
 

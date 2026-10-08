@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-# az 4.5.0 — prebuilt package installer.
+# az 4.6.0 — prebuilt package installer.
 # Detects OS + CPU arch and installs the ready package instead of building:
 #   Debian/Ubuntu/Mint/Pop!_OS -> dist/az_<ver>_<debarch>.deb
 #   Fedora/RHEL/openSUSE       -> dist/az-<ver>-1.<rpmarch>.rpm
@@ -9,7 +9,7 @@ set -eu
 #   macOS (Intel + Apple Silicon) -> dist/az-<ver>-macos-<arch>.tar.gz
 #   Windows (x86_64 + ARM64)   -> dist/az-<ver>-windows-<arch>.exe
 # To build from source instead, run ./compile-and-install.sh.
-AZ_VERSION="4.5.0"
+AZ_VERSION="4.6.0"
 REPO_RAW="${AZ_REPO_URL_RAW:-https://raw.githubusercontent.com/arazgray/az/refs/heads/main}"
 # Release tag carrying this version's packages. Tags are usually short
 # ("4.4.0" -> "4.4"); override with AZ_RELEASE_TAG when they are not.
@@ -17,6 +17,9 @@ RELEASE_TAG="${AZ_RELEASE_TAG:-${AZ_VERSION%.0}}"
 RELEASE_BASE="https://github.com/arazgray/az/releases/download/${RELEASE_TAG}"
 BIN_DIR="${AZ_BIN_DIR:-$HOME/.local/bin}"
 TMP_DIR=""
+# Full path of the installed binary (set by each success path, used by
+# finish_usable to verify `az` resolves and runs in this terminal).
+INSTALLED_BIN=""
 
 # Tokyo Night, same blues as the welcome dialog. Off when stdout is not a
 # terminal, TERM=dumb, or NO_COLOR is set (https://no-color.org/).
@@ -197,6 +200,7 @@ install_windows() {
   [ -n "$ico_src" ] && cp "$ico_src" "$dest_dir/az-icon.ico" 2>/dev/null || true
   [ -n "$png_src" ] && [ -f "$png_src" ] && cp "$png_src" "$dest_dir/logo.png" 2>/dev/null || true
   ok "Installed $dest_exe"
+  INSTALLED_BIN="$dest_exe"
   info "Icons: $dest_dir/az-icon.ico + $dest_dir/logo.png (from logo.png)"
   info "Add $dest_dir to PATH if 'az' is not found, then run: az --version"
 }
@@ -249,6 +253,7 @@ install_macos() {
   fi
   install_tarball_to_bindir "$tar_src" "$dest" "macos"
   ok "Installed $dest/az"
+  INSTALLED_BIN="$dest/az"
   case ":$PATH:" in
     *":$dest:"*) ;;
     *) info "Add $dest to PATH: export PATH=\"$dest:\$PATH\" (or: brew --prefix + ln -s)" ;;
@@ -348,10 +353,10 @@ install_linux() {
   # 1) Native .deb path (Debian/Ubuntu/Mint/Pop!_OS/...).
   if [ -n "$deb_src" ] && command -v dpkg-deb >/dev/null 2>&1; then
     if [ "$(id -u)" -eq 0 ]; then
-      dpkg -i "$deb_src" && ok "Installed $deb_src via dpkg." && exit 0
+      if dpkg -i "$deb_src"; then ok "Installed $deb_src via dpkg."; INSTALLED_BIN="/usr/bin/az"; return 0; fi
       err "dpkg failed, falling back to binary install."
     elif command -v sudo >/dev/null 2>&1; then
-      if sudo dpkg -i "$deb_src"; then ok "Installed $deb_src via sudo dpkg."; exit 0; fi
+      if sudo dpkg -i "$deb_src"; then ok "Installed $deb_src via sudo dpkg."; INSTALLED_BIN="/usr/bin/az"; return 0; fi
       err "sudo dpkg failed, falling back to binary install."
     else
       info "No root/sudo; extracting binary to $BIN_DIR without system install."
@@ -359,18 +364,19 @@ install_linux() {
       dpkg-deb -x "$deb_src" "$TMPX"
       install_linux_binary_fallback "$TMPX/usr/bin/az"
       rm -rf "$TMPX"
-      exit 0
+      INSTALLED_BIN="$BIN_DIR/az"
+      return 0
     fi
   fi
   # 2) Native .rpm path (Fedora/RHEL/CentOS/openSUSE/...).
   if [ -n "$rpm_src" ] && command -v rpm >/dev/null 2>&1; then
     if [ "$(id -u)" -eq 0 ]; then
-      if rpm -i "$rpm_src"; then ok "Installed $rpm_src via rpm."; exit 0; fi
+      if rpm -i "$rpm_src"; then ok "Installed $rpm_src via rpm."; INSTALLED_BIN="/usr/bin/az"; return 0; fi
       err "rpm failed, falling back to binary install."
     elif command -v sudo >/dev/null 2>&1; then
-      if sudo rpm -i "$rpm_src"; then ok "Installed $rpm_src via sudo rpm."; exit 0; fi
-      if sudo dnf install -y "$rpm_src"; then ok "Installed $rpm_src via sudo dnf."; exit 0; fi
-      if sudo zypper --non-interactive install "$rpm_src"; then ok "Installed via sudo zypper."; exit 0; fi
+      if sudo rpm -i "$rpm_src"; then ok "Installed $rpm_src via sudo rpm."; INSTALLED_BIN="/usr/bin/az"; return 0; fi
+      if sudo dnf install -y "$rpm_src"; then ok "Installed $rpm_src via sudo dnf."; INSTALLED_BIN="/usr/bin/az"; return 0; fi
+      if sudo zypper --non-interactive install "$rpm_src"; then ok "Installed via sudo zypper."; INSTALLED_BIN="/usr/bin/az"; return 0; fi
       err "sudo rpm/dnf/zypper failed, falling back to binary install."
     else
       info "No root/sudo; installing tarball-equivalent binary to $BIN_DIR."
@@ -402,7 +408,8 @@ EOF
       sudo cp "$BIN_DIR/az" /usr/local/bin/az && sudo chmod 755 /usr/local/bin/az && info "Also installed /usr/local/bin/az for sudo." || true
     fi
     ok "Installed $BIN_DIR/az (from tarball)"
-    exit 0
+    INSTALLED_BIN="$BIN_DIR/az"
+    return 0
   fi
   # Fallback: raw binary (deb missing or dpkg missing/failed).
   if [ -z "$bin_src" ] && [ -n "$deb_src" ] && command -v dpkg-deb >/dev/null 2>&1; then
@@ -412,10 +419,58 @@ EOF
   fi
   if [ -n "$bin_src" ]; then
     install_linux_binary_fallback "$bin_src"
-    exit 0
+    INSTALLED_BIN="$BIN_DIR/az"
+    return 0
   fi
   err "No package tool and no binary available. Run ./compile-and-install.sh instead."
   exit 1
+}
+
+# A piped script runs in a child shell, so it cannot export PATH into the
+# caller's terminal. Verify `az` resolves AND starts; otherwise print the
+# exact same-terminal fix (plus a persistent rc entry when it is easy).
+finish_usable() {
+  hash -r 2>/dev/null || true
+  if command -v az >/dev/null 2>&1; then
+    if az --version >/dev/null 2>&1; then
+      ok "Install complete. This terminal is ready: $(az --version)"
+      return 0
+    fi
+    err "'az' is on PATH but does not start on this machine."
+    err "Usual cause: the prebuilt needs a newer glibc than this OS ships"
+    err "(e.g. Ubuntu 22.04 running a binary built on 24.04)."
+    err "Fix: build from source on this machine instead:"
+    err "  curl -fsSL $REPO_RAW/compile-and-install.sh | sh"
+    return 1
+  fi
+  bindir=""
+  case "$INSTALLED_BIN" in
+    */*) bindir="$(dirname "$INSTALLED_BIN")" ;;
+  esac
+  if [ -n "$bindir" ]; then
+    case ":$PATH:" in
+      *":$bindir:"*)
+        info "'$bindir' is on PATH but 'az' still not found; refresh with: hash -r"
+        ;;
+      *)
+        err "'az' is at $INSTALLED_BIN, which is not on PATH in this terminal."
+        info "Use it right now with: export PATH=\"$bindir:\$PATH\"; hash -r"
+        for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+          [ -f "$rc" ] || continue
+          if grep -F "$bindir" "$rc" >/dev/null 2>&1; then
+            info "Already present in $rc."
+          else
+            printf '\n# az editor (added by install.sh)\nexport PATH="%s:$PATH"\n' "$bindir" >> "$rc" \
+              && info "Added to $rc for future terminals."
+          fi
+        done
+        info "Then run the export above, or open a new terminal."
+        ;;
+    esac
+  else
+    err "Install finished but no 'az' binary was produced."
+  fi
+  ok "Install complete."
 }
 
 print_banner
@@ -433,4 +488,4 @@ case "$OS" in
     fi
     ;;
 esac
-ok "Install complete."
+finish_usable
