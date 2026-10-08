@@ -1,15 +1,15 @@
 pkgbase = az-bin
 	pkgdesc = A fast, small & sane terminal text editor
-	pkgver = 4.2.0
+	pkgver = 4.2.1
 	pkgrel = 1
 	url = https://github.com/arazgray/az
 	arch = x86_64
 	license = custom:WTFPL
 	provides = az
 	conflicts = az
-	source = az-4.2.0-linux-amd64::https://github.com/arazgray/az/releases/download/4.2/az-4.2.0-linux-amd64
-	sha256sums = FILL-IN-AFTER-4.2-RELEASE
-	source = logo.png::https://raw.githubusercontent.com/arazgray/az/refs/tags/4.2/logo.png
+	source = az-4.2.1-linux-amd64::https://github.com/arazgray/az/releases/download/4.2.1/az-4.2.1-linux-amd64
+	sha256sums = FILL-IN-AFTER-4.2.1-RELEASE
+	source = logo.png::https://raw.githubusercontent.com/arazgray/az/refs/tags/4.2.1/logo.png
 	sha256sums = 0e253788e75d2c0bc1700e046f4f1e3ea7d65abdb67014a7cfb5dd4856840d81
 
 pkgname = az-bin

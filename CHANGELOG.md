@@ -1,5 +1,9 @@
 # az — Changelog
 
+## 4.2.1
+
+- **Release pipeline fixes (no editor changes).** Windows binaries are now named per architecture before upload (previously both jobs overwrote a single `az.exe` and one arch was lost), artifact uploads and the publish filter use version-precise globs so stale packages can never leak into a release, and Linux jobs install `rpmbuild` so `.rpm`s are actually built.
+
 ## 4.2
 
 - **One-click update and restart.** The startup update notice is now a real choice (`Update and restart` / `Later`) instead of a command to retype. Updating runs the installer with the terminal restored, then shows `Updated <old> → <new>` with `Restart now` / `Stay in editor`. Restart replaces the process in place and the saved session restores tabs.

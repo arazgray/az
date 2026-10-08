@@ -3,7 +3,7 @@
 # Arch-independent source build lives in release tarballs; this -bin
 # package installs the official prebuilt binary instead (no Rust needed).
 pkgname=az-bin
-pkgver=4.2.0
+pkgver=4.2.1
 pkgrel=1
 pkgdesc='A fast, small & sane terminal text editor'
 arch=('x86_64')
@@ -11,13 +11,13 @@ url='https://github.com/arazgray/az'
 license=('custom:WTFPL')
 provides=('az')
 conflicts=('az')
-# Release tags are short ('4.0'); file names carry the full Cargo version.
-_tag="${pkgver%.*}"
+# Patch tags carry the full version, so pin it instead of deriving it.
+_tag="4.2.1"
 source=("az-$pkgver-linux-amd64::https://github.com/arazgray/az/releases/download/$_tag/az-$pkgver-linux-amd64"
         "logo.png::https://raw.githubusercontent.com/arazgray/az/refs/tags/$_tag/logo.png")
 sha256sums=('FILL-IN-AFTER-4.1-RELEASE'
             '0e253788e75d2c0bc1700e046f4f1e3ea7d65abdb67014a7cfb5dd4856840d81')
-# NOTE: first sum is the 4.2.0 linux-amd64 binary — refresh with `updpkgsums`
+# NOTE: first sum is the 4.2.1 linux-amd64 binary — refresh with `updpkgsums`
 # once CI publishes it (logo.png is unchanged, so its sum still holds).
 # aarch64 (Apple Silicon runners now publish it — uncomment after the first
 # multi-arch release that ships az-<ver>-linux-arm64, then add its sums):
