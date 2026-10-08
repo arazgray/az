@@ -140,16 +140,18 @@ jobs:
         run: |
           cd artifacts
           ls -la
-          sha256sum az-*.tar.gz az_*.deb az-*.rpm az.exe 2>/dev/null > SHA256SUMS.txt || true
+          # Uploaded artifacts keep their subdirectories (dist/*.deb lands
+          # in artifacts/dist/), so collect by basename from any depth.
+          find . -type f \( -name 'az-*.tar.gz' -o -name 'az_*.deb' -o -name 'az-*.rpm' -o -name 'az.exe' \) -execdir sha256sum {} + > SHA256SUMS.txt || true
           cat SHA256SUMS.txt || true
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/az-*.tar.gz
-            artifacts/az_*.deb
-            artifacts/az-*.rpm
-            artifacts/az.exe
+            artifacts/**/az-*.tar.gz
+            artifacts/**/az_*.deb
+            artifacts/**/az-*.rpm
+            artifacts/**/az.exe
             artifacts/SHA256SUMS.txt
           generate_release_notes: true
