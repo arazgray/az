@@ -1,10 +1,10 @@
 # az — Changelog
 
-## Unreleased
+## 4.5
 
-- **Installer downloads from the GitHub release.** `install.sh` fetches versioned packages from the release assets first (`AZ_RELEASE_TAG` defaults to the short tag, e.g. `4.3.0` → `4.3`) and only falls back to raw `dist/` on `main`. Previously every download 404'd whenever `dist/` hadn't been refreshed for the new version yet.
-
-## 4.4
+- **Installer downloads from the GitHub release.** `install.sh` fetches versioned packages from the release assets first (`AZ_RELEASE_TAG` defaults to the short tag, e.g. `4.5.0` → `4.5`) and only falls back to raw `dist/` on `main`.
+- **Autosave toggle.** `Ctrl+P` → `Enable autosave` / `Disable autosave` saves open files automatically after edits (throttled to one write/sec per file, silent, never prompts for a password). Toggling on flushes all dirty tabs; exiting with autosave on saves them too. Persisted in `settings.txt` in the state dir.
+- **Indent style: Tabs or 4 spaces.** `Ctrl+P` → `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab` key and auto-indent unit for all languages. Persisted in `settings.txt`. Status bar shows `tabs` / `spaces:4` plus an `autosave` chip when on.
 
 - **Check for update command.** `Ctrl+P` → `Check for update` runs the startup update check on demand (an explicit request beats the `AZ_NO_UPDATE_CHECK` opt-out). Shows the update dialog when a newer release exists, otherwise a status note.
 

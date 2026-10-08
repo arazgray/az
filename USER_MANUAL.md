@@ -1,17 +1,17 @@
-# az 4.4 — User Manual
+# az 4.5 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.4.0 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.5.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.4.0_amd64.deb`, `az-4.4.0-linux-amd64`, `az-4.4.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.5.0_amd64.deb`, `az-4.5.0-linux-amd64`, `az-4.5.0-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -51,7 +51,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 - Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.). The selected row is a highlight. The blinking caret is only in the editor.
 - Gutter: line numbers, min width 4.
-- Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan), `wrap` (green, only when word wrap is on), `rtl` (yellow, only when RTL is on) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the `rtl`/`wrap`/tree chips, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
+- Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan), `wrap` (green, only when word wrap is on), `rtl` (yellow, only when RTL is on), `autosave` (green, only when autosave is on), `tabs` / `spaces:4` (cyan, indent style) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the `rtl`/`wrap`/tree chips, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
 - Word wrap (`Alt+Z`, palette `Toggle word wrap`, editor right-click): soft-folds long lines onto the next screen row instead of scrolling horizontally. Continuation rows show a blank gutter. The horizontal scrollbar hides while wrap is on and `col_offset` stays at 0. `Up/Down` still move by file line. Status shows a `wrap` chip.
 - Direction (`Alt+R`, palette `Enable RTL Mode` / `Disable RTL Mode`, editor right-click): switches the editor between LTR and RTL. RTL right-aligns each line (each wrapped segment) inside an RTL isolate (`RLI…PDI`) and mirrors the caret and click mapping so logical start sits on the right. The context menu text is right-aligned too. The tree, gutter, dialogs, and row framing stay LTR. Status shows an `rtl` chip.
 
@@ -139,7 +139,10 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Check for update, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Check for update, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Enable/Disable autosave, Indent with Tabs / Indent with Spaces (4), Close tab, Keyboard shortcuts, Quit`. Type `set php` to force language. `Welcome` opens the welcome dialog again.
+
+### Autosave & Indent (`Ctrl+P`)
+`Enable autosave` / `Disable autosave` saves every open file that has a path automatically after edits (at most one write per second per file, silent — it never asks for a password and skips files it cannot write). Turning autosave on saves all dirty tabs immediately; quitting with autosave on saves them too. `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab` key and the auto-indent unit for all languages. Both choices persist in `settings.txt` under the state dir (`$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust`). The status bar shows an `autosave` chip while autosave is on, plus a `tabs` / `spaces:4` chip for the indent style.
 
 ### Find
 `Ctrl+F` opens the Find dialog for the current file:

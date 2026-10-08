@@ -70,13 +70,13 @@ right one for your OS + CPU.
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i az_4.4.0_amd64.deb
+sudo dpkg -i az_4.5.0_amd64.deb
 ```
 
 ARM (Raspberry Pi, Ampere, AWS Graviton):
 
 ```sh
-sudo dpkg -i az_4.4.0_arm64.deb
+sudo dpkg -i az_4.5.0_arm64.deb
 ```
 
 ### Arch Linux (AUR)
@@ -94,17 +94,17 @@ account — steps are in `dist/aur/README.md`.
 
 ```sh
 # Fedora / RHEL / CentOS:
-sudo dnf install ./az-4.4.0-1.x86_64.rpm
+sudo dnf install ./az-4.5.0-1.x86_64.rpm
 # or, without a network solver:
-sudo rpm -i az-4.4.0-1.x86_64.rpm
+sudo rpm -i az-4.5.0-1.x86_64.rpm
 # openSUSE:
-sudo zypper install ./az-4.4.0-1.x86_64.rpm
+sudo zypper install ./az-4.5.0-1.x86_64.rpm
 ```
 
 ### Arch / Alpine / other Linux (generic tarball)
 
 ```sh
-tar -xzf az-4.4.0-linux-amd64.tar.gz
+tar -xzf az-4.5.0-linux-amd64.tar.gz
 sudo install -m755 az /usr/local/bin/az
 ```
 
@@ -117,8 +117,8 @@ brew install arazgray/tap/az
 Or manually from the release tarball:
 
 ```sh
-tar -xzf az-4.4.0-macos-arm64.tar.gz   # Apple Silicon
-# tar -xzf az-4.4.0-macos-amd64.tar.gz # Intel
+tar -xzf az-4.5.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.5.0-macos-amd64.tar.gz # Intel
 mkdir -p ~/.local/bin
 install -m755 az ~/.local/bin/az
 ```
@@ -196,7 +196,8 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 ### Editing
 
 * 400-step undo / redo
-* Automatic indentation
+* Automatic indentation (Tabs or 4 spaces, all languages)
+* Autosave toggle (command palette)
 * Automatic bracket and tag closing
 * Selection wrapping with brackets and quotes
 * Whole-line deletion
@@ -437,6 +438,28 @@ Change the active language through the command palette:
 ```text
 Ctrl+P → set [Language]
 ```
+
+---
+
+## What's New in 4.5
+
+### Autosave toggle
+
+`Ctrl+P` → `Enable autosave` saves open files automatically after edits
+(throttled to one write per second per file, silent, never asks for a
+password). Turning it on flushes all dirty tabs; quitting with autosave on
+saves them too. The choice persists in `settings.txt` in the state dir, and
+the status bar shows an `autosave` chip while it is on.
+
+### Indent style: Tabs or 4 spaces
+
+`Ctrl+P` → `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab`
+key and the auto-indent unit for all languages. The choice persists in
+`settings.txt`, and the status bar shows `tabs` or `spaces:4`.
+
+**4.5 test suite:** 78 tests, with 77 executed and 1 Wayland roundtrip test ignored.
+
+See the [Changelog](CHANGELOG.md) for previous releases.
 
 ---
 

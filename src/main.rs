@@ -443,6 +443,14 @@ struct Editor {
     /// Right-to-left editor direction. Text is right-aligned inside an RTL
     /// isolate (`RLI...PDI`) and the caret/click mapping is mirrored.
     rtl: bool,
+    /// Autosave: when true, open files with a path save to disk automatically
+    /// after edits (throttled) instead of only on `Ctrl+S`.
+    autosave: bool,
+    /// Indent style for `Tab` + auto-indent, all languages. `false` = `\t`,
+    /// `true` = 4 spaces.
+    use_spaces: bool,
+    /// Last autosave write per file path (throttles one write/sec per file).
+    last_autosave_write: HashMap<String, Instant>,
 }
 
 fn main() {
@@ -623,11 +631,15 @@ impl Editor {
             follow_tree: true,
             word_wrap: false,
             rtl: false,
+            autosave: false,
+            use_spaces: false,
+            last_autosave_write: HashMap::new(),
         }
     }
 
     fn run(&mut self) -> io::Result<()> {
         self.try_restore_session();
+        self.load_settings();
         self.enable_raw_mode()?;
         print!("\x1b[2J\x1b[H");
         io::stdout().flush()?;
@@ -690,6 +702,7 @@ impl Editor {
     }
 
     fn cleanup(&mut self) -> io::Result<()> {
+        self.autosave_all();
         self.save_session();
         print!("\x1b[?1002l\x1b[?1006l\x1b[?1000l\x1b[?2004l\x1b[0m\x1b[?25h\x1b[?1049l\r\n");
         io::stdout().flush()?;
@@ -1682,12 +1695,21 @@ impl Editor {
                         self.refresh_autocomplete(false);
                         return;
                     }
-                    self.insert_text(key);
+                    if key == "\t" {
+                        self.insert_text(self.indent_text());
+                    } else {
+                        self.insert_text(key);
+                    }
                     if key == ">" { self.auto_close_html_tag(); }
                     if key != "\t" { self.refresh_autocomplete(false); }
                 }
             }
         }
+    }
+
+    /// Insert unit for `Tab` and auto-indent levels: `\t` or 4 spaces.
+    fn indent_text(&self) -> &'static str {
+        indent_unit(self.use_spaces)
     }
 
     fn render(&mut self) -> io::Result<()> {
@@ -2151,6 +2173,10 @@ impl Editor {
         if self.rtl {
             chips.push((" rtl ".to_string(), BG_DARK, YELLOW, true));
         }
+        if self.autosave {
+            chips.push((" autosave ".to_string(), BG_DARK, GREEN, true));
+        }
+        chips.push(((if self.use_spaces { " spaces:4 " } else { " tabs " }).to_string(), BG_DARK, CYAN, false));
         let base = ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false);
         // Keep a slice of the bar for the message. Drop the tree chip, then the
         // syntax chip, when a narrow terminal would otherwise hide "Saved" / "Copied".
@@ -2806,6 +2832,7 @@ impl Editor {
         tab.modified = buffer_hash(&tab.lines) != tab.saved_hash;
         self.line_width_cache = None;
         self.write_recovery_for_current_tab();
+        self.maybe_autosave();
     }
 
     fn push_history(&mut self, entry: HistoryEntry) {
@@ -2839,7 +2866,7 @@ impl Editor {
         let line = self.tab().lines[cursor.line].clone();
         let before = &line[..cursor.col];
         let after = &line[cursor.col..];
-        let indent = indent_for_newline(before, after);
+        let indent = indent_for_newline(before, after, indent_unit(self.use_spaces));
         self.insert_text(&format!("\n{indent}"));
     }
 
@@ -4732,6 +4759,9 @@ impl Editor {
             ("Focus tree/editor", "Ctrl+T", "focus-tree"),
             ("Toggle word wrap", "Alt+Z", "toggle-wrap"),
             (if self.rtl { "Disable RTL Mode" } else { "Enable RTL Mode" }, "Alt+R", "toggle-rtl"),
+            (if self.autosave { "Disable autosave" } else { "Enable autosave" }, "save open files automatically", "toggle-autosave"),
+            ("Indent with Tabs", "Tab + auto-indent insert tab (all languages)", "indent-tabs"),
+            ("Indent with Spaces (4)", "Tab + auto-indent insert 4 spaces (all languages)", "indent-spaces"),
             ("Close tab", "Ctrl+D", "close-tab"),
             ("Keyboard shortcuts", "searchable list (Ctrl+K)", "help"),
             ("Quit", "Ctrl+Q", "quit"),
@@ -4925,6 +4955,9 @@ impl Editor {
             "focus-tree" => self.toggle_tree_focus(),
             "toggle-wrap" => self.toggle_word_wrap(),
             "toggle-rtl" => self.toggle_rtl(),
+            "toggle-autosave" => self.toggle_autosave(),
+            "indent-tabs" => self.set_indent_tabs(),
+            "indent-spaces" => self.set_indent_spaces(),
             "close-tab" => self.close_current_tab(),
             "welcome" => self.show_welcome_command(),
             "check-update" => self.check_for_update_now(),
@@ -5356,6 +5389,85 @@ impl Editor {
         self.message = if self.rtl { "RTL mode enabled (Alt+R)".to_string() } else { "RTL mode disabled (Alt+R)".to_string() };
     }
 
+    fn toggle_autosave(&mut self) {
+        self.autosave = !self.autosave;
+        self.save_settings();
+        if self.autosave {
+            self.autosave_all();
+            self.message = "Autosave on — open files save automatically".to_string();
+        } else {
+            self.message = "Autosave off".to_string();
+        }
+    }
+
+    fn set_indent_tabs(&mut self) {
+        self.use_spaces = false;
+        self.save_settings();
+        self.message = "Indent: Tabs (all languages)".to_string();
+    }
+
+    fn set_indent_spaces(&mut self) {
+        self.use_spaces = true;
+        self.save_settings();
+        self.message = "Indent: 4 spaces (all languages)".to_string();
+    }
+
+    fn settings_file(&self) -> PathBuf { self.state_dir().join("settings.txt") }
+
+    /// Load global toggles (`settings.txt`). Missing/corrupt file keeps the
+    /// defaults (autosave off, tabs). Called from `run()`, not `new()`, so
+    /// tests stay free of filesystem side-effects.
+    fn load_settings(&mut self) {
+        let Ok(data) = fs::read_to_string(self.settings_file()) else { return; };
+        let (autosave, use_spaces) = parse_settings_text(&data);
+        self.autosave = autosave;
+        self.use_spaces = use_spaces;
+    }
+
+    fn save_settings(&self) {
+        let _ = atomic_write_file(&self.settings_file(), format_settings_text(self.autosave, self.use_spaces).as_bytes());
+    }
+
+    /// Autosave the current tab after an edit (at most one write/sec per
+    /// file). Silent and best-effort: failures keep the buffer modified and
+    /// the recovery file already written. Never prompts (no sudo flow here).
+    fn maybe_autosave(&mut self) {
+        if !self.autosave || self.tab().path.is_none() || !self.tab().modified { return; }
+        let key = self.tab().path.as_ref().unwrap().to_string_lossy().to_string();
+        if self.last_autosave_write.get(&key).map(|t| t.elapsed() < Duration::from_secs(1)).unwrap_or(false) { return; }
+        self.last_autosave_write.insert(key, Instant::now());
+        self.autosave_write_current();
+    }
+
+    fn autosave_write_current(&mut self) {
+        let Some(path) = self.tab().path.clone() else { return; };
+        if !self.tab().modified { return; }
+        let text = self.tab().text();
+        if atomic_write_file(&path, text.as_bytes()).is_ok() {
+            self.finish_save(&path, false);
+        }
+    }
+
+    /// Save every modified tab that has a path. Used when autosave is
+    /// enabled: on toggle-on and on exit. Skips files that fail (e.g.
+    /// permission denied) without prompting.
+    fn autosave_all(&mut self) {
+        if !self.autosave { return; }
+        for i in 0..self.tabs.len() {
+            if self.tabs[i].path.is_none() || !self.tabs[i].modified { continue; }
+            let path = self.tabs[i].path.clone().unwrap();
+            let text = self.tabs[i].text();
+            if atomic_write_file(&path, text.as_bytes()).is_ok() {
+                let rev = self.tabs[i].revision;
+                self.tabs[i].saved_revision = rev;
+                self.tabs[i].saved_hash = buffer_hash(&self.tabs[i].lines);
+                self.tabs[i].modified = false;
+                self.delete_recovery_file(&path);
+            }
+        }
+        self.needs_tree_refresh = true;
+    }
+
     fn toggle_tree_focus(&mut self) {
         if self.sidebar_hidden {
             self.sidebar_hidden = false;
@@ -5411,7 +5523,7 @@ impl Editor {
                 return true;
             }
             if self.refresh_autocomplete(true) { return true; }
-            self.insert_text("\t");
+            self.insert_text(self.indent_text());
             return true;
         }
         if !self.autocomplete_visible { return false; }
@@ -6757,13 +6869,41 @@ fn end_pos_for_text(start: Pos, text: &str) -> Pos {
     if parts.len() == 1 { Pos { line: start.line, col: start.col + text.len() } } else { Pos { line: start.line + parts.len() - 1, col: parts.last().unwrap().len() } }
 }
 
-fn indent_for_newline(before: &str, after: &str) -> String {
+/// Indent unit for `Tab` and new auto-indent levels: `\t` or 4 spaces.
+fn indent_unit(use_spaces: bool) -> &'static str {
+    if use_spaces { "    " } else { "\t" }
+}
+
+fn indent_for_newline(before: &str, after: &str, unit: &str) -> String {
     let mut indent: String = before.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
     let trimmed = before.trim_end();
-    if trimmed.ends_with('{') || trimmed.ends_with('[') || trimmed.ends_with('(') || trimmed.ends_with(':') { indent.push_str("    "); }
+    if trimmed.ends_with('{') || trimmed.ends_with('[') || trimmed.ends_with('(') || trimmed.ends_with(':') { indent.push_str(unit); }
     let after_trim = after.trim_start();
-    if (after_trim.starts_with('}') || after_trim.starts_with(']') || after_trim.starts_with(')')) && indent.len() >= 4 { indent.truncate(indent.len() - 4); }
+    if (after_trim.starts_with('}') || after_trim.starts_with(']') || after_trim.starts_with(')')) && !indent.is_empty() {
+        if indent.ends_with('\t') { indent.pop(); } else if indent.len() >= 4 { indent.truncate(indent.len() - 4); }
+    }
     indent
+}
+
+/// Parse `settings.txt` (`autosave=0/1`, `indent=tabs/spaces`). Unknown or
+/// missing lines keep defaults (autosave off, tabs).
+fn parse_settings_text(data: &str) -> (bool, bool) {
+    let mut autosave = false;
+    let mut use_spaces = false;
+    for line in data.lines() {
+        match line.trim() {
+            "autosave=1" | "autosave=on" | "autosave=true" => autosave = true,
+            "autosave=0" | "autosave=off" | "autosave=false" => autosave = false,
+            "indent=spaces" | "indent=spaces:4" | "indent=4" | "indent=space" => use_spaces = true,
+            "indent=tabs" | "indent=tab" => use_spaces = false,
+            _ => {}
+        }
+    }
+    (autosave, use_spaces)
+}
+
+fn format_settings_text(autosave: bool, use_spaces: bool) -> String {
+    format!("autosave={}\nindent={}\n", if autosave { 1 } else { 0 }, if use_spaces { "spaces" } else { "tabs" })
 }
 
 fn find_in_line(line: &str, needle: &str, offset: usize, ignore_case: bool) -> Option<usize> {
@@ -7962,6 +8102,53 @@ mod tests {
         let items = ed.command_items();
         assert!(items.iter().any(|i| i.action.as_deref() == Some("check-update")
             && i.label == "Check for update"));
+    }
+
+    #[test]
+    fn palette_has_autosave_and_indent() {
+        let ed = Editor::new(vec!["az".into()]);
+        let items = ed.command_items();
+        assert!(items.iter().any(|i| i.action.as_deref() == Some("toggle-autosave")
+            && i.label == "Enable autosave"));
+        assert!(items.iter().any(|i| i.action.as_deref() == Some("indent-tabs")));
+        assert!(items.iter().any(|i| i.action.as_deref() == Some("indent-spaces")));
+        let mut on = Editor::new(vec!["az".into()]);
+        on.autosave = true;
+        let items_on = on.command_items();
+        assert!(items_on.iter().any(|i| i.action.as_deref() == Some("toggle-autosave")
+            && i.label == "Disable autosave"));
+    }
+
+    #[test]
+    fn indent_unit_tabs_vs_spaces() {
+        assert_eq!(indent_unit(false), "\t");
+        assert_eq!(indent_unit(true), "    ");
+    }
+
+    #[test]
+    fn indent_for_newline_respects_unit() {
+        // New indent level after `{` uses the configured unit.
+        assert_eq!(indent_for_newline("fn f() {", "", "    "), "    ");
+        assert_eq!(indent_for_newline("fn f() {", "", "\t"), "\t");
+        // Existing leading whitespace copies verbatim (all languages alike).
+        assert_eq!(indent_for_newline("    x = 1", "", "    "), "    ");
+        assert_eq!(indent_for_newline("\t\tx = 1", "", "\t"), "\t\t");
+        // A closing bracket on the new line pops one level.
+        assert_eq!(indent_for_newline("    {", "}", "    "), "    ");
+        assert_eq!(indent_for_newline("\t{", "}", "\t"), "\t");
+        assert_eq!(indent_for_newline("        }", "}", "    "), "    ");
+    }
+
+    #[test]
+    fn settings_text_roundtrip() {
+        assert_eq!(parse_settings_text("autosave=1\nindent=spaces\n"), (true, true));
+        assert_eq!(parse_settings_text("autosave=0\nindent=tabs\n"), (false, false));
+        assert_eq!(parse_settings_text(""), (false, false));
+        assert_eq!(parse_settings_text("junk\n"), (false, false));
+        assert_eq!(format_settings_text(true, true), "autosave=1\nindent=spaces\n");
+        assert_eq!(format_settings_text(false, false), "autosave=0\nindent=tabs\n");
+        let (a, s) = parse_settings_text(&format_settings_text(true, false));
+        assert_eq!((a, s), (true, false));
     }
 
     #[test]
