@@ -1,10 +1,12 @@
 # az — Changelog
 
-## Unreleased
+## 4.8.0
 
 - **Konsole context-menu title fix.** Context menu rows use first-strong bidi isolates so Konsole does not show a stray leading mark.
 - **Clickable status controls.** Click `autosave:on/off` to toggle autosave, or `tabs` / `spaces:4` to change indentation.
-- **Repeatable screenshots.** Added `scripts/capture_screenshot.py` and documented it as part of the pre-tag release checklist.
+- **Tree aligns with tabs.** The project root shares the tab-bar row; tree drawing, clicking, scrolling, and its vertical scrollbar account for the additional visible row.
+- **Author/contact dialog.** The command palette's `Author`, `Contact`, and `Support` entries open the same dialog with the az author and contact details.
+- **Repeatable screenshots.** Added `scripts/capture_screenshot.py`; the README screenshot is regenerated for this release and the pre-tag step is documented.
 
 ## 4.7.0
 

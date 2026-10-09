@@ -1110,7 +1110,11 @@ impl Editor {
             return;
         }
         if ev.y == 3 {
-            self.handle_mouse_topbar(ev.x);
+            if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+                self.handle_mouse_tree(ev.y);
+            } else {
+                self.handle_mouse_topbar(ev.x);
+            }
             return;
         }
         if ev.y == self.status_line {
@@ -1151,7 +1155,13 @@ impl Editor {
     fn handle_mouse_wheel(&mut self, ev: MouseEvent) {
         let down = !ev.scroll_up();
         if ev.y == 3 {
-            self.cycle_tab(if down { 1 } else { -1 });
+            if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+                self.follow_tree = true;
+                let next = self.tree_index as isize + if down { 1 } else { -1 };
+                self.tree_index = next.clamp(0, self.tree_rows.len().saturating_sub(1) as isize) as usize;
+            } else {
+                self.cycle_tab(if down { 1 } else { -1 });
+            }
             return;
         }
         if ev.y < 4 || ev.y >= 4 + self.content_height {
@@ -1248,7 +1258,7 @@ impl Editor {
     fn handle_mouse_tree(&mut self, row: usize) {
         self.follow_tree = true;
         self.refresh_tree();
-        let idx = self.tree_scroll + row.saturating_sub(4);
+        let idx = tree_row_index(self.tree_scroll, row);
         let Some(entry) = self.tree_rows.get(idx).cloned() else { return; };
         // The first click already opens/toggles. Treat its second click as the
         // same activation rather than unexpectedly opening the rename prompt.
@@ -1421,6 +1431,10 @@ impl Editor {
 
     fn handle_mouse_right(&mut self, ev: MouseEvent) {
         if ev.y == 3 {
+            if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+                self.handle_tree_right_click(ev.x, ev.y);
+                return;
+            }
             let (prefix_w, widths) = self.topbar_tab_widths();
             let visible = self.visible_tab_indexes();
             let Some(pos) = tab_hit_index(prefix_w, &widths, ev.x) else { return; };
@@ -1451,7 +1465,7 @@ impl Editor {
     fn handle_tree_right_click(&mut self, x: usize, y: usize) {
         self.follow_tree = true;
         self.refresh_tree();
-        let idx = self.tree_scroll + y.saturating_sub(4);
+        let idx = tree_row_index(self.tree_scroll, y);
         let Some(entry) = self.tree_rows.get(idx).cloned() else { return; };
         self.tree_index = idx;
         self.focus = Focus::Tree;
@@ -1700,8 +1714,8 @@ impl Editor {
             "\x1b[3~" => self.delete_tree_path_prompt(false),
             "\x1b[A" => self.tree_index = self.tree_index.saturating_sub(1),
             "\x1b[B" => self.tree_index = min(self.tree_rows.len().saturating_sub(1), self.tree_index + 1),
-            "\x1b[5~" => self.tree_index = self.tree_index.saturating_sub(self.editor_view_rows().max(1)),
-            "\x1b[6~" => self.tree_index = min(self.tree_rows.len().saturating_sub(1), self.tree_index + self.editor_view_rows().max(1)),
+            "\x1b[5~" => self.tree_index = self.tree_index.saturating_sub(self.tree_view_rows()),
+            "\x1b[6~" => self.tree_index = min(self.tree_rows.len().saturating_sub(1), self.tree_index + self.tree_view_rows()),
             "\r" | "\n" => {
                 if let Some(row) = self.tree_rows.get(self.tree_index).cloned() {
                     if row.is_dir {
@@ -1916,7 +1930,8 @@ impl Editor {
         let tabs = fit_ansi(&self.render_tabs_text(&style), self.cols.saturating_sub(prefix_w));
         let used: usize = prefix_w + widths.iter().sum::<usize>().min(self.cols.saturating_sub(prefix_w));
         let pad = " ".repeat(self.cols.saturating_sub(used));
-        format!("\x1b[3;1H{style}{}{tabs}{style}{pad}\x1b[0m", " ".repeat(prefix_w))
+        let tree = if self.sidebar_hidden { format!("{style}{}", " ".repeat(prefix_w)) } else { self.render_tree_tabbar_line() };
+        format!("\x1b[3;1H{tree}{tabs}{style}{pad}\x1b[0m")
     }
 
     fn render_tabs_text(&self, base_style: &str) -> String {
@@ -2125,9 +2140,25 @@ impl Editor {
         if self.show_tree_vscroll { width.saturating_sub(1).max(1) } else { width }
     }
 
+    fn tree_view_rows(&self) -> usize {
+        self.editor_view_rows().saturating_add(1).max(1)
+    }
+
+    fn render_tree_tabbar_line(&self) -> String {
+        self.render_tree_row(tree_row_index(self.tree_scroll, 3), self.tree_width.max(1), None)
+    }
+
     fn render_tree_line(&self, screen_line: usize) -> String {
-        let width = self.tree_text_width();
-        let row_idx = self.tree_scroll + screen_line;
+        let row_idx = tree_row_index(self.tree_scroll, screen_line + 4);
+        let shortcut = if self.content_height >= 4 && screen_line + 3 >= self.content_height {
+            self.sidebar_shortcut_lines().get(screen_line + 3 - self.content_height).cloned()
+        } else {
+            None
+        };
+        self.render_tree_row(row_idx, self.tree_text_width(), shortcut.as_deref())
+    }
+
+    fn render_tree_row(&self, row_idx: usize, width: usize, shortcut: Option<&str>) -> String {
         let mut text = String::new();
         if let Some(row) = self.tree_rows.get(row_idx) {
             let prefix = if row.is_dir {
@@ -2136,12 +2167,10 @@ impl Editor {
             let indent = "  ".repeat(row.depth);
             text = format!("{indent}{prefix}{}", row.name);
             text = shift_visual(&text, self.tree_h_offset);
-        } else if self.content_height >= 4 && screen_line + 3 >= self.content_height {
-            let lines = self.sidebar_shortcut_lines();
-            let idx = screen_line + 3 - self.content_height;
-            if idx < lines.len() { text = lines[idx].clone(); }
+        } else if let Some(shortcut) = shortcut {
+            text = shortcut.to_string();
         }
-        let selected = row_idx == self.tree_index && self.focus == Focus::Tree;
+        let selected = row_idx == self.tree_index && row_idx < self.tree_rows.len() && self.focus == Focus::Tree;
         let style = if selected {
             ansi_style(Some(BG_DARK), Some(ACCENT), true, false, false)
         } else if row_idx < self.tree_rows.len() {
@@ -2452,6 +2481,26 @@ impl Editor {
         self.popup_box(" Welcome ", &lines, &[hint_idx], &[tag_idx], &welcome_logo())
     }
 
+    fn author_dialog(&self) -> String {
+        let lines = vec![
+            "  az".to_string(),
+            "  Made by Araz Gray".to_string(),
+            "  arazgray.com".to_string(),
+            "  hi@arazgray.com".to_string(),
+            "  Press any key to close".to_string(),
+        ];
+        self.popup_box(" Author ", &lines, &[], &[0], &[])
+    }
+
+    fn show_author_dialog(&mut self) {
+        self.read_terminal_size();
+        let dialog = self.author_dialog();
+        if self.present_overlay(&dialog, true).is_err() {
+            return;
+        }
+        let _ = self.read_key_blocking();
+    }
+
     fn render_update_notice(&mut self, remote: &str) -> io::Result<()> {
         self.update_flow(remote);
         Ok(())
@@ -2721,7 +2770,7 @@ impl Editor {
             return;
         }
         let mut width = self.base_tree_width;
-        let visible_end = min(self.tree_rows.len(), self.tree_scroll + self.content_height);
+        let visible_end = min(self.tree_rows.len(), self.tree_scroll + self.tree_view_rows());
         for row in &self.tree_rows[self.tree_scroll..visible_end] {
             width = max(width, min(44, row.depth * 2 + row.name.len() + 4));
         }
@@ -2729,7 +2778,7 @@ impl Editor {
     }
 
     fn ensure_tree_visible(&mut self) {
-        let height = self.editor_view_rows().max(1);
+        let height = self.tree_view_rows();
         let max_scroll = self.tree_rows.len().saturating_sub(height);
         if self.follow_tree {
             if self.tree_index < self.tree_scroll {
@@ -3788,7 +3837,7 @@ impl Editor {
     fn recompute_vscroll(&mut self) {
         let view = self.editor_view_rows();
         self.show_editor_vscroll = self.editor_display_rows() > view;
-        self.show_tree_vscroll = !self.sidebar_hidden && self.tree_rows.len() > view;
+        self.show_tree_vscroll = !self.sidebar_hidden && self.tree_rows.len() > self.tree_view_rows();
     }
 
     /// Display rows occupied by the current tab (wrapped rows when on).
@@ -3870,7 +3919,14 @@ impl Editor {
         }
         let mut out = String::new();
         if self.show_tree_vscroll {
-            out.push_str(&self.render_vscroll_bar(self.tree_width.max(1), 4, track, self.tree_rows.len(), self.tree_scroll));
+            out.push_str(&self.render_vscroll_bar(
+                self.tree_width.max(1),
+                4,
+                track,
+                self.tree_view_rows(),
+                self.tree_rows.len(),
+                self.tree_scroll,
+            ));
         }
         if self.show_editor_vscroll {
             let content = self.editor_display_rows();
@@ -3882,13 +3938,13 @@ impl Editor {
             } else {
                 self.tab().row_offset
             };
-            out.push_str(&self.render_vscroll_bar(self.cols.max(1), 4, track, content, offset));
+            out.push_str(&self.render_vscroll_bar(self.cols.max(1), 4, track, track, content, offset));
         }
         out
     }
 
-    fn render_vscroll_bar(&self, x: usize, y0: usize, track: usize, content: usize, offset: usize) -> String {
-        let (start, thumb) = scrollbar_thumb(track, track, content, offset);
+    fn render_vscroll_bar(&self, x: usize, y0: usize, track: usize, view: usize, content: usize, offset: usize) -> String {
+        let (start, thumb) = scrollbar_thumb(track, view, content, offset);
         let style = ansi_style(Some(ACCENT), Some(BG_DARK), false, false, false);
         let mut out = String::new();
         for i in 0..track {
@@ -3933,7 +3989,7 @@ impl Editor {
             }
         } else {
             self.follow_tree = false;
-            self.tree_scroll = scrollbar_offset(track, track, self.tree_rows.len(), local);
+            self.tree_scroll = scrollbar_offset(track, self.tree_view_rows(), self.tree_rows.len(), local);
         }
     }
 
@@ -4753,6 +4809,9 @@ impl Editor {
             ("Go to Start of File (Ctrl+Home)", "first line, Alt+Up also works", "go-file-top"),
             ("Go to End of File (Ctrl+End)", "last line, Alt+Down also works", "go-file-bottom"),
             ("Welcome (Alt+W)", "show the welcome dialog", "welcome"),
+            ("Author (palette)", "az creator and contact details", "author"),
+            ("Contact (palette)", "author contact details", "contact"),
+            ("Support (palette)", "support contact details", "support"),
             ("Check for update (Alt+U)", "check GitHub for a newer release", "check-update"),
             ("Undo (Ctrl+Z)", "undo last edit", "undo"),
             ("Redo (Ctrl+Y)", "redo, Ctrl+Shift+Z also works", "redo"),
@@ -5140,6 +5199,7 @@ impl Editor {
             "format-indent" => self.format_indent(),
             "close-tab" => self.close_current_tab(),
             "welcome" => self.show_welcome_command(),
+            "author" | "contact" | "support" => self.show_author_dialog(),
             "check-update" => self.check_for_update_now(),
             "undo" => self.undo(),
             "redo" => self.redo(),
@@ -6789,6 +6849,10 @@ fn status_click_action(
     }
 }
 
+fn tree_row_index(scroll: usize, screen_row: usize) -> usize {
+    scroll + screen_row.saturating_sub(3)
+}
+
 fn is_tree_double_click(last_path: Option<&Path>, last_time: Option<Instant>, path: &Path, now: Instant) -> bool {
     if last_path != Some(path) {
         return false;
@@ -7951,6 +8015,47 @@ mod tests {
         assert_eq!(status_click_action(4, autosave, indent), Some(StatusClickAction::ToggleAutosave));
         assert_eq!(status_click_action(29, autosave, indent), Some(StatusClickAction::ToggleIndent));
         assert_eq!(status_click_action(17, autosave, indent), None);
+    }
+
+    #[test]
+    fn tree_row_indices_include_the_tabbar_row() {
+        assert_eq!(tree_row_index(0, 3), 0);
+        assert_eq!(tree_row_index(5, 3), 5);
+        assert_eq!(tree_row_index(5, 4), 6);
+
+        let mut editor = Editor::new(vec!["az".into()]);
+        editor.cols = 80;
+        editor.tree_width = 28;
+        editor.needs_tree_refresh = false;
+        editor.tree_rows = vec![
+            TreeRow { path: editor.root.clone(), is_dir: true, depth: 0, name: "PROJECT".into() },
+            TreeRow { path: editor.root.join("child.rs"), is_dir: false, depth: 1, name: "child.rs".into() },
+        ];
+        let tabbar = editor.render_tabbar();
+        let first_content_row = editor.render_tree_line(0);
+        assert!(tabbar.contains("PROJECT"));
+        assert!(first_content_row.contains("child.rs"));
+        assert!(!first_content_row.contains("PROJECT"));
+
+        editor.handle_mouse(MouseEvent { button: 0, x: 1, y: 3, is_release: false });
+        assert!(!editor.expanded.contains(&editor.root), "clicking the aligned root row should toggle it");
+        editor.handle_mouse(MouseEvent { button: 65, x: 1, y: 3, is_release: false });
+        assert_eq!(editor.tree_index, 1, "wheel over the tree header should move tree selection");
+    }
+
+    #[test]
+    fn author_dialog_and_palette_aliases_show_contact_details() {
+        let mut editor = Editor::new(vec!["az".into()]);
+        editor.cols = 30;
+        editor.rows = 10;
+        let dialog = editor.author_dialog();
+        for text in [" Author ", "az", "Made by Araz Gray", "arazgray.com", "hi@arazgray.com"] {
+            assert!(dialog.contains(text), "missing {text:?} from author dialog");
+        }
+        let commands = editor.command_items();
+        for (label, action) in [("Author", "author"), ("Contact", "contact"), ("Support", "support")] {
+            assert!(commands.iter().any(|item| item.label.starts_with(&format!("{label} (")) && item.action.as_deref() == Some(action)));
+        }
     }
 
     #[test]

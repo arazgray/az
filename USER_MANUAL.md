@@ -1,17 +1,17 @@
-# az 4.7 — User Manual
+# az 4.8 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.7.0 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.8.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. The 4.7.0 release publishes versioned Linux, macOS, and Windows packages (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. The 4.8.0 release publishes versioned Linux, macOS, and Windows packages (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -46,7 +46,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 ```
 ┌ az  [Open] [Commands] [Shortcuts]                        02:30 PM 30/09/2026 ┐
 ├──────────────────────────────────────────────────────────────────────────┤
-│                            ├ tabs 1:main.rs 2:README.md (`*` = modified)          ┤
+│ ▾ project                  │ tabs 1:main.rs 2:README.md (`*` = modified)          ┤
 │ tree (28 cols default) │ gutter Ln │ editor text (horizontal scroll)        │
 │                        │           │                                        │
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -54,7 +54,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
   └ popups: welcome, shortcuts (Ctrl+K), quick open (Ctrl+O), palette (Ctrl+P) ┘
 ```
 
-- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. On narrow terminals it shortens the clock and hides buttons that do not fit; Quit remains aligned and clickable. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
+- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. The project root occupies the tree side of the tab row, with child entries directly below it. On narrow terminals it shortens the clock and hides buttons that do not fit; Quit remains aligned and clickable. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.). The selected row is a highlight. The blinking caret is only in the editor.
 - Gutter: line numbers, min width 4.
 - Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan), `wrap` (green, only when word wrap is on), `rtl` (yellow, only when RTL is on), `autosave:on/off`, and `tabs` / `spaces:4` (indent style) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). Click the autosave chip to toggle it, or the indent chip to switch between Tabs and Spaces. `Col` is the screen column. On a narrow terminal optional chips drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
@@ -156,10 +156,10 @@ Type to fuzzy-match files + symbols. Forms:
 Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .next .nuxt`. Limit 2500 files, symbols from first 600 programming files <1MB.
 
 ### Command Palette (`Ctrl+P`)
-`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Check for update, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Enable/Disable autosave, Indent with Tabs / Spaces, Format selection or file, Close tab, Keyboard shortcuts, Quit`. Every row shows its shortcut in parantes (`Name (Key)`); the 150+ language rows show their `set <name>` filter instead — `Alt+L` jumps straight there. Type `set php` to force language. `Welcome` opens the welcome dialog again. The same keys are listed in `Ctrl+K`.
+`Save, Save as, New file/folder, Rename/Delete, Go to line, Go to Start/End of Line, Go to Start/End of File, Welcome, Author, Contact, Support, Check for update, Undo, Redo, Select all, Find in files, Replace in files, Set syntax …, Find/Replace, Toggle sidebar, Focus tree/editor, Toggle word wrap (Alt+Z), Enable/Disable RTL Mode (Alt+R), Enable/Disable autosave, Indent with Tabs / Spaces, Format selection or file, Close tab, Keyboard shortcuts, Quit`. `Author`, `Contact`, and `Support` all open the same dialog: az, made by Araz Gray, `arazgray.com`, and `hi@arazgray.com`. Every row shows its shortcut or access hint in parentheses; the 150+ language rows show their `set <name>` filter instead — `Alt+L` jumps straight there. Type `set php` to force language. `Welcome` opens the welcome dialog again. The same keys are listed in `Ctrl+K`.
 
 ### Autosave & Indent (`Ctrl+P`)
-`Enable autosave` / `Disable autosave` saves every open file that has a path automatically after edits (at most one write per second per file, silent — it never asks for a password and skips files it cannot write). Turning autosave on saves all dirty tabs immediately; quitting with autosave on saves them too. `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab` key and the auto-indent unit for all languages. Both choices persist in `settings.txt` under the state dir (`$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust`). The status bar shows an `autosave` chip while autosave is on, plus a `tabs` / `spaces:4` chip for the indent style.
+`Enable autosave` / `Disable autosave` saves every open file that has a path automatically after edits (at most one write per second per file, silent — it never asks for a password and skips files it cannot write). Turning autosave on saves all dirty tabs immediately; quitting with autosave on saves them too. `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab` key and the auto-indent unit for all languages. Both choices persist in `settings.txt` under the state dir (`$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust`). You can also click `autosave:on/off` in the status bar to toggle autosave, or click `tabs` / `spaces:4` to switch indent style.
 
 `Format selection or file` re-indents with the configured Tabs/Spaces unit: the selected lines when there is a selection, otherwise the whole file. One undo entry.
 
@@ -209,7 +209,7 @@ Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern 
 - Status bar: click `autosave:on/off` to toggle autosave, or `tabs` / `spaces:4` to switch the indent mode.
 - Sidebar: click a folder to expand/collapse, click a file to open it. A second click on the same row within 500ms is treated as the same activation; rename with `F2` or the right-click menu. The open file's row is highlighted.
 - Editor: click to move the cursor there (gutter click goes to line start; tab/wide chars map correctly). Drag with the button held to select text (selection follows the cursor). Double-click selects the word under the caret, triple-click selects the whole line. Clicking focuses the editor.
-- Wheel: one row per notch. The sidebar moves its selection. The editor pans, and the caret and selection stay. The tab bar cycles tabs. A horizontal scrollbar row moves that pane by four columns. A vertical bar, drawn only when that pane is taller than the viewport, pans on click or drag and leaves the caret where it is. A right-click on the bar does not open a menu. Picker dialogs move their selection by one, and a click outside the box closes them. Several reports that arrive together each apply, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
+- Wheel: one row per notch. The sidebar (including its root row beside the tabs) moves its selection. The editor pans, and the caret and selection stay. The tab area to the right of the tree cycles tabs. A horizontal scrollbar row moves that pane by four columns. A vertical bar, drawn only when that pane is taller than the viewport, pans on click or drag and leaves the caret where it is. A right-click on the bar does not open a menu. Picker dialogs move their selection by one, and a click outside the box closes them. Several reports that arrive together each apply, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
 - Autocomplete: click an item to accept it. A click outside the list closes it and still lands on the editor or the sidebar.
 - Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
   - Tab: `Close tab`, `Copy file path`.
