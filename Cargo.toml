@@ -1,9 +1,9 @@
 [package]
 name = "az"
-version = "4.8.0"
+version = "4.9.0"
 edition = "2021"
 authors = ["Araz Gray"]
-description = "A fast, small & sane text editor."
+description = "A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included."
 license = "WTFPL"
 
 [profile.release]

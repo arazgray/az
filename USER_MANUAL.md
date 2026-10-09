@@ -1,17 +1,17 @@
-# az 4.8 — User Manual
+# az 4.9 — User Manual
 
-`az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
+`az` is a ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.8.0 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.9.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. The 4.8.0 release publishes versioned Linux, macOS, and Windows packages (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. The 4.9.0 release publishes versioned Linux, macOS, and Windows packages (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -57,7 +57,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 - Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. The project root occupies the tree side of the tab row, with child entries directly below it. On narrow terminals it shortens the clock and hides buttons that do not fit; Quit remains aligned and clickable. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.). The selected row is a highlight. The blinking caret is only in the editor.
 - Gutter: line numbers, min width 4.
-- Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan), `wrap` (green, only when word wrap is on), `rtl` (yellow, only when RTL is on), `autosave:on/off`, and `tabs` / `spaces:4` (indent style) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). Click the autosave chip to toggle it, or the indent chip to switch between Tabs and Spaces. `Col` is the screen column. On a narrow terminal optional chips drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
+- Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (`tree shown/hidden`), `wrap` (green, only when word wrap is on), `rtl` (yellow, only when RTL is on), `autosave:on/off`, and `tabs` / `spaces:4` (indent style) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). Click the tree chip to show/hide the sidebar, the autosave chip to toggle it, or the indent chip to switch between Tabs and Spaces. `Col` is the screen column. On a narrow terminal optional chips drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
 - Welcome uses a compact text-only layout below 64 columns or 18 rows so its version, `Ctrl+K` hint, and continue instruction stay visible.
 - Word wrap (`Alt+Z`, palette `Toggle word wrap`, editor right-click): soft-folds long lines onto the next screen row instead of scrolling horizontally. Continuation rows show a blank gutter. The horizontal scrollbar hides while wrap is on and `col_offset` stays at 0. `Up/Down` still move by file line. Status shows a `wrap` chip.
 - Direction (`Alt+R`, palette `Enable RTL Mode` / `Disable RTL Mode`, editor right-click): switches the editor between LTR and RTL. RTL right-aligns each line (each wrapped segment) inside an RTL isolate (`RLI…PDI`) and mirrors the caret and click mapping so logical start sits on the right. The context menu text is right-aligned too. The tree, gutter, dialogs, and row framing stay LTR. Status shows an `rtl` chip.
@@ -206,10 +206,10 @@ Select dir or file, then `n/N/r/Del` or palette equivalents. Create auto-makes p
 ### Mouse
 Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern terminals, works over SSH).
 - Titlebar + tab bar: click a tab to switch (inactive tabs render lighter). Middle-click a tab to close it (asks if modified).
-- Status bar: click `autosave:on/off` to toggle autosave, or `tabs` / `spaces:4` to switch the indent mode.
+- Status bar: click `tree shown/hidden` to toggle the sidebar, `autosave:on/off` to toggle autosave, or `tabs` / `spaces:4` to switch the indent mode.
 - Sidebar: click a folder to expand/collapse, click a file to open it. A second click on the same row within 500ms is treated as the same activation; rename with `F2` or the right-click menu. The open file's row is highlighted.
 - Editor: click to move the cursor there (gutter click goes to line start; tab/wide chars map correctly). Drag with the button held to select text (selection follows the cursor). Double-click selects the word under the caret, triple-click selects the whole line. Clicking focuses the editor.
-- Wheel: one row per notch. The sidebar (including its root row beside the tabs) moves its selection. The editor pans, and the caret and selection stay. The tab area to the right of the tree cycles tabs. A horizontal scrollbar row moves that pane by four columns. A vertical bar, drawn only when that pane is taller than the viewport, pans on click or drag and leaves the caret where it is. A right-click on the bar does not open a menu. Picker dialogs move their selection by one, and a click outside the box closes them. Several reports that arrive together each apply, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
+- Wheel: one row per notch. Repeated identical tree reports within 40ms count as one, avoiding Konsole's tripled wheel reports. The sidebar (including its root row beside the tabs) moves its selection. The editor pans, and the caret and selection stay. The tab area to the right of the tree cycles tabs. A horizontal scrollbar row moves that pane by four columns. A vertical bar, drawn only when that pane is taller than the viewport, pans on click or drag and leaves the caret where it is. A right-click on the bar does not open a menu. Picker dialogs move their selection by one, and a click outside the box closes them. Mouse bursts are processed before one redraw; duplicate tree-wheel reports are coalesced. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
 - Autocomplete: click an item to accept it. A click outside the list closes it and still lands on the editor or the sidebar.
 - Right-click opens a context menu (`Up/Down` or `Ctrl+P`/`Ctrl+N`, `Enter` confirm, `Esc` or click-away cancels, `1-9` quick-pick):
   - Tab: `Close tab`, `Copy file path`.

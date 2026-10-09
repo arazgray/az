@@ -127,7 +127,7 @@ Section: editors
 Priority: optional
 Architecture: ${deb_arch}
 Maintainer: Araz Gray
-Description: A fast, small & sane text editor
+Description: A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.
  Terminal text editor written in Rust with zero dependencies.
  Supports word wrap (Alt+Z) and RTL/LTR direction (Alt+R).
 Homepage: https://github.com/arazgray/az
@@ -191,7 +191,7 @@ EOF
 Name:           az
 Version:        ${VERSION}
 Release:        1%{?dist}
-Summary:        A fast, small & sane text editor
+Summary:        A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.
 License:        WTFPL
 URL:            https://github.com/arazgray/az
 BuildArch:      ${rpm_arch}

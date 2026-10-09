@@ -1,7 +1,7 @@
 # Synced copy of https://github.com/arazgray/homebrew-tap/blob/main/Formula/az.rb
 # (the tap is canonical). Install with: brew install arazgray/tap/az
 class Az < Formula
-  desc "Fast, small & sane terminal text editor"
+  desc "A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included."
   homepage "https://github.com/arazgray/az"
   # Patch tags carry the full version ("4.4"); same for Cargo.
   url "https://github.com/arazgray/az/archive/refs/tags/4.4.tar.gz"

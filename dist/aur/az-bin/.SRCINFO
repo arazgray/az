@@ -1,5 +1,5 @@
 pkgbase = az-bin
-	pkgdesc = A fast, small & sane terminal text editor
+	pkgdesc = A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.
 	pkgver = 4.4.0
 	pkgrel = 1
 	url = https://github.com/arazgray/az

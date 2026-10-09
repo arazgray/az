@@ -1,9 +1,16 @@
 # az — Changelog
 
+## 4.9.0
+
+- **Single-step tree wheel in Konsole.** Repeated same-direction reports at the same tree cell within 40ms count as one wheel notch.
+- **Clickable tree visibility.** Click `tree shown/hidden` in the status bar to toggle the sidebar.
+- **Consistent product description.** Unified the description across help, package metadata, and documentation.
+- **Human-focused README.** Replaced the per-version history with a single 4.9 overview of the 4.x feature set and removed internal contributor notes.
+
 ## 4.8.0
 
 - **Konsole context-menu title fix.** Context menu rows use first-strong bidi isolates so Konsole does not show a stray leading mark.
-- **Clickable status controls.** Click `autosave:on/off` to toggle autosave, or `tabs` / `spaces:4` to change indentation.
+- **Clickable status controls.** Click `tree shown/hidden`, `autosave:on/off`, or `tabs` / `spaces:4` to toggle sidebar/autosave or change indentation.
 - **Tree aligns with tabs.** The project root shares the tab-bar row; tree drawing, clicking, scrolling, and its vertical scrollbar account for the additional visible row.
 - **Author/contact dialog.** The command palette's `Author`, `Contact`, and `Support` entries open the same dialog with the az author and contact details.
 - **Repeatable screenshots.** Added `scripts/capture_screenshot.py`; the README screenshot is regenerated for this release and the pre-tag step is documented.

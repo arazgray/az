@@ -9,7 +9,7 @@
   Keyboard-first but <strong>mouse-supported</strong>, zero-configuration, and designed to stay out of your way<br>A perfect alternative to Vim and Nano<br>With more than <strong>150 language/syntax</strong> support.</i><br>
   <a href="USER_MANUAL.md">User Manual</a> |
   <a href="CHANGELOG.md">Changelog</a> |
-  <a href="AGENTS.md">AI Agent Guide</a>
+  <a href="PLUGIN_GUIDE.md">Plugin Guide</a>
 </p>
 
 <p align="center">
@@ -24,8 +24,6 @@
 <p align="center">
   <img src="screenshot.png" alt="az screenshot">
 </p>
-
-Refresh the screenshot before each release tag with `scripts/capture_screenshot.py` (POSIX terminal, Python 3, and Pillow required).
 
 ---
 
@@ -72,13 +70,13 @@ right one for your OS + CPU.
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i az_4.8.0_amd64.deb
+sudo dpkg -i az_4.9.0_amd64.deb
 ```
 
 ARM (Raspberry Pi, Ampere, AWS Graviton):
 
 ```sh
-sudo dpkg -i az_4.8.0_arm64.deb
+sudo dpkg -i az_4.9.0_arm64.deb
 ```
 
 ### Arch Linux (AUR)
@@ -96,17 +94,17 @@ account — steps are in `dist/aur/README.md`.
 
 ```sh
 # Fedora / RHEL / CentOS:
-sudo dnf install ./az-4.8.0-1.x86_64.rpm
+sudo dnf install ./az-4.9.0-1.x86_64.rpm
 # or, without a network solver:
-sudo rpm -i az-4.8.0-1.x86_64.rpm
+sudo rpm -i az-4.9.0-1.x86_64.rpm
 # openSUSE:
-sudo zypper install ./az-4.8.0-1.x86_64.rpm
+sudo zypper install ./az-4.9.0-1.x86_64.rpm
 ```
 
 ### Arch / Alpine / other Linux (generic tarball)
 
 ```sh
-tar -xzf az-4.8.0-linux-amd64.tar.gz
+tar -xzf az-4.9.0-linux-amd64.tar.gz
 sudo install -m755 az /usr/local/bin/az
 ```
 
@@ -119,8 +117,8 @@ brew install arazgray/tap/az
 Or manually from the release tarball:
 
 ```sh
-tar -xzf az-4.8.0-macos-arm64.tar.gz   # Apple Silicon
-# tar -xzf az-4.8.0-macos-amd64.tar.gz # Intel
+tar -xzf az-4.9.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.9.0-macos-amd64.tar.gz # Intel
 mkdir -p ~/.local/bin
 install -m755 az ~/.local/bin/az
 ```
@@ -198,9 +196,9 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 ### Editing
 
 * 400-step undo / redo
-* Automatic indentation (Tabs or 4 spaces, all languages)
+* Automatic indentation (Tabs or 4 spaces, all languages; switchable from the status bar)
 * Format selection or file (re-indent, command palette)
-* Autosave toggle (command palette)
+* Autosave toggle (command palette or status bar)
 * Automatic bracket and tag closing
 * Selection wrapping with brackets and quotes
 * Whole-line deletion
@@ -214,6 +212,7 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 ### Navigation
 
 * Project tree sidebar
+* Project root aligned with the tabs; one-row tree wheel navigation
 * Fuzzy Quick Open
 * Symbol navigation
 * Find in files
@@ -251,6 +250,8 @@ No configuration maze. No plugin setup required for everyday editing. Just open 
 * Real-time clock
 * Visible line numbers
 * Status bar
+* Clickable tree, autosave, and indentation controls
+* Author, contact, and support dialog
 * Command palette
 * Searchable keyboard-shortcuts dialog
 * Context-aware mouse menus
@@ -449,187 +450,49 @@ Ctrl+P → set [Language]
 
 ---
 
-## What's New in 4.6
+## What's New in 4.9
 
-### Shortcuts for every palette command
+Version 4.9 brings the latest interface improvements and gathers the user-facing features added throughout the 4.x series.
 
-Every command-palette row now shows its keyboard shortcut in parantes:
-`Save (Ctrl+S)`, `Format selection or file (Alt+F)`, and so on. Twelve new
-bindings cover the previously key-less commands — `Alt+S` save as, `Alt+N` /
-`Alt+M` new file/folder, `F2` rename, `Alt+D` delete, `Alt+U` check for update,
-`Alt+A` autosave, `Alt+T` / `Alt+I` indent tabs/spaces, `Alt+F` format, `Alt+W`
-welcome, `Alt+L` syntax menu (palette prefilled with `set `). The 150+
-language rows show their `set <name>` filter instead. All keys are listed in
-`Ctrl+K`, `--help`, and the manual.
+### Interface and editing
 
-### Launch flags
+* The project root now shares the tab row; tree entries start directly beneath it.
+* Click the status bar's `tree shown/hidden`, `autosave:on/off`, and `tabs` / `spaces:4` chips to change those settings.
+* Open the author and contact dialog from the command palette with `Author`, `Contact`, or `Support`.
+* Create, open, rename, and delete project files and folders from the tree and context menus.
+* Use up to nine visible tabs, `Alt+1–9` to switch between them, and keyboard shortcuts for palette actions.
+* Automatic indentation, selectable Tabs or 4 spaces, and re-indent selected text or a full file.
+* Automatic bracket pairs and HTML closing tags, selection wrapping, whole-line deletion, and 400-step undo/redo.
+* Autosave for open files, large-file editing, and session restoration with recovery for unsaved work.
+* Prompts support cursor movement and recent-answer history; password entries are excluded.
 
-`az --autosave=1 --indent=spaces file` (also `--as=1`, `--tabs`/`--spaces`,
-`--wrap`/`--no-wrap`, `--rtl`/`--no-rtl`). CLI beats `settings.txt` and is
-persisted back to it. Unknown `--flags` are ignored; `--` ends flag parsing.
+### Navigation and search
 
-### Installer verifies `az` runs
+* Fuzzy Quick Open for files, symbols, and `file:line` locations.
+* Find and replace in the current file or across a project, plus Find in Files.
+* Case-insensitive search by default; prefix a query with `%` for case-sensitive matching.
+* `Ctrl+Tab` to cycle all tabs; `Ctrl+K` opens searchable keyboard shortcuts.
 
-`install.sh` now smoke-tests the installed binary (`az --version`). A glibc
-mismatch (prebuilt vs old distro) prints the source-build fix instead of a
-cryptic linker error; a binary outside PATH prints the exact `export` for the
-same terminal and appends it to `~/.bashrc`/`~/.zshrc`. Linux release builds
-moved to Ubuntu 22.04 so the prebuilt runs on 22.04+.
+### Language support
 
-**4.6 test suite:** 88 tests, with 87 executed and 1 Wayland roundtrip test ignored.
+* Syntax highlighting for 152 languages and formats, with context-aware completion and symbol navigation in supported modes.
+* Select a language from the command palette or let `az` detect it from the filename.
+* Shell startup files are recognized by filename or shebang; plain text highlights brackets and punctuation with alternating rows.
 
-See the [Changelog](CHANGELOG.md) for previous releases.
+### Terminal, clipboard, and file safety
 
----
+* Word wrap and RTL editing, with tab- and wide-character-aware cursor placement.
+* Truecolor, mouse selection and menus, horizontal/vertical scrollbars, and terminal-state restoration.
+* System clipboard integration with OSC52 fallback and bracketed paste up to 5 MB.
+* Atomic saves, CRLF preservation, recovery files, and password-assisted saves for protected files.
 
-## What's New in 4.5
+### Setup and updates
 
-### Autosave toggle
+* Launch options for autosave, indentation, wrapping, and RTL mode; preferences persist between runs.
+* Optional startup update checks and a one-click update-and-restart flow.
+* Prebuilt packages for Linux, macOS, and Windows, with a one-line installer.
 
-`Ctrl+P` → `Enable autosave` saves open files automatically after edits
-(throttled to one write per second per file, silent, never asks for a
-password). Turning it on flushes all dirty tabs; quitting with autosave on
-saves them too. The choice persists in `settings.txt` in the state dir, and
-the status bar shows an `autosave` chip while it is on.
-
-### Indent style: Tabs or 4 spaces
-
-`Ctrl+P` → `Indent with Tabs` / `Indent with Spaces (4)` switches the `Tab`
-key and the auto-indent unit for all languages. The choice persists in
-`settings.txt`, and the status bar shows `tabs` or `spaces:4`.
-
-### Format selection or file
-
-`Ctrl+P` → `Format selection or file` re-indents with the configured
-Tabs/Spaces unit: the selected lines when there is a selection, otherwise the
-whole file. One undo entry. Bracket-aware (strings and `//` comments skipped);
-continuation lines and switch `case:` bodies may need a manual nudge.
-
-**4.5 test suite:** 78 tests, with 77 executed and 1 Wayland roundtrip test ignored.
-
-See the [Changelog](CHANGELOG.md) for previous releases.
-
----
-
-## What's New in 4.4
-
-### Check for update command
-
-`Ctrl+P` → `Check for update` runs the startup update check on demand, without
-waiting for the next launch. An explicit request beats the `AZ_NO_UPDATE_CHECK`
-startup opt-out. Shows the update dialog when a newer release exists, otherwise
-a status note.
-
-**4.4 test suite:** 74 tests, with 73 executed and 1 Wayland roundtrip test ignored.
-
-See the [Changelog](CHANGELOG.md) for previous releases.
-
----
-
-## What's New in 4.3
-
-### Welcome dialog refresh
-
-The welcome screen now shows the tagline, a short description, and the current
-version number after the logo. Dismissing it with Enter no longer collapses
-the folder under the tree cursor (or inserts a blank line) — the dismissing
-keypress belongs to the dialog.
-
-**4.3 test suite:** 73 tests, with 72 executed and 1 Wayland roundtrip test ignored.
-
-See the [Changelog](CHANGELOG.md) for previous releases.
-
----
-
-## What's New in 4.2
-
-### One-click update and restart
-
-The startup update notice is now a real choice — `Update and restart` or `Later` — instead of a command to retype. Updating runs the installer with the terminal restored (progress and password prompts stay visible), then shows `Updated <old> → <new>` with `Restart now` / `Stay in editor`. Restart replaces the process in place and the saved session restores your tabs.
-
-### Multi-color Plain mode
-
-The `.txt`/fallback mode now colors `()` blue, `[]` yellow, `{}` magenta, and digits plus the remaining ASCII punctuation orange (previously everything was orange). Row striping is unchanged.
-
-**4.2 test suite:** 71 tests, with 70 executed and 1 Wayland roundtrip test ignored.
-
-See the [Changelog](CHANGELOG.md) for previous releases.
-
----
-
-## What's New in 4.1
-
-### Full micro syntax parity (152 modes)
-
-`az` now highlights every language micro supports: 98 new one-file-per-language plugins (`ada.rs` … `zscript.rs`) join the existing set, covering Ada, Awk, Batch, Caddyfile, Crystal, D, Fish, Fortran, Nix, Pascal, Vimscript, and the rest (full table above). Each mode wires highlighting, word completion, symbol navigation, tree colors, and a `set-syntax-*` palette item. Overlapping detections keep their established owners (`.fs` → F#, `.m` → Objective-C, `.v` → Verilog, `.pyi` → Python).
-
-### Fixed RPM packaging
-
-The 4.0 CI builds failed on `cp .../*: No such file or directory` because `rpmbuild` wipes `%{buildroot}` before `%install`, deleting the pre-staged files. `dist/package.sh` now stages inputs under `SOURCES` and installs them inside `%install` with explicit paths (no globs), and always ships a desktop entry instead of depending on a hardcoded deb staging path.
-
-**4.1 test suite:** 70 tests, with 69 executed and 1 Wayland roundtrip test ignored.
-
-See the [Changelog](CHANGELOG.md) for previous releases.
-
----
-
-## What's New in 4.0
-
-### Word Wrap
-
-Toggle soft word wrapping with:
-
-```text
-Alt+Z
-```
-
-Word wrap can also be enabled through the command palette, editor context menu, or status bar.
-
-### RTL Mode
-
-`az` includes a dedicated right-to-left editing mode:
-
-```text
-Alt+R
-```
-
-RTL mode right-aligns text and provides an RTL-aware caret and click mapping.
-
-### Improved Tabs
-
-* Up to nine tabs are displayed at once.
-* Tabs beyond the ninth remain accessible.
-* `Alt+1–9` switches between visible tabs.
-* `Ctrl+Tab` cycles through every open tab.
-* `+` and `Ctrl+N` create new empty tabs.
-
-### Better Search & Replace
-
-Find, replace, and project-wide replacement use unified dialogs with:
-
-* Path filtering
-* Find and replace fields
-* Live result counts
-* Replace and cancel actions
-
-### Clipboard & Privileged Saves
-
-`az` supports system clipboard integration with OSC52 fallback for remote sessions.
-
-When a file is not writable, `az` can request the root password and save it using `sudo`.
-
-### Terminal Improvements
-
-* Improved wheel navigation
-* Horizontal scrolling
-* Better caret positioning
-* Better wide-character handling
-* Faster paste operations
-* Improved terminal cleanup
-
-**4.0 test suite:** 56 tests, with 55 executed and 1 Wayland roundtrip test ignored.
-
-See the [Changelog](CHANGELOG.md) for previous releases.s
+See the [Changelog](CHANGELOG.md) for the detailed release history.
 
 ---
 
@@ -665,11 +528,7 @@ For the lower-level build process:
 
 ## Extending az
 
-`az` is designed to be extended through its plugin architecture.
-
-The repository includes an [AI Agent Guide](AGENTS.md) containing information about the architecture, plugin API, and testing requirements.
-
-To add a new language, an AI coding assistant can scaffold the implementation, connect it to the language router, and add the required regression tests.
+`az` supports additional language plugins. The [Plugin Guide](PLUGIN_GUIDE.md) explains how to add a language module, register it, and test it.
 
 ---
 
@@ -677,7 +536,7 @@ To add a new language, an AI coding assistant can scaffold the implementation, c
 
 * [User Manual](USER_MANUAL.md)
 * [Changelog](CHANGELOG.md)
-* [AI Agent Guide](AGENTS.md)
+* [Plugin Guide](PLUGIN_GUIDE.md)
 
 ---
 

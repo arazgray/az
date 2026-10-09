@@ -5,7 +5,7 @@
 pkgname=az-bin
 pkgver=4.4.0
 pkgrel=1
-pkgdesc='A fast, small & sane terminal text editor'
+pkgdesc='A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.'
 arch=('x86_64')
 url='https://github.com/arazgray/az'
 license=('custom:WTFPL')
@@ -30,7 +30,7 @@ package() {
   install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/az.desktop" <<EOF
 [Desktop Entry]
 Name=az
-Comment=A fast, small & sane text editor
+Comment=A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.
 Exec=az
 Icon=az
 Terminal=true

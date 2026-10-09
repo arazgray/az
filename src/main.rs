@@ -368,6 +368,15 @@ struct TitlebarLayout {
 enum StatusClickAction {
     ToggleAutosave,
     ToggleIndent,
+    ToggleTree,
+}
+
+#[derive(Clone, Copy)]
+struct TreeWheelStamp {
+    at: Instant,
+    scroll_up: bool,
+    x: usize,
+    y: usize,
 }
 
 #[derive(Clone)]
@@ -407,6 +416,7 @@ struct Editor {
     status_line: usize,
     autosave_hitbox: Option<(usize, usize)>,
     indent_hitbox: Option<(usize, usize)>,
+    tree_hitbox: Option<(usize, usize)>,
     selection_anchor: Option<Pos>,
     show_welcome: bool,
     hide_initial_untitled: bool,
@@ -422,6 +432,7 @@ struct Editor {
     cached_clock_text: String,
     last_tree_click_time: Option<Instant>,
     last_tree_click_path: Option<PathBuf>,
+    last_tree_wheel: Option<TreeWheelStamp>,
     mouse_drag_start: Option<(usize, Pos)>,
     last_editor_click: Option<(Instant, Pos, u8)>,
     last_rendered_message: String,
@@ -496,7 +507,7 @@ fn main() {
 }
 
 fn print_help() {
-    println!("az {} - a fast, small & sane text editor", env!("CARGO_PKG_VERSION"));
+    println!("az {} - A ridiculously fast, lightweight & sane terminal text editor built in Rust. Batteries included.", env!("CARGO_PKG_VERSION"));
     println!();
     println!("USAGE:");
     println!("  az [OPTIONS] [PATH]");
@@ -528,7 +539,7 @@ fn print_help() {
     println!("  Click sidebar: expand dir / open file, F2 or right-click: rename, wheel: scroll one row;");
     println!("  Click editor: move cursor, drag: select, double-click: word, triple-click: line;");
     println!("  Click tab: switch, + : new tab, middle-click tab: close. Wheel on the tab bar cycles tabs.");
-    println!("  Click status autosave/indent chips: toggle autosave or switch Tabs/Spaces.");
+    println!("  Click status tree/autosave/indent chips: toggle sidebar, autosave, or Tabs/Spaces.");
     println!("  Click outside a dialog: close it.");
     println!("  Right-click sidebar/editor/tab: context menu (open, copy path, rename, delete, search).");
 }
@@ -624,6 +635,7 @@ impl Editor {
             status_line: 23,
             autosave_hitbox: None,
             indent_hitbox: None,
+            tree_hitbox: None,
             selection_anchor: None,
             show_welcome,
             hide_initial_untitled,
@@ -639,6 +651,7 @@ impl Editor {
             cached_clock_text: String::new(),
             last_tree_click_time: None,
             last_tree_click_path: None,
+            last_tree_wheel: None,
             mouse_drag_start: None,
             last_editor_click: None,
             last_rendered_message: String::new(),
@@ -1143,11 +1156,12 @@ impl Editor {
     }
 
     fn handle_status_click(&mut self, col: usize) {
-        match status_click_action(col, self.autosave_hitbox, self.indent_hitbox) {
+        match status_click_action(col, self.autosave_hitbox, self.indent_hitbox, self.tree_hitbox) {
             Some(StatusClickAction::ToggleAutosave) => self.toggle_autosave(),
             Some(StatusClickAction::ToggleIndent) => {
                 if self.use_spaces { self.set_indent_tabs(); } else { self.set_indent_spaces(); }
             }
+            Some(StatusClickAction::ToggleTree) => self.toggle_sidebar(),
             None => {}
         }
     }
@@ -1156,6 +1170,7 @@ impl Editor {
         let down = !ev.scroll_up();
         if ev.y == 3 {
             if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+                if self.consume_duplicate_tree_wheel(ev) { return; }
                 self.follow_tree = true;
                 let next = self.tree_index as isize + if down { 1 } else { -1 };
                 self.tree_index = next.clamp(0, self.tree_rows.len().saturating_sub(1) as isize) as usize;
@@ -1172,6 +1187,7 @@ impl Editor {
             return;
         }
         if !self.sidebar_hidden && ev.x <= self.tree_width.max(1) {
+            if self.consume_duplicate_tree_wheel(ev) { return; }
             self.follow_tree = true;
             let line = self.tree_index as isize + if down { 1 } else { -1 };
             self.tree_index = line.clamp(0, self.tree_rows.len().saturating_sub(1) as isize) as usize;
@@ -1192,6 +1208,15 @@ impl Editor {
         } else {
             tab.row_offset = tab.row_offset.saturating_sub(1);
         }
+    }
+
+    fn consume_duplicate_tree_wheel(&mut self, ev: MouseEvent) -> bool {
+        let now = Instant::now();
+        let duplicate = duplicate_tree_wheel_report(self.last_tree_wheel, ev, now);
+        if !duplicate {
+            self.last_tree_wheel = Some(TreeWheelStamp { at: now, scroll_up: ev.scroll_up(), x: ev.x, y: ev.y });
+        }
+        duplicate
     }
 
     fn cycle_tab(&mut self, delta: isize) {
@@ -2141,7 +2166,8 @@ impl Editor {
     }
 
     fn tree_view_rows(&self) -> usize {
-        self.editor_view_rows().saturating_add(1).max(1)
+        let rows = self.editor_view_rows();
+        if self.sidebar_hidden { rows.max(1) } else { rows.saturating_add(1).max(1) }
     }
 
     fn render_tree_tabbar_line(&self) -> String {
@@ -2293,11 +2319,18 @@ impl Editor {
         let mut stats_compaction = 0;
         let mut left_w = chip_row_width(&chips);
         while !chips.is_empty() && left_w + visual_width(&stats_text) + msg_reserve + 2 > self.cols {
-            if chips.len() > 2 {
-                let removable = chips
+            let removable = if chips.len() > 2 {
+                chips
                     .iter()
-                    .rposition(|(text, _, _, _)| status_chip_action(text).is_none())
-                    .unwrap_or(chips.len() - 1);
+                    .enumerate()
+                    .skip(1)
+                    .rev()
+                    .find(|(_, (text, _, _, _))| status_chip_action(text).is_none())
+                    .map(|(index, _)| index)
+            } else {
+                None
+            };
+            if let Some(removable) = removable {
                 chips.remove(removable);
             } else if stats_compaction == 0 {
                 stats_text = compact_stats_text.clone();
@@ -2321,6 +2354,7 @@ impl Editor {
         left_w = 0;
         let mut autosave_hitbox = None;
         let mut indent_hitbox = None;
+        let mut tree_hitbox = None;
         let mut chip_col = 1usize;
         for (i, (text, fg, bg, bold)) in chips.iter().enumerate() {
             if i > 0 {
@@ -2335,6 +2369,7 @@ impl Editor {
             match status_chip_action(text) {
                 Some(StatusClickAction::ToggleAutosave) => autosave_hitbox = Some(hitbox),
                 Some(StatusClickAction::ToggleIndent) => indent_hitbox = Some(hitbox),
+                Some(StatusClickAction::ToggleTree) => tree_hitbox = Some(hitbox),
                 None => {}
             }
             chip_col += chip_width;
@@ -2365,6 +2400,7 @@ impl Editor {
         let rendered = format!("\x1b[{};1H{}\x1b[0m", self.status_line, fit_ansi(&line, self.cols));
         self.autosave_hitbox = autosave_hitbox.filter(|(_, end)| *end <= self.cols);
         self.indent_hitbox = indent_hitbox.filter(|(_, end)| *end <= self.cols);
+        self.tree_hitbox = tree_hitbox.filter(|(_, end)| *end <= self.cols);
         rendered
     }
 
@@ -6761,7 +6797,7 @@ fn shortcut_defs() -> Vec<(&'static str, &'static str)> {
         ("Ctrl+Tab / Ctrl+Shift+Tab", "Next / previous tab"),
         ("Tab", "Accept autocomplete"),
         ("Click", "Move cursor / open file / expand folder / switch tab"),
-        ("Click status chips", "Toggle autosave / switch Tabs and Spaces"),
+        ("Click status chips", "Toggle tree/autosave / switch Tabs and Spaces"),
         ("Drag", "Select text"),
         ("Double-click (editor)", "Select word"),
         ("Double-click (sidebar)", "Repeat activation; rename with F2 or the context menu"),
@@ -6830,6 +6866,8 @@ fn status_chip_action(text: &str) -> Option<StatusClickAction> {
         Some(StatusClickAction::ToggleAutosave)
     } else if text == " tabs " || text == " spaces:4 " {
         Some(StatusClickAction::ToggleIndent)
+    } else if text == " tree shown " || text == " tree hidden " {
+        Some(StatusClickAction::ToggleTree)
     } else {
         None
     }
@@ -6839,11 +6877,14 @@ fn status_click_action(
     col: usize,
     autosave: Option<(usize, usize)>,
     indent: Option<(usize, usize)>,
+    tree: Option<(usize, usize)>,
 ) -> Option<StatusClickAction> {
     if autosave.map(|(start, end)| (start..=end).contains(&col)).unwrap_or(false) {
         Some(StatusClickAction::ToggleAutosave)
     } else if indent.map(|(start, end)| (start..=end).contains(&col)).unwrap_or(false) {
         Some(StatusClickAction::ToggleIndent)
+    } else if tree.map(|(start, end)| (start..=end).contains(&col)).unwrap_or(false) {
+        Some(StatusClickAction::ToggleTree)
     } else {
         None
     }
@@ -6851,6 +6892,18 @@ fn status_click_action(
 
 fn tree_row_index(scroll: usize, screen_row: usize) -> usize {
     scroll + screen_row.saturating_sub(3)
+}
+
+fn duplicate_tree_wheel_report(last: Option<TreeWheelStamp>, ev: MouseEvent, now: Instant) -> bool {
+    last.map(|previous| {
+        previous.scroll_up == ev.scroll_up()
+            && previous.x == ev.x
+            && previous.y == ev.y
+            && now.checked_duration_since(previous.at)
+                .map(|elapsed| elapsed < Duration::from_millis(40))
+                .unwrap_or(false)
+    })
+    .unwrap_or(false)
 }
 
 fn is_tree_double_click(last_path: Option<&Path>, last_time: Option<Instant>, path: &Path, now: Instant) -> bool {
@@ -8008,13 +8061,17 @@ mod tests {
         assert_eq!(status_chip_action(" autosave:off "), Some(StatusClickAction::ToggleAutosave));
         assert_eq!(status_chip_action(" tabs "), Some(StatusClickAction::ToggleIndent));
         assert_eq!(status_chip_action(" spaces:4 "), Some(StatusClickAction::ToggleIndent));
+        assert_eq!(status_chip_action(" tree shown "), Some(StatusClickAction::ToggleTree));
+        assert_eq!(status_chip_action(" tree hidden "), Some(StatusClickAction::ToggleTree));
         assert_eq!(status_chip_action(" PHP "), None);
 
         let autosave = Some((4, 16));
         let indent = Some((20, 29));
-        assert_eq!(status_click_action(4, autosave, indent), Some(StatusClickAction::ToggleAutosave));
-        assert_eq!(status_click_action(29, autosave, indent), Some(StatusClickAction::ToggleIndent));
-        assert_eq!(status_click_action(17, autosave, indent), None);
+        let tree = Some((31, 41));
+        assert_eq!(status_click_action(4, autosave, indent, tree), Some(StatusClickAction::ToggleAutosave));
+        assert_eq!(status_click_action(29, autosave, indent, tree), Some(StatusClickAction::ToggleIndent));
+        assert_eq!(status_click_action(31, autosave, indent, tree), Some(StatusClickAction::ToggleTree));
+        assert_eq!(status_click_action(17, autosave, indent, tree), None);
     }
 
     #[test]
@@ -8044,6 +8101,36 @@ mod tests {
     }
 
     #[test]
+    fn repeated_tree_wheel_reports_from_one_notch_are_coalesced() {
+        let now = Instant::now();
+        let down = MouseEvent { button: 65, x: 12, y: 8, is_release: false };
+        let previous = Some(TreeWheelStamp { at: now, scroll_up: false, x: 12, y: 8 });
+        assert!(duplicate_tree_wheel_report(previous, down, now + Duration::from_millis(15)));
+        assert!(!duplicate_tree_wheel_report(previous, down, now + Duration::from_millis(40)));
+        assert!(!duplicate_tree_wheel_report(previous, MouseEvent { x: 13, ..down }, now + Duration::from_millis(15)));
+        assert!(!duplicate_tree_wheel_report(previous, MouseEvent { button: 64, ..down }, now + Duration::from_millis(15)));
+    }
+
+    #[test]
+    fn triple_tree_wheel_burst_moves_selection_once() {
+        let mut editor = Editor::new(vec!["az".into()]);
+        editor.tree_width = 28;
+        editor.needs_tree_refresh = false;
+        editor.tree_rows = (0..5)
+            .map(|index| TreeRow {
+                path: editor.root.join(format!("f{index}")),
+                is_dir: false,
+                depth: 1,
+                name: format!("f{index}"),
+            })
+            .collect();
+        editor.tree_index = 0;
+        let burst = "\x1b[<65;5;3M".repeat(3);
+        editor.handle_key(burst);
+        assert_eq!(editor.tree_index, 1);
+    }
+
+    #[test]
     fn author_dialog_and_palette_aliases_show_contact_details() {
         let mut editor = Editor::new(vec!["az".into()]);
         editor.cols = 30;
@@ -8066,11 +8153,23 @@ mod tests {
         editor.status_line = 24;
         let off_line = editor.render_status_line();
         assert!(off_line.contains("autosave:off"));
+        assert!(off_line.contains("tree shown"));
         let autosave = editor.autosave_hitbox.expect("autosave chip should be clickable");
         let indent = editor.indent_hitbox.expect("indent chip should be clickable");
+        let tree = editor.tree_hitbox.expect("tree chip should be clickable");
+        assert!(tree.1 < autosave.0);
         assert!(autosave.1 < indent.0);
-        assert_eq!(status_click_action(autosave.0, Some(autosave), Some(indent)), Some(StatusClickAction::ToggleAutosave));
-        assert_eq!(status_click_action(indent.0, Some(autosave), Some(indent)), Some(StatusClickAction::ToggleIndent));
+        assert_eq!(status_click_action(autosave.0, Some(autosave), Some(indent), Some(tree)), Some(StatusClickAction::ToggleAutosave));
+        assert_eq!(status_click_action(indent.0, Some(autosave), Some(indent), Some(tree)), Some(StatusClickAction::ToggleIndent));
+        assert_eq!(status_click_action(tree.0, Some(autosave), Some(indent), Some(tree)), Some(StatusClickAction::ToggleTree));
+
+        let tree = editor.tree_hitbox.expect("tree chip should be clickable");
+        editor.handle_mouse(MouseEvent { button: 0, x: tree.0, y: editor.status_line, is_release: false });
+        assert!(editor.sidebar_hidden);
+        assert!(editor.render_status_line().contains("tree hidden"));
+        let hidden_tree = editor.tree_hitbox.expect("hidden tree chip should remain clickable");
+        editor.handle_mouse(MouseEvent { button: 0, x: hidden_tree.0, y: editor.status_line, is_release: false });
+        assert!(!editor.sidebar_hidden);
 
         editor.autosave = true;
         let on_line = editor.render_status_line();
