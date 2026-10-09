@@ -357,6 +357,13 @@ struct PickerItem {
     action: Option<String>,
 }
 
+struct TitlebarLayout {
+    prefix_width: usize,
+    clock: String,
+    quit_start: usize,
+    buttons: Vec<(&'static str, &'static str, usize, usize)>,
+}
+
 #[derive(Clone)]
 pub(crate) struct CompletionItem {
     pub(crate) label: String,
@@ -510,7 +517,7 @@ fn print_help() {
     println!("  Alt+T/I indent tabs/spaces, Alt+F format, Alt+W welcome, Alt+L syntax menu,");
     println!("  Alt+S save as, Alt+N new file, Alt+M new folder, F2 rename, Alt+D delete, Alt+U update");
     println!("MOUSE:");
-    println!("  Click sidebar: expand dir / open file, double-click file: rename, wheel: scroll one row;");
+    println!("  Click sidebar: expand dir / open file, F2 or right-click: rename, wheel: scroll one row;");
     println!("  Click editor: move cursor, drag: select, double-click: word, triple-click: line;");
     println!("  Click tab: switch, + : new tab, middle-click tab: close. Wheel on the tab bar cycles tabs.");
     println!("  Click outside a dialog: close it.");
@@ -1218,24 +1225,21 @@ impl Editor {
         self.refresh_tree();
         let idx = self.tree_scroll + row.saturating_sub(4);
         let Some(entry) = self.tree_rows.get(idx).cloned() else { return; };
-        // Double-click (same path <500ms) => rename instead of toggle/open.
+        // The first click already opens/toggles. Treat its second click as the
+        // same activation rather than unexpectedly opening the rename prompt.
         let now = Instant::now();
-        let double = self.last_tree_click_path.as_ref() == Some(&entry.path)
-            && self
-                .last_tree_click_time
-                .map(|t| now.duration_since(t) < Duration::from_millis(500))
-                .unwrap_or(false);
+        let double = is_tree_double_click(
+            self.last_tree_click_path.as_deref(),
+            self.last_tree_click_time,
+            &entry.path,
+            now,
+        );
         self.tree_index = idx;
         self.ensure_tree_visible();
         if double {
             self.last_tree_click_time = None;
             self.last_tree_click_path = None;
             self.focus = Focus::Tree;
-            if entry.path == self.root {
-                self.message = "Cannot rename project root".to_string();
-                return;
-            }
-            self.rename_tree_path_prompt(false);
             return;
         }
         self.last_tree_click_time = Some(now);
@@ -1531,21 +1535,34 @@ impl Editor {
         }
         self.mouse_drag_start = None;
         let max_w = items.iter().map(|s| visual_width(s)).max().unwrap_or(0).max(visual_width(title)) + 4;
-        let (sc, sr, width, height) = context_menu_geometry(items.len(), max_w, col, row, self.cols, self.rows);
+        let mut geometry = context_menu_geometry(items.len(), max_w, col, row, self.cols, self.rows);
         let mut selected = 0usize;
         let mut offset = 0usize;
+        let mut redraw = true;
         loop {
-            // top, title, rule, bottom
-            let vis = height.saturating_sub(4).max(1);
-            if selected < offset {
-                offset = selected;
+            if self.terminal_resized() {
+                geometry = context_menu_geometry(items.len(), max_w, col, row, self.cols, self.rows);
+                redraw = true;
             }
-            if selected >= offset + vis {
-                offset = selected + 1 - vis;
+            let (sc, sr, width, height) = geometry;
+            if redraw {
+                // top, title, rule, bottom
+                let vis = height.saturating_sub(4).max(1);
+                if selected < offset {
+                    offset = selected;
+                }
+                if selected >= offset + vis {
+                    offset = selected + 1 - vis;
+                }
+                let dialog = self.context_menu_string(title, items, selected, offset, sc, sr, width, height);
+                let _ = self.present_overlay(&dialog, true);
+                redraw = false;
             }
-            let dialog = self.context_menu_string(title, items, selected, offset, sc, sr, width, height);
-            let _ = self.present_overlay(&dialog, true);
-            let key = self.read_key_blocking().unwrap_or_default();
+            let key = match self.read_key() {
+                Ok(Some(key)) => key,
+                Ok(None) => continue,
+                Err(_) => return None,
+            };
             if let Some(m) = parse_sgr_mouse(&key).or_else(|| parse_legacy_mouse(&key)) {
                 if m.is_release || m.button & 32 != 0 {
                     continue;
@@ -1556,6 +1573,7 @@ impl Editor {
                     } else {
                         selected = min(items.len().saturating_sub(1), selected + 1);
                     }
+                    redraw = true;
                     continue;
                 }
                 let btn = m.button & 3;
@@ -1581,8 +1599,14 @@ impl Editor {
             match key.as_str() {
                 "\r" | "\n" => return Some(selected),
                 "\x1b" => return None,
-                "\x1b[A" | "\x10" => selected = selected.saturating_sub(1),
-                "\x1b[B" | "\x0e" => selected = min(items.len() - 1, selected + 1),
+                "\x1b[A" | "\x10" => {
+                    selected = selected.saturating_sub(1);
+                    redraw = true;
+                }
+                "\x1b[B" | "\x0e" => {
+                    selected = min(items.len() - 1, selected + 1);
+                    redraw = true;
+                }
                 _ => {
                     if key.len() == 1 && key.as_bytes()[0].is_ascii_digit() {
                         let idx = (key.as_bytes()[0] - b'0') as usize;
@@ -1821,23 +1845,10 @@ impl Editor {
     }
 
     fn titlebar_button_regions(&mut self) -> Vec<(&'static str, &'static str, usize, usize)> {
-        let defs = [(" Open ", "quick-open"), (" Commands ", "commands"), (" Shortcuts ", "shortcuts")];
-        let clock_w = visual_width(&format!(" {} ", self.clock_text()));
+        let layout = titlebar_layout(self.cols, self.focus_label(), &self.clock_text());
+        let mut out = layout.buttons;
         let quit_w = visual_width(QUIT_LABEL);
-        let right_w = clock_w + quit_w;
-        let mut out = Vec::new();
-        let mut x = 4 + 1 + self.focus_label().len() + 2 + 1;
-        for (label, action) in defs {
-            if x + label.len() > self.cols.saturating_sub(right_w) + 1 {
-                break;
-            }
-            out.push((label, action, x + 1, x + label.len()));
-            x += 1 + label.len();
-        }
-        if self.cols > right_w {
-            let start = self.cols.saturating_sub(right_w) + 1;
-            out.push((QUIT_LABEL, "quit", start, start + quit_w - 1));
-        }
+        out.push((QUIT_LABEL, "quit", layout.quit_start, layout.quit_start + quit_w - 1));
         out
     }
 
@@ -1847,20 +1858,16 @@ impl Editor {
         let mode_chip = ansi_style(Some(ACCENT), Some(BG_HIGHLIGHT), true, false, false);
         let button = ansi_style(Some(ACCENT), Some(BG_FLOAT), false, false, false);
         let quit_style = ansi_style(Some(BG_DARK), Some(RED), true, false, false);
-        let right = format!(" {} ", self.clock_text());
-        let right_w = visual_width(&right) + visual_width(QUIT_LABEL);
         let mode = self.focus_label();
+        let layout = titlebar_layout(self.cols, mode, &self.clock_text());
         let mut out = format!("\x1b[1;1H{chip} az {style} {mode_chip} {mode} ");
-        let mut used = 4 + 1 + mode.len() + 2;
-        for (label, action, _, _) in self.titlebar_button_regions() {
-            if action == "quit" {
-                continue;
-            }
+        let mut used = layout.prefix_width;
+        for (label, _, _, _) in &layout.buttons {
             out.push_str(&format!("{style} {button}{label}"));
             used += 1 + label.len();
         }
-        let mid = " ".repeat(self.cols.saturating_sub(used + right_w));
-        out.push_str(&format!("{style}{mid}{quit_style}{QUIT_LABEL}\x1b[0m{style}{right}\x1b[0m"));
+        let mid = " ".repeat(layout.quit_start.saturating_sub(used + 1));
+        out.push_str(&format!("{style}{mid}{quit_style}{QUIT_LABEL}\x1b[0m{style}{}\x1b[0m", layout.clock));
         out
     }
 
@@ -2191,6 +2198,7 @@ impl Editor {
     fn render_status_line(&self) -> String {
         let tab = self.tab();
         let path = tab.path.as_ref().map(|p| relative_path(&self.root, p)).unwrap_or_else(|| tab.name.clone());
+        let path = escape_control(&path);
         let syntax_label = if tab.syntax_mode.is_some() { format!("{} manual", tab.syntax().label()) } else { tab.syntax().label().to_string() };
         let tree_label = if self.sidebar_hidden { "tree hidden" } else { "tree shown" };
         let large = if tab.large_file { "  LARGE" } else { "" };
@@ -2221,23 +2229,28 @@ impl Editor {
         // syntax chip, when a narrow terminal would otherwise hide "Saved" / "Copied".
         let msg_reserve = if self.message.is_empty() { 0 } else { min(24, self.cols / 3).max(8).min(self.cols) };
         let mut stats_text = format!(" {stats} ");
+        let compact_stats_text = format!(" Ln {} Col {} ", tab.cursor.line + 1, visual_at_byte(line, tab.cursor.col) + 1);
+        let line_stats_text = format!(" Ln {} ", tab.cursor.line + 1);
+        let mut stats_compaction = 0;
         let mut left_w = chip_row_width(&chips);
         while !chips.is_empty() && left_w + visual_width(&stats_text) + msg_reserve + 2 > self.cols {
             if chips.len() > 2 {
                 chips.pop();
-            } else if !stats_text.contains("Ln") || stats_text.matches(' ').count() < 4 {
-                break;
+            } else if stats_compaction == 0 {
+                stats_text = compact_stats_text.clone();
+                stats_compaction = 1;
+            } else if stats_compaction == 1 {
+                stats_text = line_stats_text.clone();
+                stats_compaction = 2;
+            } else if chips.len() > 1 {
+                chips.pop();
             } else {
-                stats_text = format!(" Ln {} Col {} ", tab.cursor.line + 1, visual_at_byte(line, tab.cursor.col) + 1);
+                let chip_budget = self.cols.saturating_sub(visual_width(&stats_text) + msg_reserve + 2);
+                chips[0].0 = status_path_chip(&path, chip_budget);
+                break;
             }
             left_w = chip_row_width(&chips);
-            if chips.len() <= 1 && visual_width(&stats_text) + msg_reserve + 2 <= self.cols {
-                break;
-            }
-            if chips.len() > 1 && left_w + visual_width(&stats_text) + msg_reserve + 2 > self.cols {
-                chips.pop();
-                left_w = chip_row_width(&chips);
-            } else {
+            if left_w + visual_width(&stats_text) + msg_reserve + 2 <= self.cols {
                 break;
             }
         }
@@ -2355,6 +2368,18 @@ impl Editor {
     }
 
     fn welcome_dialog(&self) -> String {
+        // On a compact terminal, keep the instructions visible instead of
+        // letting the five-row logo consume the entire popup body.
+        if self.cols < 64 || self.rows < 18 {
+            let lines = vec![
+                "  Terminal text editor".to_string(),
+                "  Keyboard + mouse ready".to_string(),
+                format!("  Version: {}", env!("CARGO_PKG_VERSION")),
+                "  Ctrl+K: shortcuts".to_string(),
+                "  Any key to continue".to_string(),
+            ];
+            return self.popup_box(" Welcome ", &lines, &[], &[0], &[]);
+        }
         let hint = "  Ctrl+K for all shortcuts (searchable) ".to_string();
         let tagline = "  The TUI text editor you've always wanted".to_string();
         let version = format!("  Version: {}", env!("CARGO_PKG_VERSION"));
@@ -3668,7 +3693,7 @@ impl Editor {
             field0 + 3,
             fit_plain(&count, inner)
         ));
-        let replace_label = " Replace ";
+        let replace_label = " Replace all ";
         let cancel_label = " Cancel ";
         let replace_style = if field == 3 { &active } else { &idle };
         let cancel_style = if field == 4 { &active } else { &idle };
@@ -6628,7 +6653,8 @@ fn shortcut_defs() -> Vec<(&'static str, &'static str)> {
         ("Tab", "Accept autocomplete"),
         ("Click", "Move cursor / open file / expand folder / switch tab"),
         ("Drag", "Select text"),
-        ("Double-click", "Select word (editor) / rename (sidebar file)"),
+        ("Double-click (editor)", "Select word"),
+        ("Double-click (sidebar)", "Repeat activation; rename with F2 or the context menu"),
         ("Triple-click", "Select line"),
         ("Right-click", "Context menu (tab / sidebar / editor)"),
         ("Middle-click tab", "Close tab"),
@@ -6651,6 +6677,99 @@ fn tab_hit_index(prefix_w: usize, tab_widths: &[usize], click_col: usize) -> Opt
         x += w;
     }
     None
+}
+
+fn titlebar_layout(cols: usize, mode: &str, full_clock: &str) -> TitlebarLayout {
+    let prefix_width = 4 + 1 + mode.len() + 2;
+    let quit_width = visual_width(QUIT_LABEL);
+    let full_clock = if full_clock.is_empty() { String::new() } else { format!(" {full_clock} ") };
+    let short_time: String = full_clock
+        .trim()
+        .chars()
+        .take(5)
+        .collect();
+    let short_clock = if short_time.is_empty() { String::new() } else { format!(" {short_time} ") };
+    let full_clock_width = visual_width(&full_clock);
+    let short_clock_width = visual_width(&short_clock);
+    let (clock, clock_width) = if cols >= prefix_width + quit_width + full_clock_width {
+        (full_clock, full_clock_width)
+    } else if cols >= prefix_width + quit_width + short_clock_width {
+        (short_clock, short_clock_width)
+    } else {
+        (String::new(), 0)
+    };
+    let right_width = quit_width + clock_width;
+    let quit_start = cols.saturating_sub(right_width) + 1;
+    let mut next_cell = prefix_width + 1;
+    let mut buttons = Vec::new();
+    for (label, action) in [(" Open ", "quick-open"), (" Commands ", "commands"), (" Shortcuts ", "shortcuts")] {
+        let label_width = visual_width(label);
+        let occupied = 1 + label_width;
+        if next_cell + occupied - 1 >= quit_start {
+            break;
+        }
+        let label_start = next_cell + 1;
+        buttons.push((label, action, label_start, label_start + label_width - 1));
+        next_cell += occupied;
+    }
+    TitlebarLayout { prefix_width, clock, quit_start, buttons }
+}
+
+fn is_tree_double_click(last_path: Option<&Path>, last_time: Option<Instant>, path: &Path, now: Instant) -> bool {
+    if last_path != Some(path) {
+        return false;
+    }
+    last_time
+        .and_then(|then| now.checked_duration_since(then))
+        .map(|elapsed| elapsed < Duration::from_millis(500))
+        .unwrap_or(false)
+}
+
+fn ellipsize_visual(text: &str, width: usize) -> String {
+    if visual_width(text) <= width {
+        return text.to_string();
+    }
+    if width == 0 {
+        return String::new();
+    }
+    if width == 1 {
+        return "…".to_string();
+    }
+    let room = width - 1;
+    let left_width = (room + 1) / 2;
+    let right_width = room / 2;
+    let mut left = String::new();
+    let mut used = 0;
+    for ch in text.chars() {
+        let w = visual_width(&ch.to_string());
+        if used + w > left_width {
+            break;
+        }
+        left.push(ch);
+        used += w;
+    }
+    let mut right_chars = Vec::new();
+    used = 0;
+    for ch in text.chars().rev() {
+        let w = visual_width(&ch.to_string());
+        if used + w > right_width {
+            break;
+        }
+        right_chars.push(ch);
+        used += w;
+    }
+    right_chars.reverse();
+    format!("{left}…{}", right_chars.into_iter().collect::<String>())
+}
+
+fn status_path_chip(path: &str, width: usize) -> String {
+    if visual_width(path) + 2 <= width {
+        format!(" {path} ")
+    } else if width >= 3 {
+        format!(" {} ", ellipsize_visual(path, width - 2))
+    } else {
+        ellipsize_visual(path, width)
+    }
 }
 
 /// Clamp a context menu into the visible area (1-based terminal cells).
@@ -7717,6 +7836,68 @@ mod tests {
         let (c2, r2, w2, h2) = context_menu_geometry(9, 40, 30, 9, 30, 10);
         assert!(w2 <= 28 && c2 >= 1 && c2 + w2 - 1 <= 30);
         assert!(r2 >= 1 && r2 + h2 - 1 <= 9);
+    }
+
+    #[test]
+    fn titlebar_layout_keeps_rendered_actions_and_hitboxes_in_bounds() {
+        let clock = "06:43 PM  09/10/2026";
+        for cols in [30, 31, 40, 41, 64, 80] {
+            let layout = titlebar_layout(cols, "editor", clock);
+            let quit_end = layout.quit_start + visual_width(QUIT_LABEL) - 1;
+            assert!(layout.quit_start > layout.prefix_width, "quit overlaps prefix at {cols} columns");
+            assert!(quit_end <= cols, "quit extends past {cols} columns");
+            let mut previous_end = layout.prefix_width;
+            let mut occupied = layout.prefix_width;
+            for (label, _, start, end) in &layout.buttons {
+                assert!(*start > previous_end, "button {label:?} overlaps at {cols} columns");
+                assert!(*end < layout.quit_start, "button {label:?} overlaps Quit at {cols} columns");
+                previous_end = *end;
+                occupied += 1 + visual_width(label);
+            }
+            let filler = layout.quit_start.saturating_sub(occupied + 1);
+            let total = occupied + filler + visual_width(QUIT_LABEL) + visual_width(&layout.clock);
+            assert_eq!(total, cols, "titlebar should use exactly the terminal width");
+        }
+        let narrow = titlebar_layout(30, "editor", clock);
+        assert_eq!(narrow.clock, " 06:43 ");
+        assert!(narrow.buttons.is_empty());
+        assert_eq!(titlebar_layout(80, "editor", clock).buttons.len(), 3);
+    }
+
+    #[test]
+    fn tree_double_click_does_not_change_activation_into_rename() {
+        let path = Path::new("src/main.rs");
+        let now = Instant::now();
+        assert!(is_tree_double_click(Some(path), Some(now), path, now + Duration::from_millis(300)));
+        assert!(!is_tree_double_click(Some(path), Some(now), path, now + Duration::from_millis(500)));
+        assert!(!is_tree_double_click(Some(Path::new("src/lib.rs")), Some(now), path, now));
+        assert!(!is_tree_double_click(Some(path), None, path, now));
+    }
+
+    #[test]
+    fn visual_ellipsis_respects_cell_width() {
+        let path = "very/long/日本語/file.rs";
+        for width in 0..=12 {
+            let shown = ellipsize_visual(path, width);
+            assert!(visual_width(&shown) <= width, "{shown:?} exceeds {width} cells");
+        }
+        assert_eq!(ellipsize_visual("short.rs", 20), "short.rs");
+        assert!(ellipsize_visual(path, 9).contains('…'));
+        for width in 0..=16 {
+            let chip = status_path_chip(path, width);
+            assert!(visual_width(&chip) <= width, "status chip {chip:?} exceeds {width} cells");
+        }
+    }
+
+    #[test]
+    fn compact_welcome_keeps_version_shortcuts_and_continue_hint_visible() {
+        let mut editor = Editor::new(vec!["az".into()]);
+        editor.cols = 30;
+        editor.rows = 10;
+        let welcome = editor.welcome_dialog();
+        assert!(welcome.contains(&format!("Version: {}", env!("CARGO_PKG_VERSION"))));
+        assert!(welcome.contains("Ctrl+K: shortcuts"));
+        assert!(welcome.contains("Any key to continue"));
     }
 
     #[test]
@@ -9100,6 +9281,7 @@ mod tests {
             job
         });
         assert!(search.contains(" Search & Replace "));
+        assert!(search.contains("Replace all"));
         assert!(search.contains("╠"));
         assert!(search.contains(" 1 match"));
         assert_eq!(geom.height, 9);

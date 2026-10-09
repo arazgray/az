@@ -1,17 +1,17 @@
-# az 4.6 — User Manual
+# az 4.7 — User Manual
 
 `az` is a fast, small & sane text editor. Open fast, type immediately, stay keyboard-first.
 
 ## 1. Install & Run
 
 ```sh
-./install.sh              # prebuilt v4.6.1 package for your OS (.deb / .exe, icons from logo.png)
+./install.sh              # prebuilt v4.7.0 package for your OS (.deb / .exe, icons from logo.png)
 ./compile-and-install.sh  # build from source instead (installs ~/.local/bin/az)
 az --help
 az --version
 ```
 
-Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. `dist/` ships the ready packages: `az_4.6.1_amd64.deb`, `az-4.6.1-linux-amd64`, `az-4.6.1-windows-amd64.exe` (+ `az-icon.ico`, `logo.png`).
+Requirements for source builds: `cargo` (recommended) or `rustc`. No external Rust crates. The 4.7.0 release publishes versioned Linux, macOS, and Windows packages (+ `az-icon.ico`, `logo.png`).
 
 Remote install (also upgrades an existing install in place):
 
@@ -54,10 +54,11 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
   └ popups: welcome, shortcuts (Ctrl+K), quick open (Ctrl+O), palette (Ctrl+P) ┘
 ```
 
-- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
+- Titlebar: blue `az` chip + mode (`editor`/`tree`) chip, clickable plain-text buttons (`Open` → quick open, `Commands` → palette, `Shortcuts` → shortcut list), red `Quit` button left of the clock — full-width separator below. On narrow terminals it shortens the clock and hides buttons that do not fit; Quit remains aligned and clickable. Tab bar under the separator, above the editor: at most nine tabs, windowed around the current one (`1:name` numbers that window), `*` = modified, inactive tabs shaded lighter. Click a tab to switch, middle-click to close. `+` at the end opens an empty unsaved tab (middle-click and right-click on `+` do nothing).
 - Tree: `▾` open dir, `▸` closed dir. Colors by extension (PHP purple, HTML orange, JS yellow, shell rc files red, etc.). The selected row is a highlight. The blinking caret is only in the editor.
 - Gutter: line numbers, min width 4.
 - Status: one chip per item — path, state (`modified`, orange, only when the text differs from the last save), syntax (purple), tree (cyan), `wrap` (green, only when word wrap is on), `rtl` (yellow, only when RTL is on), `autosave` (green, only when autosave is on), `tabs` / `spaces:4` (cyan, indent style) | message (flashes light blue on change, red on a permission error, then one clear frame) | stats (yellow). `Col` is the screen column. On a narrow terminal the `rtl`/`wrap`/tree chips, then the syntax chip, drop so the message stays. Prompts blink light blue until answered. The root-password prompt blinks red.
+- Welcome uses a compact text-only layout below 64 columns or 18 rows so its version, `Ctrl+K` hint, and continue instruction stay visible.
 - Word wrap (`Alt+Z`, palette `Toggle word wrap`, editor right-click): soft-folds long lines onto the next screen row instead of scrolling horizontally. Continuation rows show a blank gutter. The horizontal scrollbar hides while wrap is on and `col_offset` stays at 0. `Up/Down` still move by file line. Status shows a `wrap` chip.
 - Direction (`Alt+R`, palette `Enable RTL Mode` / `Disable RTL Mode`, editor right-click): switches the editor between LTR and RTL. RTL right-aligns each line (each wrapped segment) inside an RTL isolate (`RLI…PDI`) and mirrors the caret and click mapping so logical start sits on the right. The context menu text is right-aligned too. The tree, gutter, dialogs, and row framing stay LTR. Status shows an `rtl` chip.
 
@@ -127,7 +128,7 @@ If you pass a folder, you start in the tree. Press `Enter` on a file to edit, or
 | `Up/Down`, `PgUp/PgDn` | Move selection |
 | `Enter` or click | Open file / expand-collapse dir |
 | `Left` / `Right` | Collapse / Expand dir |
-| Double-click file/dir | Rename (never root, refuses existing target) |
+| `F2` | Rename selected file/folder (never root, refuses existing target) |
 | Click editor | Move cursor there |
 | Wheel over tree/editor | One row: sidebar selection, or the editor viewport (caret stays) |
 | `n` / `N` (Shift+N) | New file / New folder in selected dir |
@@ -169,7 +170,7 @@ Skips: `.git node_modules vendor .idea .vscode target dist build __pycache__ .ne
 ### Replace
 `Ctrl+R` opens Search & Replace for the current file. `Ctrl+Shift+H` opens the same dialog on the project:
 - Path, find, and replace are editable. An empty path, or the path of the current file, means this buffer. A directory searches that folder. Another file rewrites that file.
-- The count under the fields updates as you type (`%Foo` = case-sensitive). `Tab` / `Shift+Tab` move across the fields, Replace, and Cancel. `Enter` replaces every match in the target and leaves the dialog open so the count refreshes. `Esc`, Cancel, or a click outside closes it. `Ctrl+L` finds the next match in the current buffer.
+- The count under the fields updates as you type (`%Foo` = case-sensitive). The button is **Replace all**; `Tab` / `Shift+Tab` move across the fields, Replace all, and Cancel. `Enter` replaces every match in the target and leaves the dialog open so the count refreshes. `Esc`, Cancel, or a click outside closes it. `Ctrl+L` finds the next match in the current buffer.
 - Project replace keeps the caps (3000 files, files over 5MB skipped, 10k matches). Open tabs with unsaved edits are skipped. A file that used CRLF is written back with CRLF. Replace in the current buffer is one undo entry.
 
 ### Find in Files (palette or `Ctrl+Shift+O`)
@@ -205,7 +206,7 @@ Select dir or file, then `n/N/r/Del` or palette equivalents. Create auto-makes p
 ### Mouse
 Requires a terminal with SGR mouse reporting (`1000`/`1002`/`1006`; most modern terminals, works over SSH).
 - Titlebar + tab bar: click a tab to switch (inactive tabs render lighter). Middle-click a tab to close it (asks if modified).
-- Sidebar: click a folder to expand/collapse, click a file to open it. Double-click a file (<500ms, same path) to rename it. The open file's row is highlighted.
+- Sidebar: click a folder to expand/collapse, click a file to open it. A second click on the same row within 500ms is treated as the same activation; rename with `F2` or the right-click menu. The open file's row is highlighted.
 - Editor: click to move the cursor there (gutter click goes to line start; tab/wide chars map correctly). Drag with the button held to select text (selection follows the cursor). Double-click selects the word under the caret, triple-click selects the whole line. Clicking focuses the editor.
 - Wheel: one row per notch. The sidebar moves its selection. The editor pans, and the caret and selection stay. The tab bar cycles tabs. A horizontal scrollbar row moves that pane by four columns. A vertical bar, drawn only when that pane is taller than the viewport, pans on click or drag and leaves the caret where it is. A right-click on the bar does not open a menu. Picker dialogs move their selection by one, and a click outside the box closes them. Several reports that arrive together each apply, then the screen paints once. Scroll never steals focus; clicks set it. Terminals without SGR mouse fall back to legacy X10 reports.
 - Autocomplete: click an item to accept it. A click outside the list closes it and still lands on the editor or the sidebar.

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-# az 4.6.1 — prebuilt package installer.
+# az 4.7.0 — prebuilt package installer.
 # Detects OS + CPU arch and installs the ready package instead of building:
 #   Debian/Ubuntu/Mint/Pop!_OS -> dist/az_<ver>_<debarch>.deb
 #   Fedora/RHEL/openSUSE       -> dist/az-<ver>-1.<rpmarch>.rpm
@@ -9,7 +9,7 @@ set -eu
 #   macOS (Intel + Apple Silicon) -> dist/az-<ver>-macos-<arch>.tar.gz
 #   Windows (x86_64 + ARM64)   -> dist/az-<ver>-windows-<arch>.exe
 # To build from source instead, run ./compile-and-install.sh.
-AZ_VERSION="4.6.1"
+AZ_VERSION="4.7.0"
 REPO_RAW="${AZ_REPO_URL_RAW:-https://raw.githubusercontent.com/arazgray/az/refs/heads/main}"
 # Release tag carrying this version's packages. Tags are usually short
 # ("4.4.0" -> "4.4"); override with AZ_RELEASE_TAG when they are not.

@@ -70,13 +70,13 @@ right one for your OS + CPU.
 ### Debian / Ubuntu
 
 ```sh
-sudo dpkg -i az_4.5.0_amd64.deb
+sudo dpkg -i az_4.7.0_amd64.deb
 ```
 
 ARM (Raspberry Pi, Ampere, AWS Graviton):
 
 ```sh
-sudo dpkg -i az_4.5.0_arm64.deb
+sudo dpkg -i az_4.7.0_arm64.deb
 ```
 
 ### Arch Linux (AUR)
@@ -94,17 +94,17 @@ account — steps are in `dist/aur/README.md`.
 
 ```sh
 # Fedora / RHEL / CentOS:
-sudo dnf install ./az-4.5.0-1.x86_64.rpm
+sudo dnf install ./az-4.7.0-1.x86_64.rpm
 # or, without a network solver:
-sudo rpm -i az-4.5.0-1.x86_64.rpm
+sudo rpm -i az-4.7.0-1.x86_64.rpm
 # openSUSE:
-sudo zypper install ./az-4.5.0-1.x86_64.rpm
+sudo zypper install ./az-4.7.0-1.x86_64.rpm
 ```
 
 ### Arch / Alpine / other Linux (generic tarball)
 
 ```sh
-tar -xzf az-4.5.0-linux-amd64.tar.gz
+tar -xzf az-4.7.0-linux-amd64.tar.gz
 sudo install -m755 az /usr/local/bin/az
 ```
 
@@ -117,8 +117,8 @@ brew install arazgray/tap/az
 Or manually from the release tarball:
 
 ```sh
-tar -xzf az-4.5.0-macos-arm64.tar.gz   # Apple Silicon
-# tar -xzf az-4.5.0-macos-amd64.tar.gz # Intel
+tar -xzf az-4.7.0-macos-arm64.tar.gz   # Apple Silicon
+# tar -xzf az-4.7.0-macos-amd64.tar.gz # Intel
 mkdir -p ~/.local/bin
 install -m755 az ~/.local/bin/az
 ```

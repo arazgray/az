@@ -1,5 +1,15 @@
 # az — Changelog
 
+## 4.7.0
+
+- **Narrow-terminal titlebar layout.** The titlebar shares one width calculation for rendering and mouse hitboxes, switches to a compact clock, and only shows actions that fit. Quit is always aligned with its click target.
+- **Compact welcome dialog.** Small terminals show a compact, readable welcome message with the version, shortcuts hint, and continue instruction instead of letting the logo crowd them out.
+- **Status bar handles long paths.** Paths are safely escaped and middle-ellipsized so cursor position and status messages remain visible.
+- **Safer tree double-click.** A second click on the same row is deduplicated; it no longer unexpectedly opens Rename. Use `F2` or the context menu.
+- **Clearer bulk replacement.** The destructive action is labeled `Replace all` in the dialog.
+- **Menus follow terminal resizes.** Context menus recompute their position and size while open.
+- **Updated README screenshot** to show the 4.7.0 UI.
+
 ## 4.6.1
 
 - **Restart after update works when the binary was replaced.** `Restart now` used `current_exe()` (`/proc/self/exe`), which reads as `/path/az (deleted)` once dpkg/`cp` swaps the file — spawning it failed with `No such file or directory (os error 2)`. Restart now prefers the live binary, falls back to the reinstalled path, then to `az` on PATH.
