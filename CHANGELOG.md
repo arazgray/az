@@ -1,5 +1,11 @@
 # az — Changelog
 
+## Unreleased
+
+- **Konsole context-menu title fix.** Context menu rows use first-strong bidi isolates so Konsole does not show a stray leading mark.
+- **Clickable status controls.** Click `autosave:on/off` to toggle autosave, or `tabs` / `spaces:4` to change indentation.
+- **Repeatable screenshots.** Added `scripts/capture_screenshot.py` and documented it as part of the pre-tag release checklist.
+
 ## 4.7.0
 
 - **Narrow-terminal titlebar layout.** The titlebar shares one width calculation for rendering and mouse hitboxes, switches to a compact clock, and only shows actions that fit. Quit is always aligned with its click target.

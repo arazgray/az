@@ -5,8 +5,8 @@
 ## 1. Quick Facts
 
 - Lang: Rust 2021, no dependencies (`Cargo.toml` only package + release profile).
-- Entry: `src/main.rs` (~9600 lines) + `src/plugins/*.rs` (153 files: 151 languages + `plain.rs` + `example.rs` skeleton). Plain (`.txt` and the fallback) colors brackets (`()` blue, `[]` yellow, `{}` magenta) plus orange digits/punctuation, and stripes rows with `BG` / `BG_FLOAT`. Other modes stay on `BG`.
-- Build: `cargo check` (fast), `cargo test` (92 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
+- Entry: `src/main.rs` (~9700 lines) + `src/plugins/*.rs` (153 files: 151 languages + `plain.rs` + `example.rs` skeleton). Plain (`.txt` and the fallback) colors brackets (`()` blue, `[]` yellow, `{}` magenta) plus orange digits/punctuation, and stripes rows with `BG` / `BG_FLOAT`. Other modes stay on `BG`.
+- Build: `cargo check` (fast), `cargo test` (94 tests, 1 ignored Wayland roundtrip), `cargo build` / `cargo build --release`, `./build.sh` (installs `~/.local/bin/az` and `/usr/local/bin/az`).
 - Run: `./target/debug/az --help`, `./target/debug/az file:line`.
 - License: WTFPL (matches README; `Cargo.toml` fixed from MIT).
 - State: `$XDG_STATE_HOME/az-rust` or `~/.local/state/az-rust` (`session-*.txt`, `settings.txt`, `recovery/*.rec`).
@@ -27,10 +27,11 @@ src/main.rs
   struct TreeRow, PickerItem, CompletionItem
   enum Focus { Editor, Tree }
   struct Editor { root, tabs, tab_index, ... cached_clock_* , last_recovery_write,
-                last_tree_click_time/path, pending_input, pending_update,
-                clipboard_verified, follow_cursor, follow_tree, tree_h_offset, show_hscroll,
-                show_editor_vscroll, show_tree_vscroll, prompt_history, hscroll_drag, vscroll_drag,
-                word_wrap, rtl }
+                 last_tree_click_time/path, pending_input, pending_update,
+                 clipboard_verified, follow_cursor, follow_tree, tree_h_offset, show_hscroll,
+                 show_editor_vscroll, show_tree_vscroll, prompt_history, hscroll_drag, vscroll_drag,
+                 autosave_hitbox, indent_hitbox,
+                 word_wrap, rtl }
   impl Editor {
     new(args) / run() / enable_raw_mode() / cleanup()
     read_key(), read_escape(), handle_key(), handle_global_shortcut(),
@@ -65,7 +66,7 @@ Rendering: immediate-mode ANSI, `render()` each keystroke + each minute (clock).
 
 Input: raw mode via `stty -echo -icanon -isig -ixon ... min 0 time 1`. `read_key()` returns `String` (escape seqs as text, paste as `\0AZPASTE:…`). `is_printable()` filters. Mouse: SGR `1000`+`1002`+`1006` enabled in `enable_raw_mode()`, disabled in `cleanup()`; `read_key()` breaks on `M/m` for `ESC[<…` (or 6-byte `ESC[M` legacy); `handle_key()` routes both via `parse_sgr_mouse()` / `parse_legacy_mouse()` → `handle_mouse()`. Picker loops (quick open, palette, find-in-files, shortcuts) and `context_menu()` scroll selection on wheel.
 
-Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; a second click on the same path <500ms is deduplicated (rename is `F2` / context menu). Titlebar uses shared `titlebar_layout()` output for drawing and click hit-testing, adapting clock/buttons to the terminal width. Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) is ±1 per report: tab bar (`y==3`) cycles tabs, sidebar moves `tree_index` and sets `follow_tree = true`, editor sets `follow_cursor = false` and pans `row_offset` (caret and selection stay). Do not put the ±3 step back, and do not move the caret from the wheel. Right-click (`Cb&3==2`) opens `context_menu()`; its geometry is recomputed on resize. Middle-click (`==1`) on a tab closes via `close_tab_at()` (the `+` button is not a tab). A click on a vertical bar pans that pane and does not open a menu or move the caret. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start`, unless `vscroll_drag` or `hscroll_drag` is set. Picker dialogs and the search/replace dialog close on a click outside `picker_frame`. Autocomplete: click inside accepts, click outside closes and the click still lands. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status. When `show_hscroll`, the last content row is the shared horizontal bar and `editor_view_rows` is one shorter. Vertical bars (`show_editor_vscroll`, `show_tree_vscroll`) occupy the pane's right column on text rows only (`┃` / `│`); the corner stays on the horizontal bar. `refresh_hscroll` recomputes horizontal then vertical twice so a stolen column or row settles. `>` not `>=`. `ensure_tree_visible` uses `editor_view_rows` and honors `follow_tree`.
+Mouse: left-click sidebar (`x <= tree_width`) toggles dir / opens file; a second click on the same path <500ms is deduplicated (rename is `F2` / context menu). Titlebar uses shared `titlebar_layout()` output for drawing and click hit-testing, adapting clock/buttons to the terminal width. Context menu title/item rows use `BIDI_FSI`/`BIDI_PDI` first-strong isolates (not forced LRI) for Konsole compatibility. Left-click status chips use hitboxes saved by `render_status_line()` to toggle autosave and switch Tabs/Spaces. Left-click editor maps `(x,y)` via `editor_start_col()+gutter` + `editor_click_col()` (visual→byte, tab=4/wide=2 aware) and moves cursor. Wheel (`Cb&64`, up=`Cb&1==0`) is ±1 per report: tab bar (`y==3`) cycles tabs, sidebar moves `tree_index` and sets `follow_tree = true`, editor sets `follow_cursor = false` and pans `row_offset` (caret and selection stay). Do not put the ±3 step back, and do not move the caret from the wheel. Right-click (`Cb&3==2`) opens `context_menu()`; its geometry is recomputed on resize. Middle-click (`==1`) on a tab closes via `close_tab_at()` (the `+` button is not a tab). A click on a vertical bar pans that pane and does not open a menu or move the caret. Left-drag motion (`Cb&32`, button 0) extends selection from `mouse_drag_start`, unless `vscroll_drag` or `hscroll_drag` is set. Picker dialogs and the search/replace dialog close on a click outside `picker_frame`. Autocomplete: click inside accepts, click outside closes and the click still lands. Layout rows: 1 titlebar, 2 separator, 3 tab bar, 4.. content (`content_height = rows-5`), separator, `rows` status. When `show_hscroll`, the last content row is the shared horizontal bar and `editor_view_rows` is one shorter. Vertical bars (`show_editor_vscroll`, `show_tree_vscroll`) occupy the pane's right column on text rows only (`┃` / `│`); the corner stays on the horizontal bar. `refresh_hscroll` recomputes horizontal then vertical twice so a stolen column or row settles. `>` not `>=`. `ensure_tree_visible` uses `editor_view_rows` and honors `follow_tree`.
 
 ## 3. Critical Invariants (do not break)
 
@@ -108,7 +109,7 @@ See `PLUGIN_GUIDE.md` JavaScript wiring example. Keep highlighting line-local (n
 | Autocomplete | `autocomplete_context()` → `plugins::completion_context()`, `refresh_autocomplete()`, per-plugin `completion_*`. |
 | Session/recovery | `state_dir()`, `session_file()`, `try_restore_session()` (reads `tab_index`), `save_session()`, `write_recovery_for_current_tab()` (250ms throttle), `offer_recovery()`. |
 | Perf | `clock_text()` caches `date` subprocess per minute. Quick-open symbols scan 20 files per `read_key` wake; find-in-files scans 25; the replace count scans 20. Caps stay (600 files/1MB symbols, 3000 files/5MB search, 10k matches). Don't remove caps. Don't add a thread. |
-| Release packaging | `dist/package.sh` (local `.deb`/`.tar.gz`/`.rpm` + `SHA256SUMS`), `.github/workflows/release.yml` (CI matrix: linux amd64/arm64, macos amd64/arm64, windows amd64/arm64), `install.sh` (`arch_name()` picks the asset; Linux tries `.deb` → `.rpm` → tarball). AUR: `dist/aur/az-bin/` (`PKGBUILD`+`.SRCINFO`, publish via `dist/aur/README.md`). Homebrew: tap repo `arazgray/homebrew-tap` (`Formula/az.rb`), mirror at `dist/homebrew/az.rb`. Keep asset names in sync across all of these. `TIOCGWINSZ` is `0x40087468` on macOS, `0x5413` elsewhere. |
+| Release packaging | Before each version tag, run `scripts/capture_screenshot.py` (POSIX + Python 3 + Pillow) and review/commit `screenshot.png`. `dist/package.sh` (local `.deb`/`.tar.gz`/`.rpm` + `SHA256SUMS`), `.github/workflows/release.yml` (CI matrix: linux amd64/arm64, macos amd64/arm64, windows amd64/arm64), `install.sh` (`arch_name()` picks the asset; Linux tries `.deb` → `.rpm` → tarball). AUR: `dist/aur/az-bin/` (`PKGBUILD`+`.SRCINFO`, publish via `dist/aur/README.md`). Homebrew: tap repo `arazgray/homebrew-tap` (`Formula/az.rb`), mirror at `dist/homebrew/az.rb`. Keep asset names in sync across all of these. `TIOCGWINSZ` is `0x40087468` on macOS, `0x5413` elsewhere. |
 
 ## 6. Testing
 

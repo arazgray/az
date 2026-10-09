@@ -25,6 +25,8 @@
   <img src="screenshot.png" alt="az screenshot">
 </p>
 
+Refresh the screenshot before each release tag with `scripts/capture_screenshot.py` (POSIX terminal, Python 3, and Pillow required).
+
 ---
 
 ## Installation
@@ -627,7 +629,7 @@ When a file is not writable, `az` can request the root password and save it usin
 
 **4.0 test suite:** 56 tests, with 55 executed and 1 Wayland roundtrip test ignored.
 
-See the [Changelog](CHANGELOG.md) for previous releases.
+See the [Changelog](CHANGELOG.md) for previous releases.s
 
 ---
 

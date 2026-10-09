@@ -364,6 +364,12 @@ struct TitlebarLayout {
     buttons: Vec<(&'static str, &'static str, usize, usize)>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StatusClickAction {
+    ToggleAutosave,
+    ToggleIndent,
+}
+
 #[derive(Clone)]
 pub(crate) struct CompletionItem {
     pub(crate) label: String,
@@ -399,6 +405,8 @@ struct Editor {
     sidebar_hidden: bool,
     content_height: usize,
     status_line: usize,
+    autosave_hitbox: Option<(usize, usize)>,
+    indent_hitbox: Option<(usize, usize)>,
     selection_anchor: Option<Pos>,
     show_welcome: bool,
     hide_initial_untitled: bool,
@@ -520,6 +528,7 @@ fn print_help() {
     println!("  Click sidebar: expand dir / open file, F2 or right-click: rename, wheel: scroll one row;");
     println!("  Click editor: move cursor, drag: select, double-click: word, triple-click: line;");
     println!("  Click tab: switch, + : new tab, middle-click tab: close. Wheel on the tab bar cycles tabs.");
+    println!("  Click status autosave/indent chips: toggle autosave or switch Tabs/Spaces.");
     println!("  Click outside a dialog: close it.");
     println!("  Right-click sidebar/editor/tab: context menu (open, copy path, rename, delete, search).");
 }
@@ -613,6 +622,8 @@ impl Editor {
             sidebar_hidden: false,
             content_height: 20,
             status_line: 23,
+            autosave_hitbox: None,
+            indent_hitbox: None,
             selection_anchor: None,
             show_welcome,
             hide_initial_untitled,
@@ -1102,6 +1113,10 @@ impl Editor {
             self.handle_mouse_topbar(ev.x);
             return;
         }
+        if ev.y == self.status_line {
+            self.handle_status_click(ev.x);
+            return;
+        }
         if ev.y < 4 || ev.y >= 4 + self.content_height {
             return;
         }
@@ -1120,6 +1135,16 @@ impl Editor {
             self.handle_mouse_tree(ev.y);
         } else {
             self.handle_mouse_editor(ev.x, ev.y);
+        }
+    }
+
+    fn handle_status_click(&mut self, col: usize) {
+        match status_click_action(col, self.autosave_hitbox, self.indent_hitbox) {
+            Some(StatusClickAction::ToggleAutosave) => self.toggle_autosave(),
+            Some(StatusClickAction::ToggleIndent) => {
+                if self.use_spaces { self.set_indent_tabs(); } else { self.set_indent_spaces(); }
+            }
+            None => {}
         }
     }
 
@@ -1628,11 +1653,13 @@ impl Editor {
         // Overlay rows are painted over editor text. Without an isolate,
         // row-level bidi merges this LTR chrome with surrounding RTL runs
         // and the menu comes out garbled (split borders, interleaved words).
+        // First-strong isolates keep English menu labels LTR without the
+        // explicit LRI marker that Konsole showed as a stray title glyph.
         let mut out = String::new();
         out.push_str("\x1b[?25l");
         out.push_str(&format!("\x1b[{start_row};{start_col}H{border}╔{}╗\x1b[0m", "═".repeat(inner)));
         out.push_str(&format!(
-            "\x1b[{};{start_col}H{border}║\x1b[0m{BIDI_LRI}{title_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
+            "\x1b[{};{start_col}H{border}║\x1b[0m{BIDI_FSI}{title_style}{}\x1b[0m{BIDI_PDI}{border}║\x1b[0m",
             start_row + 1,
             if self.rtl { fit_plain_right(title, inner) } else { fit_plain(title, inner) }
         ));
@@ -1649,7 +1676,7 @@ impl Editor {
             } else {
                 format!("{body}{}\x1b[0m", fit_plain("", inner))
             };
-            out.push_str(&format!("\x1b[{r};{start_col}H{border}║\x1b[0m{BIDI_LRI}{cell}{BIDI_PDI}{border}║\x1b[0m"));
+            out.push_str(&format!("\x1b[{r};{start_col}H{border}║\x1b[0m{BIDI_FSI}{cell}{BIDI_PDI}{border}║\x1b[0m"));
         }
         out.push_str(&format!("\x1b[{};{start_col}H{border}╚{}╝\x1b[0m", start_row + height - 1, "═".repeat(inner)));
         out
@@ -2195,7 +2222,7 @@ impl Editor {
         out
     }
 
-    fn render_status_line(&self) -> String {
+    fn render_status_line(&mut self) -> String {
         let tab = self.tab();
         let path = tab.path.as_ref().map(|p| relative_path(&self.root, p)).unwrap_or_else(|| tab.name.clone());
         let path = escape_control(&path);
@@ -2220,9 +2247,12 @@ impl Editor {
         if self.rtl {
             chips.push((" rtl ".to_string(), BG_DARK, YELLOW, true));
         }
-        if self.autosave {
-            chips.push((" autosave ".to_string(), BG_DARK, GREEN, true));
-        }
+        chips.push((
+            if self.autosave { " autosave:on " } else { " autosave:off " }.to_string(),
+            if self.autosave { BG_DARK } else { BG_FLOAT },
+            if self.autosave { GREEN } else { FG_DARK },
+            self.autosave,
+        ));
         chips.push(((if self.use_spaces { " spaces:4 " } else { " tabs " }).to_string(), BG_DARK, CYAN, false));
         let base = ansi_style(Some(FG), Some(BG_HIGHLIGHT), false, false, false);
         // Keep a slice of the bar for the message. Drop the tree chip, then the
@@ -2235,7 +2265,11 @@ impl Editor {
         let mut left_w = chip_row_width(&chips);
         while !chips.is_empty() && left_w + visual_width(&stats_text) + msg_reserve + 2 > self.cols {
             if chips.len() > 2 {
-                chips.pop();
+                let removable = chips
+                    .iter()
+                    .rposition(|(text, _, _, _)| status_chip_action(text).is_none())
+                    .unwrap_or(chips.len() - 1);
+                chips.remove(removable);
             } else if stats_compaction == 0 {
                 stats_text = compact_stats_text.clone();
                 stats_compaction = 1;
@@ -2256,13 +2290,25 @@ impl Editor {
         }
         let mut left = String::new();
         left_w = 0;
+        let mut autosave_hitbox = None;
+        let mut indent_hitbox = None;
+        let mut chip_col = 1usize;
         for (i, (text, fg, bg, bold)) in chips.iter().enumerate() {
             if i > 0 {
                 left.push_str(&format!("{base} "));
                 left_w += 1;
+                chip_col += 1;
             }
             left.push_str(&format!("{}{text}\x1b[0m", ansi_style(Some(*fg), Some(*bg), *bold, false, false)));
-            left_w += visual_width(text);
+            let chip_width = visual_width(text);
+            left_w += chip_width;
+            let hitbox = (chip_col, chip_col + chip_width.saturating_sub(1));
+            match status_chip_action(text) {
+                Some(StatusClickAction::ToggleAutosave) => autosave_hitbox = Some(hitbox),
+                Some(StatusClickAction::ToggleIndent) => indent_hitbox = Some(hitbox),
+                None => {}
+            }
+            chip_col += chip_width;
         }
         let stats_w = visual_width(&stats_text);
         let stats_rendered = format!("{}{stats_text}\x1b[0m", ansi_style(Some(BG_DARK), Some(YELLOW), true, false, false));
@@ -2287,7 +2333,10 @@ impl Editor {
             line.push_str(&format!("{msg_style}{}\x1b[0m", fit_plain(&format!("{} ", self.message), msg_w)));
         }
         line.push_str(&format!("{base} {stats_rendered}"));
-        format!("\x1b[{};1H{}\x1b[0m", self.status_line, fit_ansi(&line, self.cols))
+        let rendered = format!("\x1b[{};1H{}\x1b[0m", self.status_line, fit_ansi(&line, self.cols));
+        self.autosave_hitbox = autosave_hitbox.filter(|(_, end)| *end <= self.cols);
+        self.indent_hitbox = indent_hitbox.filter(|(_, end)| *end <= self.cols);
+        rendered
     }
 
     fn cursor_screen_position(&self) -> Option<(usize, usize)> {
@@ -6652,6 +6701,7 @@ fn shortcut_defs() -> Vec<(&'static str, &'static str)> {
         ("Ctrl+Tab / Ctrl+Shift+Tab", "Next / previous tab"),
         ("Tab", "Accept autocomplete"),
         ("Click", "Move cursor / open file / expand folder / switch tab"),
+        ("Click status chips", "Toggle autosave / switch Tabs and Spaces"),
         ("Drag", "Select text"),
         ("Double-click (editor)", "Select word"),
         ("Double-click (sidebar)", "Repeat activation; rename with F2 or the context menu"),
@@ -6713,6 +6763,30 @@ fn titlebar_layout(cols: usize, mode: &str, full_clock: &str) -> TitlebarLayout 
         next_cell += occupied;
     }
     TitlebarLayout { prefix_width, clock, quit_start, buttons }
+}
+
+fn status_chip_action(text: &str) -> Option<StatusClickAction> {
+    if text == " autosave:on " || text == " autosave:off " {
+        Some(StatusClickAction::ToggleAutosave)
+    } else if text == " tabs " || text == " spaces:4 " {
+        Some(StatusClickAction::ToggleIndent)
+    } else {
+        None
+    }
+}
+
+fn status_click_action(
+    col: usize,
+    autosave: Option<(usize, usize)>,
+    indent: Option<(usize, usize)>,
+) -> Option<StatusClickAction> {
+    if autosave.map(|(start, end)| (start..=end).contains(&col)).unwrap_or(false) {
+        Some(StatusClickAction::ToggleAutosave)
+    } else if indent.map(|(start, end)| (start..=end).contains(&col)).unwrap_or(false) {
+        Some(StatusClickAction::ToggleIndent)
+    } else {
+        None
+    }
 }
 
 fn is_tree_double_click(last_path: Option<&Path>, last_time: Option<Instant>, path: &Path, now: Instant) -> bool {
@@ -7862,6 +7936,41 @@ mod tests {
         assert_eq!(narrow.clock, " 06:43 ");
         assert!(narrow.buttons.is_empty());
         assert_eq!(titlebar_layout(80, "editor", clock).buttons.len(), 3);
+    }
+
+    #[test]
+    fn status_chip_clicks_map_to_autosave_and_indent_actions() {
+        assert_eq!(status_chip_action(" autosave:on "), Some(StatusClickAction::ToggleAutosave));
+        assert_eq!(status_chip_action(" autosave:off "), Some(StatusClickAction::ToggleAutosave));
+        assert_eq!(status_chip_action(" tabs "), Some(StatusClickAction::ToggleIndent));
+        assert_eq!(status_chip_action(" spaces:4 "), Some(StatusClickAction::ToggleIndent));
+        assert_eq!(status_chip_action(" PHP "), None);
+
+        let autosave = Some((4, 16));
+        let indent = Some((20, 29));
+        assert_eq!(status_click_action(4, autosave, indent), Some(StatusClickAction::ToggleAutosave));
+        assert_eq!(status_click_action(29, autosave, indent), Some(StatusClickAction::ToggleIndent));
+        assert_eq!(status_click_action(17, autosave, indent), None);
+    }
+
+    #[test]
+    fn status_line_records_visible_autosave_and_indent_hitboxes() {
+        let mut editor = Editor::new(vec!["az".into()]);
+        editor.cols = 80;
+        editor.rows = 24;
+        editor.status_line = 24;
+        let off_line = editor.render_status_line();
+        assert!(off_line.contains("autosave:off"));
+        let autosave = editor.autosave_hitbox.expect("autosave chip should be clickable");
+        let indent = editor.indent_hitbox.expect("indent chip should be clickable");
+        assert!(autosave.1 < indent.0);
+        assert_eq!(status_click_action(autosave.0, Some(autosave), Some(indent)), Some(StatusClickAction::ToggleAutosave));
+        assert_eq!(status_click_action(indent.0, Some(autosave), Some(indent)), Some(StatusClickAction::ToggleIndent));
+
+        editor.autosave = true;
+        let on_line = editor.render_status_line();
+        assert!(on_line.contains("autosave:on"));
+        assert!(editor.autosave_hitbox.is_some());
     }
 
     #[test]
@@ -9288,6 +9397,8 @@ mod tests {
         assert!(geom.row + geom.height - 1 < ed.rows);
         let menu = ed.context_menu_string(" Edit ", &["Cut".into(), "Copy".into()], 0, 0, 10, 6, 20, 6);
         assert!(menu.contains(" Edit "));
+        assert!(menu.contains(BIDI_FSI));
+        assert!(!menu.contains(BIDI_LRI));
         assert!(menu.contains("╠"));
         assert!(menu.contains(" 1 Cut"));
         let (find, find_geom) = ed.find_dialog_text("foo", 3, 0);
@@ -9553,10 +9664,11 @@ mod tests {
         ed.cols = 80;
         ed.rows = 24;
         let menu = ed.context_menu_string(" Edit ", &["Cut".into(), "Copy".into()], 0, 0, 10, 6, 20, 6);
-        assert!(menu.contains(BIDI_LRI), "menu rows must open an isolate");
+        assert!(menu.contains(BIDI_FSI), "menu rows must open a first-strong isolate");
+        assert!(!menu.contains(BIDI_LRI), "Konsole must not receive explicit LRI markers here");
         assert!(menu.contains(BIDI_PDI), "menu rows must close the isolate");
         let cut = menu.find("1 Cut").expect("item");
-        assert!(menu[..cut].rfind(BIDI_LRI).is_some());
+        assert!(menu[..cut].rfind(BIDI_FSI).is_some());
         assert!(menu[cut..].find(BIDI_PDI).is_some());
         let welcome = ed.welcome_dialog();
         assert!(welcome.contains(BIDI_LRI) && welcome.contains(BIDI_PDI));
